@@ -1,0 +1,731 @@
+{
+ "lwq": "module",
+ "name": "level.blockshire",
+ "api": 1,
+ "v": 1,
+ "data": {
+  "id": "blockshire",
+  "title": "Blockshire",
+  "spawn": [
+   0,
+   0,
+   16
+  ],
+  "spawnYaw": 0,
+  "env": {
+   "skyTop": "#6c8db0",
+   "skyBottom": "#e2cdb0",
+   "fogColor": "#c9c3b6",
+   "fog": [
+    24,
+    135
+   ],
+   "sunDir": [
+    -0.45,
+    0.3,
+    -0.84
+   ],
+   "sunColor": "#ffdcb4",
+   "sun": 2.3,
+   "hemiSky": "#b7c4d4",
+   "hemiGround": "#5b4d3a",
+   "hemi": 0.7,
+   "exposure": 1.0,
+   "ground": 280,
+   "flat": 30,
+   "bloom": 0.3
+  },
+  "solids": [
+   {
+    "pos": [
+     0,
+     -0.25,
+     0
+    ],
+    "size": [
+     300,
+     0.5,
+     300
+    ],
+    "invisible": true,
+    "floor": true
+   }
+  ],
+  "fence": {
+   "rect": [
+    -20,
+    -20,
+    20,
+    20
+   ],
+   "gate": [
+    -2.5,
+    2.5
+   ],
+   "sign": "Blockshire"
+  },
+  "paths": {
+   "circles": [
+    [
+     0,
+     0,
+     7.5
+    ]
+   ],
+   "strips": [
+    [
+     0,
+     7,
+     0,
+     20.5,
+     3
+    ],
+    [
+     0,
+     -7,
+     0,
+     -10.6,
+     2
+    ],
+    [
+     -7,
+     -1.5,
+     -10.8,
+     -2,
+     2
+    ],
+    [
+     7,
+     -2,
+     11,
+     -3,
+     2
+    ],
+    [
+     5,
+     5,
+     10,
+     10,
+     1.8
+    ],
+    [
+     -5,
+     5,
+     -10,
+     11,
+     1.8
+    ]
+   ]
+  },
+  "forest": {
+   "seed": 11,
+   "inner": 24,
+   "outer": 95,
+   "count": 220,
+   "flat": 30,
+   "trees": [
+    [
+     -17,
+     -17,
+     1.1,
+     "oak"
+    ],
+    [
+     17,
+     -17.5,
+     1.2,
+     "pine"
+    ],
+    [
+     17.5,
+     17,
+     1.0,
+     "oak"
+    ],
+    [
+     -17.5,
+     4,
+     0.9,
+     "pine"
+    ]
+   ],
+   "haze": "#c9c3b6"
+  },
+  "grass": {
+   "seed": 5,
+   "size": 19,
+   "count": 700,
+   "avoid": [
+    [
+     0,
+     0,
+     8
+    ],
+    [
+     0,
+     -13,
+     4.5
+    ],
+    [
+     -13,
+     -2,
+     4
+    ],
+    [
+     13,
+     -3,
+     3.5
+    ],
+    [
+     12,
+     10,
+     3.2
+    ],
+    [
+     -12,
+     11,
+     3.2
+    ],
+    [
+     0,
+     11,
+     2
+    ],
+    [
+     0,
+     15,
+     2
+    ],
+    [
+     0,
+     19,
+     2
+    ],
+    [
+     7.5,
+     7.5,
+     1.5
+    ],
+    [
+     -7.5,
+     8,
+     1.5
+    ],
+    [
+     -6,
+     15,
+     2
+    ]
+   ]
+  },
+  "huts": [
+   {
+    "id": "elder",
+    "pos": [
+     0,
+     -13
+    ],
+    "size": [
+     6,
+     5
+    ],
+    "rot": 180,
+    "chimney": true,
+    "lit": true,
+    "trim": "#7a3b2e",
+    "inside": [
+     "bed",
+     "table",
+     "shelf",
+     "rug"
+    ],
+    "rug": "#7d2f3c",
+    "blanket": "#5a3f7a",
+    "door": {
+     "id": "door_elder",
+     "label": "Elder's door",
+     "opens": "hand"
+    }
+   },
+   {
+    "id": "kitchen",
+    "pos": [
+     -13,
+     -2
+    ],
+    "size": [
+     5,
+     4.5
+    ],
+    "rot": 270,
+    "chimney": true,
+    "lit": true,
+    "trim": "#4f7a3a",
+    "inside": [
+     "table",
+     "barrel",
+     "shelf",
+     "rug"
+    ],
+    "rug": "#a0662e",
+    "door": {
+     "id": "door_kitchen",
+     "label": "Kitchen door",
+     "opens": "hand"
+    }
+   },
+   {
+    "id": "woodcutter",
+    "pos": [
+     13,
+     -3
+    ],
+    "size": [
+     4.5,
+     4
+    ],
+    "rot": 90,
+    "trim": "#3f5f8f",
+    "inside": [
+     "bed",
+     "barrel"
+    ],
+    "blanket": "#7a5a2e",
+    "door": {
+     "id": "door_wood",
+     "label": "Woodcutter's door",
+     "opens": "hand"
+    }
+   },
+   {
+    "id": "store",
+    "pos": [
+     12,
+     10
+    ],
+    "size": [
+     4,
+     4
+    ],
+    "rot": 90,
+    "trim": "#6b6b6b",
+    "lantern": false,
+    "inside": [
+     "barrel",
+     "shelf"
+    ],
+    "doorColor": "#8a6a4a",
+    "door": {
+     "id": "door_store",
+     "label": "Storehouse door",
+     "opens": "key",
+     "key": "storekey"
+    }
+   },
+   {
+    "id": "guest",
+    "pos": [
+     -12,
+     11
+    ],
+    "size": [
+     4,
+     4
+    ],
+    "rot": 270,
+    "trim": "#8e3b2e",
+    "inside": [
+     "bed",
+     "rug"
+    ],
+    "rug": "#2e5a8e",
+    "blanket": "#8e3b2e",
+    "door": {
+     "id": "door_guest",
+     "label": "Guest hut door",
+     "opens": "hand"
+    }
+   }
+  ],
+  "fire": {
+   "pos": [
+    0,
+    0
+   ]
+  },
+  "portals": [
+   {
+    "pos": [
+     -14.5,
+     -12.5
+    ],
+    "face": [
+     0,
+     0
+    ],
+    "to": "weida",
+    "label": "Weida"
+   }
+  ],
+  "props": [
+   {
+    "kind": "bench",
+    "pos": [
+     0,
+     -3.1
+    ],
+    "rot": 0
+   },
+   {
+    "kind": "bench",
+    "pos": [
+     3.1,
+     0
+    ],
+    "rot": 90
+   },
+   {
+    "kind": "bench",
+    "pos": [
+     -3.1,
+     0
+    ],
+    "rot": 90
+   },
+   {
+    "kind": "bench",
+    "pos": [
+     2.3,
+     2.4
+    ],
+    "rot": -45
+   },
+   {
+    "kind": "bench",
+    "pos": [
+     -2.3,
+     2.4
+    ],
+    "rot": 45
+   },
+   {
+    "kind": "logpile",
+    "pos": [
+     16.5,
+     -8.5
+    ],
+    "rot": 0
+   },
+   {
+    "kind": "stump",
+    "pos": [
+     10.2,
+     -7.2
+    ],
+    "axe": true
+   },
+   {
+    "kind": "stump",
+    "pos": [
+     11.6,
+     -8.6
+    ]
+   },
+   {
+    "kind": "crate",
+    "pos": [
+     8.8,
+     13.6
+    ],
+    "rot": 10
+   },
+   {
+    "kind": "crate",
+    "pos": [
+     9.9,
+     14.4
+    ],
+    "rot": -8
+   },
+   {
+    "kind": "barrel",
+    "pos": [
+     15.2,
+     13.8
+    ]
+   },
+   {
+    "kind": "barrel",
+    "pos": [
+     15.9,
+     13.0
+    ]
+   },
+   {
+    "kind": "haystack",
+    "pos": [
+     -16.2,
+     16.2
+    ]
+   },
+   {
+    "kind": "haystack",
+    "pos": [
+     -17.6,
+     13.4
+    ]
+   },
+   {
+    "kind": "cart",
+    "pos": [
+     -6,
+     15
+    ],
+    "rot": 20
+   },
+   {
+    "kind": "barrel",
+    "pos": [
+     -9.6,
+     -5.6
+    ]
+   },
+   {
+    "kind": "crate",
+    "pos": [
+     -9.4,
+     1.8
+    ],
+    "rot": 25
+   },
+   {
+    "kind": "lamppost",
+    "pos": [
+     2.2,
+     12
+    ]
+   },
+   {
+    "kind": "lamppost",
+    "pos": [
+     -2.2,
+     17.5
+    ]
+   },
+   {
+    "kind": "lamppost",
+    "pos": [
+     6.5,
+     -6.5
+    ]
+   },
+   {
+    "kind": "lamppost",
+    "pos": [
+     -6.5,
+     -6.5
+    ]
+   }
+  ],
+  "well": {
+   "id": "well",
+   "pos": [
+    5.6,
+    4.6
+   ],
+   "label": "Wishing well",
+   "action": "make a wish",
+   "offer": {
+    "amount": "1",
+    "note": "A wish at the Blockshire well (paid to yourself)"
+   }
+  },
+  "pickups": [
+   {
+    "id": "storekey",
+    "kind": "key",
+    "pos": [
+     -2,
+     1.32,
+     -14.4
+    ],
+    "label": "Storehouse key"
+   },
+   {
+    "id": "crystal1",
+    "kind": "crystal",
+    "pos": [
+     -6,
+     1.65,
+     15
+    ],
+    "label": "Crystal"
+   },
+   {
+    "id": "crystal2",
+    "kind": "crystal",
+    "pos": [
+     12.4,
+     0.95,
+     10.6
+    ],
+    "label": "Crystal"
+   },
+   {
+    "id": "crystal3",
+    "kind": "crystal",
+    "pos": [
+     0,
+     0.6,
+     -17.6
+    ],
+    "label": "Crystal"
+   }
+  ],
+  "npcs": [
+   {
+    "id": "bram",
+    "name": "Elder Bram",
+    "pos": [
+     1.6,
+     -4.4
+    ],
+    "lookAt": [
+     0,
+     0
+    ],
+    "talkTurn": true,
+    "look": {
+     "person": "i",
+     "skin": "#d9a882",
+     "shirt": "#5a3f7a",
+     "pants": "#3b2f25",
+     "hair": "#d8d8d8",
+     "beard": "#e6e6e6",
+     "hood": "#4a3466"
+    },
+    "lines": [
+     "Welcome to Blockshire, traveller. Warm yourself by the fire.",
+     "We are few, but the world beyond the fence is wide. One day you will see it.",
+     "Mara keeps the storehouse key in my hut, on the table. Take it if you need it.",
+     "They say a wish at the well is heard, if you give something for it."
+    ]
+   },
+   {
+    "id": "mara",
+    "name": "Mara the Cook",
+    "pos": [
+     -9.4,
+     -0.6
+    ],
+    "lookAt": [
+     0,
+     0
+    ],
+    "look": {
+     "person": "n",
+     "skin": "#c98b62",
+     "shirt": "#9a3b2e",
+     "pants": "#4a3b2a",
+     "hair": "#2a1a10",
+     "apron": "#efe6d2"
+    },
+    "lines": [
+     "Stew is on in an hour. Bring me nothing but an appetite.",
+     "Three crystals glint around the camp, if you have the eyes for them.",
+     "One sits on old Gorm's cart. You'll have to jump for it."
+    ]
+   },
+   {
+    "id": "tobin",
+    "name": "Tobin the Woodcutter",
+    "pos": [
+     10.6,
+     -6.2
+    ],
+    "lookAt": [
+     10.2,
+     -7.2
+    ],
+    "look": {
+     "person": "a",
+     "skin": "#e0b18c",
+     "shirt": "#2f6b3a",
+     "pants": "#3a2c20",
+     "hair": "#8a4a1e",
+     "beard": "#8a4a1e",
+     "hat": "#5a4030"
+    },
+    "lines": [
+     "Mind the axe. It bites wood and fingers alike.",
+     "These logs won't split themselves. Well, not yet. Ask me again next season.",
+     "Behind the Elder's hut, by the fence, something glitters. Not my business."
+    ]
+   },
+   {
+    "id": "hilda",
+    "name": "Hilda the Guard",
+    "pos": [
+     3.8,
+     17.6
+    ],
+    "lookAt": [
+     0,
+     10
+    ],
+    "look": {
+     "person": "m",
+     "skin": "#e8c09c",
+     "shirt": "#6b6f78",
+     "pants": "#3a3a40",
+     "hair": "#c9a04a",
+     "hat": "#4a4e58"
+    },
+    "lines": [
+     "The gate stays shut until the roads are safe.",
+     "Nothing gets into Blockshire that I don't let in. Except you, apparently."
+    ]
+   },
+   {
+    "id": "pip",
+    "name": "Pip",
+    "pos": [
+     5,
+     -5
+    ],
+    "walk": [
+     [
+      5,
+      -5
+     ],
+     [
+      5.5,
+      2.5
+     ],
+     [
+      -5,
+      5
+     ],
+     [
+      -5.2,
+      -4.5
+     ]
+    ],
+    "speed": 1.6,
+    "look": {
+     "person": "e",
+     "skin": "#f0c8a0",
+     "shirt": "#d8a630",
+     "pants": "#4a6a8a",
+     "hair": "#a0522d",
+     "scale": 0.68
+    },
+    "lines": [
+     "Tag! You're it! ...You're not very fast, are you?",
+     "Did you see the well glow? Mum says it grants wishes.",
+     "I'm the fastest in Blockshire. Also the only kid."
+    ]
+   }
+  ]
+ }
+}

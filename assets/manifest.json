@@ -1,0 +1,217 @@
+{
+ "tex.grass.color": {
+  "file": "grass-color.webp",
+  "bytes": 236212,
+  "licence": "CC0",
+  "source": "Poly Haven: Leafy Grass (leafy_grass)",
+  "use": "the ground"
+ },
+ "tex.grass.normal": {
+  "file": "grass-normal.webp",
+  "bytes": 114688,
+  "licence": "CC0",
+  "source": "Poly Haven: Leafy Grass (leafy_grass)",
+  "use": "the ground"
+ },
+ "tex.dirt.color": {
+  "file": "dirt-color.webp",
+  "bytes": 230776,
+  "licence": "CC0",
+  "source": "Poly Haven: Park Dirt (park_dirt)",
+  "use": "paths and the village square"
+ },
+ "tex.dirt.normal": {
+  "file": "dirt-normal.webp",
+  "bytes": 65782,
+  "licence": "CC0",
+  "source": "Poly Haven: Park Dirt (park_dirt)",
+  "use": "paths and the village square"
+ },
+ "tex.timber.color": {
+  "file": "timber-color.webp",
+  "bytes": 130810,
+  "licence": "CC0",
+  "source": "Poly Haven: Weathered Peeling Timber (weathered_peeling_timber)",
+  "use": "log walls"
+ },
+ "tex.timber.normal": {
+  "file": "timber-normal.webp",
+  "bytes": 16236,
+  "licence": "CC0",
+  "source": "Poly Haven: Weathered Peeling Timber (weathered_peeling_timber)",
+  "use": "log walls"
+ },
+ "tex.planks.color": {
+  "file": "planks-color.webp",
+  "bytes": 151686,
+  "licence": "CC0",
+  "source": "Poly Haven: Brown Planks 03 (brown_planks_03)",
+  "use": "floors, doors, crates, carts"
+ },
+ "tex.planks.normal": {
+  "file": "planks-normal.webp",
+  "bytes": 10722,
+  "licence": "CC0",
+  "source": "Poly Haven: Brown Planks 03 (brown_planks_03)",
+  "use": "floors, doors, crates, carts"
+ },
+ "tex.thatch.color": {
+  "file": "thatch-color.webp",
+  "bytes": 125274,
+  "licence": "CC0",
+  "source": "Poly Haven: Thatch Roof Angled (thatch_roof_angled)",
+  "use": "thatched roofs, haystacks"
+ },
+ "tex.thatch.normal": {
+  "file": "thatch-normal.webp",
+  "bytes": 101454,
+  "licence": "CC0",
+  "source": "Poly Haven: Thatch Roof Angled (thatch_roof_angled)",
+  "use": "thatched roofs, haystacks"
+ },
+ "tex.stone.color": {
+  "file": "stone-color.webp",
+  "bytes": 162072,
+  "licence": "CC0",
+  "source": "Poly Haven: Castle Wall Slates (castle_wall_slates)",
+  "use": "footings, the well, the fire ring, walls"
+ },
+ "tex.stone.normal": {
+  "file": "stone-normal.webp",
+  "bytes": 101564,
+  "licence": "CC0",
+  "source": "Poly Haven: Castle Wall Slates (castle_wall_slates)",
+  "use": "footings, the well, the fire ring, walls"
+ },
+ "tex.bark.color": {
+  "file": "bark-color.webp",
+  "bytes": 176480,
+  "licence": "CC0",
+  "source": "Poly Haven: Bark Brown 02 (bark_brown_02)",
+  "use": "tree trunks, posts, logs"
+ },
+ "tex.bark.normal": {
+  "file": "bark-normal.webp",
+  "bytes": 101772,
+  "licence": "CC0",
+  "source": "Poly Haven: Bark Brown 02 (bark_brown_02)",
+  "use": "tree trunks, posts, logs"
+ },
+ "tex.tiles.color": {
+  "file": "tiles-color.webp",
+  "bytes": 103932,
+  "licence": "CC0",
+  "source": "Poly Haven: Clay Roof Tiles 02 (clay_roof_tiles_02)",
+  "use": "tiled roofs (Weida)"
+ },
+ "tex.tiles.normal": {
+  "file": "tiles-normal.webp",
+  "bytes": 64240,
+  "licence": "CC0",
+  "source": "Poly Haven: Clay Roof Tiles 02 (clay_roof_tiles_02)",
+  "use": "tiled roofs (Weida)"
+ },
+ "tex.plaster.color": {
+  "file": "plaster-color.webp",
+  "bytes": 4466,
+  "licence": "CC0",
+  "source": "Poly Haven: Clay Plaster (clay_plaster)",
+  "use": "plastered walls (Weida)"
+ },
+ "tex.plaster.normal": {
+  "file": "plaster-normal.webp",
+  "bytes": 23554,
+  "licence": "CC0",
+  "source": "Poly Haven: Clay Plaster (clay_plaster)",
+  "use": "plastered walls (Weida)"
+ },
+ "model.person": {
+  "file": "person.glb",
+  "bytes": 50164,
+  "licence": "CC0",
+  "source": "Kenney: Blocky Characters 2.0 (character-a geometry and animations)",
+  "use": "every villager and every player",
+  "animations": [
+   "idle",
+   "walk",
+   "sprint",
+   "sit",
+   "pick-up",
+   "emote-yes",
+   "emote-no",
+   "interact-right",
+   "attack-melee-right",
+   "die"
+  ]
+ },
+ "tex.person.a": {
+  "file": "person-a.png",
+  "bytes": 20171,
+  "licence": "CC0",
+  "source": "Kenney: Blocky Characters 2.0 (texture-a)",
+  "use": "a look"
+ },
+ "tex.person.b": {
+  "file": "person-b.png",
+  "bytes": 15606,
+  "licence": "CC0",
+  "source": "Kenney: Blocky Characters 2.0 (texture-b)",
+  "use": "a look"
+ },
+ "tex.person.c": {
+  "file": "person-c.png",
+  "bytes": 12829,
+  "licence": "CC0",
+  "source": "Kenney: Blocky Characters 2.0 (texture-c)",
+  "use": "a look"
+ },
+ "tex.person.e": {
+  "file": "person-e.png",
+  "bytes": 14509,
+  "licence": "CC0",
+  "source": "Kenney: Blocky Characters 2.0 (texture-e)",
+  "use": "a look"
+ },
+ "tex.person.f": {
+  "file": "person-f.png",
+  "bytes": 15886,
+  "licence": "CC0",
+  "source": "Kenney: Blocky Characters 2.0 (texture-f)",
+  "use": "a look"
+ },
+ "tex.person.i": {
+  "file": "person-i.png",
+  "bytes": 14496,
+  "licence": "CC0",
+  "source": "Kenney: Blocky Characters 2.0 (texture-i)",
+  "use": "a look"
+ },
+ "tex.person.k": {
+  "file": "person-k.png",
+  "bytes": 17437,
+  "licence": "CC0",
+  "source": "Kenney: Blocky Characters 2.0 (texture-k)",
+  "use": "a look"
+ },
+ "tex.person.m": {
+  "file": "person-m.png",
+  "bytes": 19343,
+  "licence": "CC0",
+  "source": "Kenney: Blocky Characters 2.0 (texture-m)",
+  "use": "a look"
+ },
+ "tex.person.n": {
+  "file": "person-n.png",
+  "bytes": 16824,
+  "licence": "CC0",
+  "source": "Kenney: Blocky Characters 2.0 (texture-n)",
+  "use": "a look"
+ },
+ "tex.person.p": {
+  "file": "person-p.png",
+  "bytes": 18000,
+  "licence": "CC0",
+  "source": "Kenney: Blocky Characters 2.0 (texture-p)",
+  "use": "a look"
+ }
+}

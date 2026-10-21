@@ -1,0 +1,756 @@
+/* LiteWorldsQuest engine: first person, one small level, other players, the wallet.
+     const game = engine.start(element, {room, game})     -> {stop()}
+   MOVEMENT  WASD / arrows, Shift to run, Space to jump, mouse to look (click the view to capture it), E to use.
+   THE WORLD  doors, levers, pickups are shared. As in ASHVALE, one player keeps them: the HOST, who joined the room
+     first (ties by id). Everyone else sends an intent ({I: 'use'|'take', o: id}); the host decides and sends the
+     whole world ({W}) to everyone, again every 3 s for anybody who missed it. Alone, you are the host.
+   PLAYERS  each page sends its position 15 times a second over the fast lane (browser to browser), or 4 a second
+     through the room when there is none, and a heartbeat once a second standing still. Others are drawn a little
+     behind (100 ms on the fast lane, 300 ms through the room) and interpolated between the samples.
+   MESSAGES  {p: [x, y, z], r: [yaw, pitch], j: joinedAt, n?: name}   where a player is
+             {I: op, o: id}                                         an intent, to the host
+             {W: world}                                             the world, from the host
+             {H: 1}                                                 "I am new: the world, please"
+             {S: 'offered'}                                         a shrine offering went through (for the log)
+   THE WALLET  the HUD shows @name and balance; crystals and offerings are remembered (arcade.storage); the shrine
+     asks the wallet for a 1-coin payment to the player's own address (only the fee leaves), which the player
+     approves or refuses in the wallet. */
+(function (G) {
+  'use strict';
+  const TAU = Math.PI * 2;
+  const R2 = v => Math.round(v * 100) / 100;
+  const angLerp = (a, b, k) => { let d = (b - a) % TAU; if (d > Math.PI) d -= TAU; if (d < -Math.PI) d += TAU; return a + d * k; };
+  const hue = id => { let h = 0; for (const c of String(id)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h % 360; };
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+  function start(D, el, opts) {
+    opts = opts || {};
+    const THREE = D.three, net = D.net, wallet = D.wallet, art = D.art;
+    /* the Hybrid tier's real files (textures, the people model): the loader says where each one lives */
+    const assetURL = G.LWQ && G.LWQ.get ? G.LWQ.get('$asset') : null;
+    if (assetURL && art.useAssets) art.useAssets(assetURL);
+    const sound = D.sound ? D.sound.create() : null;
+    const LEVEL = opts.level || (D.levels.blockshire ? 'blockshire' : 'test');
+    const LV = D.levels[LEVEL];
+    if (!LV) throw new Error('no level ' + LEVEL);
+    const ROOM = opts.room || ('lwq.' + LV.id), GAME = opts.game || 'liteworldsquest';
+    let stopped = false;
+
+    /* --- scene ---------------------------------------------------------------------------------------- */
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.info.autoReset = false;   /* the stats count the whole frame, scene and after-passes, not only the last pass */
+    renderer.setPixelRatio(Math.min(2, G.devicePixelRatio || 1));
+    el.appendChild(renderer.domElement);
+    renderer.domElement.style.cssText = 'display:block;width:100%;height:100%';
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(72, 1, 0.05, 600);
+    camera.rotation.order = 'YXZ';
+    let env = null;
+    if (LV.env) env = art.setup(THREE, renderer, scene, LV.env);   /* sky, sun and shadows, fog, ground: the art module */
+    else {
+      scene.background = new THREE.Color(LV.sky || '#9cc4e4');
+      if (LV.fog) scene.fog = new THREE.Fog(LV.sky || '#9cc4e4', LV.fog[0], LV.fog[1]);
+      scene.add(new THREE.HemisphereLight(0xffffff, 0x445544, 0.9));
+      const sun = new THREE.DirectionalLight(0xffffff, 0.8); sun.position.set(6, 12, 4); scene.add(sun);
+    }
+    /* bloom, film tone, grade, vignette after the scene (art.post); without WebGL2 the scene goes straight to the screen */
+    const post = LV.env && art.post ? art.post(renderer, scene, camera, { exposure: LV.env.exposure || 1, bloom: LV.env.bloom == null ? 0.32 : LV.env.bloom }) : null;
+    function resize() {
+      const w = el.clientWidth || G.innerWidth, h = el.clientHeight || G.innerHeight;
+      renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
+      if (post) post.resize(w, h);
+    }
+    G.addEventListener('resize', resize);
+
+    const boxes = [];          /* collision: {min:[x,y,z], max:[x,y,z], on()} */
+    const usable = [];         /* meshes the crosshair can use */
+    const updates = [];        /* fn(dt, t) every frame: fire, water, ... */
+    const ctx = { THREE, scene, rng: art.rng,
+                  solid: (min, max, on) => boxes.push({ min, max, on: on || (() => true) }),
+                  usable: (m, data) => { m.userData = data; usable.push(m); },
+                  every: fn => updates.push(fn) };
+    function box(def, mat) {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(def.size[0], def.size[1], def.size[2]),
+        mat || new THREE.MeshLambertMaterial({ color: def.color || '#888' }));
+      m.position.set(def.pos[0], def.pos[1], def.pos[2]);
+      m.castShadow = m.receiveShadow = true;
+      scene.add(m);
+      return m;
+    }
+    const aabb = (def, on) => ({ min: def.pos.map((p, i) => p - def.size[i] / 2), max: def.pos.map((p, i) => p + def.size[i] / 2), on: on || (() => true) });
+    for (const s of LV.solids || []) { if (!s.invisible) box(s); boxes.push(aabb(s)); }
+
+    /* the level's things, built by the art module; the engine keeps what can be used and what blocks the way */
+    const doors = {}, switches = {}, pickups = {}, shrines = {}, npcs = {};
+    for (const d of LV.doors || []) {   /* a door that slides up (the test level) */
+      const m = box(d); m.userData = { kind: 'door', id: d.id };
+      doors[d.id] = { def: d, mesh: m, y0: d.pos[1] };
+      boxes.push(aabb(d, () => !W.open[d.id]));
+      usable.push(m);
+    }
+    for (const h of LV.huts || []) {    /* a hut, and its door that swings on a hinge */
+      const built = art.hut(ctx, h), d = built.door;
+      if (!d) continue;
+      d.panel.userData = { kind: 'door', id: d.id }; usable.push(d.panel);
+      doors[d.id] = { def: d, mesh: d.panel, hinge: d.pivot, swing: d.swing };
+      boxes.push({ min: d.box.min, max: d.box.max, on: () => !W.open[d.id] });
+    }
+    /* a piece of the real Earth (tools/realworld.py): the ground is its heights, the houses its footprints */
+    const realW = LV.real ? art.realworld(ctx, LV.real) : null;
+    const grid = new Map(), CELL = 25, cellKey = (i, j) => i + ',' + j;
+    if (realW) {   /* footprints and walls by 25 m cell, so a step only looks at what is near */
+      const file = (o, x0, z0, x1, z1) => { for (let i = Math.floor(x0 / CELL); i <= Math.floor(x1 / CELL); i++) for (let j = Math.floor(z0 / CELL); j <= Math.floor(z1 / CELL); j++) { const k = cellKey(i, j); if (!grid.has(k)) grid.set(k, []); grid.get(k).push(o); } };
+      for (const b of realW.polys) { const xs = b.pts.map(q => q[0]), zs = b.pts.map(q => q[1]); file({ poly: b }, Math.min(...xs), Math.min(...zs), Math.max(...xs), Math.max(...zs)); }
+      for (const sg of realW.segs) file({ seg: sg }, Math.min(sg.a[0], sg.b[0]) - 1, Math.min(sg.a[1], sg.b[1]) - 1, Math.max(sg.a[0], sg.b[0]) + 1, Math.max(sg.a[1], sg.b[1]) + 1);
+    }
+    /* portals to other levels; the real world gets one home, where you arrive (its data says nothing of portals) */
+    const portalDefs = (LV.portals || []).slice();
+    if (realW && !portalDefs.length) portalDefs.push({ pos: [realW.spawn[0], realW.spawn[1]], y: realW.groundAt(realW.spawn[0], realW.spawn[1]) - 0.2, to: 'blockshire', label: 'Blockshire', rot: 0, color: '#ffc77f' });
+    const portals = portalDefs.map(d => art.portal(ctx, d));
+    if (LV.fire) { art.campfire(ctx, LV.fire); if (sound) sound.fire(LV.fire.pos[0], 0, LV.fire.pos[1]); }
+    if (LV.forest) art.forest(ctx, LV.forest);
+    if (LV.grass) art.grass(ctx, LV.grass);
+    if (LV.fence) art.fence(ctx, LV.fence);
+    if (LV.paths) art.paths(ctx, LV.paths);
+    for (const pr of LV.props || []) art.prop(ctx, pr);
+    for (const s of LV.switches || []) {
+      const m = box(s); m.userData = { kind: 'switch', id: s.id };
+      switches[s.id] = { def: s, mesh: m };
+      usable.push(m);
+    }
+    for (const p of LV.pickups || []) {
+      const geo = p.kind === 'key' ? new THREE.TorusGeometry(0.15, 0.05, 8, 16) : new THREE.OctahedronGeometry(0.22);
+      const mat = p.kind === 'key'
+        ? new THREE.MeshStandardMaterial({ color: '#d4a03a', metalness: 0.8, roughness: 0.3, emissive: '#3a2400' })
+        : new THREE.MeshStandardMaterial({ color: '#7ff0ff', metalness: 0.2, roughness: 0.15, emissive: '#1aa9c9', emissiveIntensity: 0.9 });
+      const m = new THREE.Mesh(geo, mat); m.position.set(p.pos[0], p.pos[1], p.pos[2]); m.castShadow = true; m.userData.keep = true; scene.add(m);
+      m.userData = { kind: 'pickup', id: p.id };
+      /* small things are hard to aim at (and a key is a ring: the crosshair goes through its hole), so each has an
+         unseen sphere around it that the crosshair finds instead */
+      const hit = new THREE.Mesh(new THREE.SphereGeometry(0.4, 8, 6), new THREE.MeshBasicMaterial({ visible: false }));
+      hit.position.copy(m.position); hit.userData = m.userData; scene.add(hit);
+      pickups[p.id] = { def: p, mesh: m, hit };
+      usable.push(hit);
+    }
+    for (const s of LV.shrines || []) {
+      const m = box(s); m.userData = { kind: 'shrine', id: s.id };
+      const glow = new THREE.Mesh(new THREE.SphereGeometry(0.22, 16, 12), new THREE.MeshBasicMaterial({ color: '#777' }));
+      glow.position.set(s.pos[0], s.pos[1] + s.size[1] / 2 + 0.3, s.pos[2]); scene.add(glow);
+      shrines[s.id] = { def: s, mesh: m, glow };
+      boxes.push(aabb(s)); usable.push(m, glow); glow.userData = m.userData;
+    }
+    if (LV.well) {   /* the wishing well is a shrine: an offering through the wallet */
+      const w = art.well(ctx, LV.well), data = { kind: 'shrine', id: LV.well.id };
+      for (const m of [w.use].concat(w.also || [])) { m.userData = data; usable.push(m); }
+      shrines[LV.well.id] = { def: LV.well, glow: w.glow };
+    }
+
+    /* --- the people of the level ----------------------------------------------------------------------- */
+    /* each stands where the level puts them, turns to whoever comes close, and says their lines one at a time when
+       spoken to (E). One with a "walk" goes round its points, stopping now and then, and stands still to talk. */
+    const yawTo = (dx, dz) => Math.atan2(-dx, -dz);
+    for (const n of LV.npcs || []) {
+      const c = art.character(ctx, n.look); c.setName(n.name, '#ffe9a8');
+      const home = n.lookAt ? yawTo(n.lookAt[0] - n.pos[0], n.lookAt[1] - n.pos[1]) : (n.rot || 0) * Math.PI / 180;
+      c.group.position.set(n.pos[0], 0, n.pos[1]); c.group.rotation.y = home;
+      const hit = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.9, 0.8), new THREE.MeshBasicMaterial({ visible: false }));
+      hit.position.set(n.pos[0], 0.95, n.pos[1]); hit.userData = { kind: 'npc', id: n.id }; scene.add(hit); usable.push(hit);
+      if (!n.walk) ctx.solid([n.pos[0] - 0.3, 0, n.pos[1] - 0.3], [n.pos[0] + 0.3, 1.8, n.pos[1] + 0.3]);
+      npcs[n.id] = { def: n, c, hit, home, x: n.pos[0], z: n.pos[1], wp: 0, wait: 1 + Math.random() * 2, line: -1 };
+    }
+    let travelling = false;
+    const armed = new Set();
+    function portalTick() {
+      for (let i = 0; i < portals.length; i++) {
+        const P = portals[i], d = Math.hypot(me.x - P.x, me.z - P.z);
+        if (d > 2.5) armed.add(i);                       /* you arrived in it: it waits until you have stepped out */
+        if (!travelling && armed.has(i) && d < 0.9 && Math.abs(me.y - P.y) < 2) travel(P);
+      }
+    }
+    function travel(P) {
+      travelling = true;
+      const veil = document.createElement('div');
+      veil.style.cssText = 'position:absolute;inset:0;background:#000;opacity:0;transition:opacity .8s;display:flex;align-items:center;' +
+        'justify-content:center;color:#e9dcc0;font:22px Georgia,serif;pointer-events:none';
+      veil.textContent = 'Travelling to ' + (P.label || P.to) + '…';
+      el.appendChild(veil); requestAnimationFrame(() => { veil.style.opacity = '1'; });
+      if (sound) sound.blip('pickup');
+      setTimeout(() => {
+        if (room) room.leave();
+        try { const q = new URLSearchParams(location.search); q.set('level', P.to); location.search = '?' + q.toString(); }
+        catch (e) { log('The portal is cold here: ' + (e && e.message || e)); travelling = false; veil.remove(); }
+      }, 900);
+    }
+    function npcTick(dt, t) {
+      for (const id in npcs) {
+        const N = npcs[id], n = N.def, dx = me.x - N.x, dz = me.z - N.z, dist = Math.hypot(dx, dz);
+        const talking = talk && talk.id === id;
+        let speed = 0, want = N.home;
+        if (n.walk && !talking && !(dist < 2.2)) {
+          if (N.wait > 0) N.wait -= dt;
+          else {
+            const tgt = n.walk[N.wp], tx = tgt[0] - N.x, tz = tgt[1] - N.z, d = Math.hypot(tx, tz);
+            if (d < 0.15) { N.wp = (N.wp + 1) % n.walk.length; N.wait = 0.8 + Math.random() * 2.5; }
+            else { const sp = n.speed || 1.4, k = Math.min(1, sp * dt / d); N.x += tx * k; N.z += tz * k; speed = sp; want = yawTo(tx, tz); N.home = want; }
+          }
+        }
+        if (dist < 4 && speed === 0) want = yawTo(dx, dz);   /* turn to whoever comes close */
+        N.c.group.rotation.y = angLerp(N.c.group.rotation.y, want, Math.min(1, dt * 5));
+        N.c.group.position.set(N.x, 0, N.z); N.hit.position.set(N.x, 0.95, N.z);
+        N.c.animate(dt, speed);
+        if (N.c.tag) N.c.tag.visible = dist < 9 || (talk && talk.id === id);   /* a name over a head only up close */
+        if (talking && dist > 5) closeTalk();
+      }
+    }
+    let talk = null;   /* {id, line} while somebody is being spoken to */
+    function speak(id) {
+      const N = npcs[id], lines = N.def.lines || ['…'];
+      if (talk && talk.id === id) talk.line++; else talk = { id, line: 0 };
+      if (N.c.emote) N.c.emote(talk.line % 2 ? 'emote-no' : 'emote-yes');
+      if (sound) sound.blip('talk');
+      if (talk.line >= lines.length) { closeTalk(); return; }
+      const box2 = $('.lwq-talk');
+      box2.innerHTML = '<b>' + esc(N.def.name) + '</b><br>' + esc(lines[talk.line]) +
+        '<small>' + (talk.line + 1 < lines.length ? 'E: more' : 'E: goodbye') + '</small>';
+      box2.style.display = 'block';
+    }
+    function closeTalk() { talk = null; $('.lwq-talk').style.display = 'none'; }
+
+    /* everything that never moves, merged by material: hundreds of parts become a few dozen draw calls */
+    for (const id in doors) if (!doors[id].hinge) doors[id].mesh.userData.keep = true;
+    for (const id in switches) switches[id].mesh.userData.keep = true;
+    const frozen = art.freeze ? art.freeze(scene) : null;
+    if (frozen) console.info('LWQ: ' + frozen.joined + ' still parts drawn in ' + frozen.calls + ' calls');
+
+    /* --- the shared world --------------------------------------------------------------------------- */
+    let W = { seq: 0, open: {}, taken: {} };
+    for (const id in doors) W.open[id] = false;
+    for (const id in pickups) W.taken[id] = null;
+
+    /* --- HUD ------------------------------------------------------------------------------------------ */
+    const hud = document.createElement('div');
+    hud.innerHTML =
+      '<div class="lwq-tl"></div><div class="lwq-tr"></div><div class="lwq-x">+</div><div class="lwq-prompt"></div>' +
+      '<div class="lwq-inv"></div><div class="lwq-log"></div><div class="lwq-talk"></div>' +
+      (LV.credits ? '<div class="lwq-credit">' + esc(LV.credits) + '</div>' : '') +
+      '<div class="lwq-start"><b>' + esc(LV.title || 'LiteWorldsQuest') + '</b><br>Click to play<br>' +
+      '<small>WASD move · Shift run · Space jump · Mouse look · E use · M sound · F3 fps · Esc release mouse</small></div>';
+    el.appendChild(hud);
+    const st = document.createElement('style');
+    st.textContent =
+      '.lwq-tl,.lwq-tr,.lwq-inv,.lwq-log,.lwq-prompt{position:absolute;font:13px/1.4 system-ui,sans-serif;color:#fff;' +
+      'text-shadow:0 1px 2px #000;pointer-events:none}' +
+      '.lwq-tl{left:12px;top:10px}.lwq-tr{right:12px;top:10px;text-align:right}.lwq-inv{left:12px;bottom:10px}' +
+      '.lwq-log{right:12px;bottom:10px;text-align:right;max-width:46%}' +
+      '.lwq-x{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);color:#fff;font:18px monospace;' +
+      'text-shadow:0 0 3px #000;pointer-events:none}' +
+      '.lwq-prompt{left:50%;top:calc(50% + 22px);transform:translateX(-50%)}' +
+      '.lwq-start{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;' +
+      'background:rgba(0,0,0,.45);color:#fff;font:20px/1.6 system-ui,sans-serif;text-align:center;cursor:pointer}' +
+      '.lwq-start small{font-size:13px;opacity:.85}' +
+      '.lwq-talk{display:none;position:absolute;left:50%;bottom:64px;transform:translateX(-50%);width:min(560px,80%);' +
+      'background:rgba(28,20,12,.82);border:2px solid #b08a50;border-radius:8px;padding:12px 16px;color:#f3e6cc;' +
+      'font:15px/1.45 Georgia,serif;pointer-events:none}.lwq-talk b{color:#ffd88a}' +
+      '.lwq-talk small{display:block;margin-top:6px;font:12px system-ui,sans-serif;opacity:.7}' +
+      '.lwq-credit{position:absolute;left:50%;bottom:4px;transform:translateX(-50%);font:11px system-ui,sans-serif;' +
+      'color:#fff;opacity:.75;text-shadow:0 1px 2px #000;pointer-events:none;white-space:nowrap}';
+    el.appendChild(st);
+    const $ = c => hud.querySelector(c);
+    const logLines = [];
+    function log(text) {
+      logLines.push(text); while (logLines.length > 6) logLines.shift();
+      $('.lwq-log').innerHTML = logLines.map(esc).join('<br>');
+    }
+
+    /* --- the player ------------------------------------------------------------------------------------ */
+    const HALF = 0.3, HEIGHT = 1.7, EYE = 1.6, WALK = 4.2, RUN = 7, JUMP = 7.5, GRAVITY = 20;
+    const SPAWN = realW ? [realW.spawn[0], realW.groundAt(realW.spawn[0], realW.spawn[1]) + 0.05, realW.spawn[1]] : LV.spawn;
+    const me = { x: SPAWN[0], y: SPAWN[1], z: SPAWN[2], vy: 0, ground: false, yaw: LV.spawnYaw || 0, pitch: 0, name: '' };
+    const keys = {};
+    const canvas = renderer.domElement;
+    const locked = () => document.pointerLockElement === canvas;
+    $('.lwq-start').addEventListener('click', () => { if (sound) sound.start(); try { canvas.requestPointerLock(); } catch (e) { /* no pointer lock here */ } });
+    canvas.addEventListener('click', () => { if (!locked()) try { canvas.requestPointerLock(); } catch (e) { /* ignore */ } });
+    document.addEventListener('pointerlockchange', () => { $('.lwq-start').style.display = locked() ? 'none' : 'flex'; });
+    document.addEventListener('mousemove', e => {
+      if (!locked()) return;
+      me.yaw -= e.movementX * 0.0022;
+      me.pitch = Math.max(-1.5, Math.min(1.5, me.pitch - e.movementY * 0.0022));
+    });
+    const onKey = down => e => {
+      keys[e.code] = down;
+      if (down && e.code === 'KeyE') useAim();
+      if (down && e.code === 'F3') { showFps = !showFps; drawNet(); e.preventDefault(); }
+      if (down && e.code === 'KeyM' && sound) log(sound.mute() ? 'Sound off (M).' : 'Sound on (M).');
+      if (down && e.code === 'Space') e.preventDefault();
+    };
+    document.addEventListener('keydown', onKey(true));
+    document.addEventListener('keyup', onKey(false));
+
+    function hits(x, y, z) {
+      const a = [x - HALF, y, z - HALF], b = [x + HALF, y + HEIGHT, z + HALF];
+      for (const B of boxes) {
+        if (!B.on()) continue;
+        if (a[0] < B.max[0] && b[0] > B.min[0] && a[1] < B.max[1] && b[1] > B.min[1] && a[2] < B.max[2] && b[2] > B.min[2]) return B;
+      }
+      return null;
+    }
+    /* SMOOTH OWN MOVEMENT (tbuuol 2026-10-20: "es wirkt etwas rucklig"): physics runs on a fixed 120 Hz step, however
+       uneven the frames are, and the camera is placed between the last two steps by how far into the next one this
+       frame falls. Looking around is not stepped: the mouse turns the camera at once. */
+    const STEP = 1 / 120, prev = { x: me.x, y: me.y, z: me.z };
+    let acc = 0;
+    /* a ledge up to 42 cm (a hut's floor, a doorstep) is stepped onto while walking, as long as there is room above */
+    function stepUp(B) {
+      if (B.max[1] - me.y > 0.42 || B.max[1] <= me.y || me.vy > 0.5) return false;
+      if (hits(me.x, B.max[1] + 1e-3, me.z)) return false;
+      me.y = B.max[1] + 1e-3; return true;
+    }
+    /* the real world's houses and walls: a circle the player's width is pushed out of any footprint it enters */
+    function realPush() {
+      if (!realW) return;
+      const lim = realW.half - 1; me.x = Math.max(-lim, Math.min(lim, me.x)); me.z = Math.max(-lim, Math.min(lim, me.z));
+      const near = grid.get(cellKey(Math.floor(me.x / CELL), Math.floor(me.z / CELL))) || [];
+      for (const o of near) {
+        if (o.poly) {
+          const b = o.poly; if (me.y >= b.top - 0.05) continue;
+          let best = 1e9, cx = 0, cz = 0;
+          for (let i = 0; i < b.pts.length; i++) {
+            const a = b.pts[i], q = b.pts[(i + 1) % b.pts.length], ex = q[0] - a[0], ez = q[1] - a[1], L2 = ex * ex + ez * ez || 1e-9;
+            const t = Math.max(0, Math.min(1, ((me.x - a[0]) * ex + (me.z - a[1]) * ez) / L2)), px = a[0] + ex * t, pz = a[1] + ez * t, d = Math.hypot(me.x - px, me.z - pz);
+            if (d < best) { best = d; cx = px; cz = pz; }
+          }
+          if (realW.inside(b.pts, me.x, me.z)) { const dx = cx - me.x, dz = cz - me.z, d = Math.hypot(dx, dz) || 1e-6; me.x = cx + dx / d * (HALF + 1e-3); me.z = cz + dz / d * (HALF + 1e-3); }
+          else if (best < HALF) { const dx = me.x - cx, dz = me.z - cz, d = best || 1e-6; me.x = cx + dx / d * (HALF + 1e-3); me.z = cz + dz / d * (HALF + 1e-3); }
+        } else {
+          const sg = o.seg; if (me.y >= sg.top - 0.05) continue;
+          const ex = sg.b[0] - sg.a[0], ez = sg.b[1] - sg.a[1], L2 = ex * ex + ez * ez || 1e-9;
+          const t = Math.max(0, Math.min(1, ((me.x - sg.a[0]) * ex + (me.z - sg.a[1]) * ez) / L2)), px = sg.a[0] + ex * t, pz = sg.a[1] + ez * t;
+          const dx = me.x - px, dz = me.z - pz, d = Math.hypot(dx, dz), r = sg.r + HALF;
+          if (d < r) { const k = d || 1e-6; me.x = px + dx / k * (r + 1e-3); me.z = pz + dz / k * (r + 1e-3); }
+        }
+      }
+    }
+    function physics(dt) {
+      const f = (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0);
+      const s = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0);
+      const sp = keys.ShiftLeft || keys.ShiftRight ? RUN : WALK, len = Math.hypot(f, s) || 1;
+      const sin = Math.sin(me.yaw), cos = Math.cos(me.yaw);
+      const dx = ((s * cos) - (f * sin)) / len * sp * dt, dz = ((-s * sin) - (f * cos)) / len * sp * dt;
+      if (keys.Space && me.ground) { me.vy = JUMP; me.ground = false; }
+      me.vy -= GRAVITY * dt;
+      /* one axis at a time, so a wall stops the part of a step that goes into it and not the rest */
+      let B;
+      const x0 = me.x, z0 = me.z;
+      me.x += dx; if ((B = hits(me.x, me.y, me.z)) && !stepUp(B)) me.x = dx > 0 ? B.min[0] - HALF - 1e-4 : B.max[0] + HALF + 1e-4;
+      me.z += dz; if ((B = hits(me.x, me.y, me.z)) && !stepUp(B)) me.z = dz > 0 ? B.min[2] - HALF - 1e-4 : B.max[2] + HALF + 1e-4;
+      realPush();
+      me.vx = (me.x - x0) / dt; me.vz = (me.z - z0) / dt;   /* what was really walked (a wall stops it): sent to the others */
+      const wasGround = me.ground;
+      me.y += me.vy * dt; me.ground = false;
+      if ((B = hits(me.x, me.y, me.z))) {
+        if (me.vy <= 0) { me.y = B.max[1]; me.ground = true; } else me.y = B.min[1] - HEIGHT - 1e-4;
+        me.vy = 0;
+      }
+      if (realW) {
+        const g = realW.groundAt(me.x, me.z);
+        if (me.y <= g || (wasGround && me.vy <= 0 && me.y - g < 0.45)) { me.y = g; me.vy = 0; me.ground = true; }   /* down a slope too, not in hops */
+      }
+      if (me.y < (realW ? -100 : -20)) { me.x = prev.x = SPAWN[0]; me.y = prev.y = SPAWN[1] + 1; me.z = prev.z = SPAWN[2]; me.vy = 0; log('You fell out of the world.'); }
+    }
+    function move(dt) {
+      acc += Math.min(dt, 0.25);                     /* after a long stall (a hidden tab) do not run seconds of physics at once */
+      while (acc >= STEP) { prev.x = me.x; prev.y = me.y; prev.z = me.z; physics(STEP); acc -= STEP; }
+      const k = acc / STEP;
+      camera.position.set(prev.x + (me.x - prev.x) * k, prev.y + (me.y - prev.y) * k + EYE, prev.z + (me.z - prev.z) * k);
+      camera.rotation.set(me.pitch, me.yaw, 0);
+    }
+
+    /* --- using things ---------------------------------------------------------------------------------- */
+    const ray = new THREE.Raycaster(); ray.far = 2.8;
+    const center = new THREE.Vector2(0, 0);
+    function aimed() {
+      ray.setFromCamera(center, camera);
+      const vis = usable.filter(m => m.visible);
+      const hit = ray.intersectObjects(vis, false)[0];
+      return hit ? hit.object.userData : null;
+    }
+    function promptFor(u) {
+      if (!u) return '';
+      if (u.kind === 'door') {
+        const d = doors[u.id].def, word = d.label.toLowerCase();
+        if (d.opens === 'hand') return 'E: ' + (W.open[u.id] ? 'close' : 'open') + ' the ' + word;
+        if (W.open[u.id]) return '';
+        return d.opens === 'key' ? (hasItem(d.key) ? 'E: unlock the ' + word : d.label + ': it needs a key') : d.label + ': opened somewhere else';
+      }
+      if (u.kind === 'npc') return 'E: talk to ' + npcs[u.id].def.name;
+      if (u.kind === 'switch') return 'E: pull the ' + switches[u.id].def.label.toLowerCase();
+      if (u.kind === 'pickup') return 'E: take the ' + pickups[u.id].def.label.toLowerCase();
+      if (u.kind === 'shrine') return paying ? 'The wallet is asking you…' : 'E: ' + (shrines[u.id].def.action || 'make an offering') + ' (1 coin, to yourself)';
+      return '';
+    }
+    function useAim(force) {
+      if (!locked() && !force) return;
+      const u = aimed(); if (!u) return;
+      if (u.kind === 'shrine') { offer(shrines[u.id].def); return; }
+      if (u.kind === 'npc') { speak(u.id); return; }
+      if (u.kind === 'door') {
+        const d = doors[u.id].def;
+        if (d.opens === 'switch' || (d.opens === 'key' && W.open[u.id])) return;
+        if (d.opens === 'key' && !hasItem(d.key)) { log('It is locked. Somewhere there is a key.'); return; }
+      }
+      intent(u.kind === 'pickup' ? 'take' : 'use', u.id);
+    }
+    const hasItem = id => W.taken[id] != null && W.taken[id] === myId();
+
+    /* --- network ------------------------------------------------------------------------------------- */
+    let room = null, joinedAt = Date.now(), electReadyAt = 0;
+    const remotes = new Map();   /* id -> {from, j, name, buf: [{t, x, y, z, yaw}], heard, g (THREE.Group)} */
+    const myId = () => room ? room.me.id : 'solo';
+    function hostId() {
+      if (!room) return myId();
+      let best = { id: myId(), j: joinedAt };
+      for (const [id, r] of remotes) {
+        if (r.j == null) continue;
+        if (r.j < best.j || (r.j === best.j && id < best.id)) best = { id, j: r.j };
+      }
+      return best.id;
+    }
+    /* alone in the room you keep the world at once; with others, listen 1.5 s first to learn who came before you
+       (an intent sent in those first moments used to go to a host that did not exist yet, and was lost) */
+    const amHost = () => !room || remotes.size === 0 || (Date.now() >= electReadyAt && hostId() === myId());
+
+    function intent(op, id) {
+      if (amHost()) { hostApply(op, id, myId()); return; }
+      room.tell({ I: op, o: id });
+    }
+    function hostApply(op, id, by) {
+      const N = { seq: W.seq + 1, open: Object.assign({}, W.open), taken: Object.assign({}, W.taken) };
+      let changed = false;
+      if (op === 'use' && switches[id]) {
+        for (const t of switches[id].def.targets || []) { N.open[t] = !N.open[t]; changed = true; }
+      } else if (op === 'use' && doors[id]) {
+        const d = doors[id].def;
+        if (d.opens === 'hand') { N.open[id] = !N.open[id]; changed = true; }
+        else if (d.opens === 'key' && !N.open[id] && N.taken[d.key] === by) { N.open[id] = true; changed = true; }
+      } else if (op === 'take' && pickups[id] && N.taken[id] == null) {
+        N.taken[id] = by; changed = true;
+      }
+      if (!changed) return;
+      applyWorld(N);
+      if (room) { room.tell({ W }); lastWorldSent = performance.now(); }
+    }
+    let lastWorldSent = 0;
+    /* the world as the host says it is: what changed is said in the log, each change once */
+    function applyWorld(next) {
+      const before = W;
+      W = { seq: +next.seq || 0, open: Object.assign({}, next.open), taken: Object.assign({}, next.taken) };
+      for (const pid in pickups) {
+        const now = W.taken[pid] == null ? null : W.taken[pid], was = before.taken[pid] == null ? null : before.taken[pid];
+        pickups[pid].mesh.visible = pickups[pid].hit.visible = now == null;
+        if (now != null && was == null) {
+          if (now === myId()) gotItem(pickups[pid].def);
+          else log(nameOf(now) + ' took the ' + pickups[pid].def.label.toLowerCase() + '.');
+        }
+      }
+      for (const did in doors) {
+        const word = doors[did].def.label.toLowerCase();
+        if (doors[did].def.opens === 'hand') {   /* everyday doors open and close without a word, with a creak if near */
+          if (sound && W.open[did] !== !!before.open[did] && doors[did].mesh) { const p = doors[did].mesh.getWorldPosition(new THREE.Vector3()); if (Math.hypot(p.x - me.x, p.z - me.z) < 14) sound.blip('door'); }
+          continue;
+        }
+        if (W.open[did] && !before.open[did]) log('The ' + word + ' opens.');
+        if (!W.open[did] && before.open[did]) log('The ' + word + ' closes.');
+      }
+      drawInv();
+    }
+    function nameOf(id) {
+      if (id === myId()) return 'You';
+      const r = remotes.get(id);
+      return r ? label(r.from, r.name) : 'Someone';
+    }
+    const label = (from, name) => from && from.tag ? '@' + from.tag : (name || '@guest');
+
+    function makeAvatar(id) {
+      const h = hue(id);
+      return art.character(ctx, { shirt: 'hsl(' + h + ',55%,45%)', pants: 'hsl(' + ((h + 200) % 360) + ',25%,28%)',
+                                  hair: ['#2a1a10', '#6b3e1e', '#c9a04a', '#1c1c1c', '#8a4a1e'][h % 5] });
+    }
+    function remote(from) {
+      let r = remotes.get(from.id);
+      if (!r) {
+        r = { from, j: null, name: '', buf: [], heard: performance.now(), c: makeAvatar(from.id) };
+        r.g = r.c.group;
+        r.c.setName(label(from, ''));
+        r.g.visible = false;
+        remotes.set(from.id, r);
+        drawNet();
+      }
+      return r;
+    }
+    function dropRemote(id) {
+      const r = remotes.get(id); if (!r) return;
+      scene.remove(r.g); remotes.delete(id);
+      log(label(r.from, r.name) + ' left.');
+      drawNet();
+    }
+    function heard({ from, data }) {
+      const d = data && typeof data === 'object' ? data : {};
+      const r = remote(from); r.heard = performance.now();
+      if (Array.isArray(d.p)) {
+        if (d.j != null) r.j = +d.j;
+        if (d.n && d.n !== r.name) { r.name = String(d.n).slice(0, 24); r.c.setName(label(from, r.name)); }
+        /* SMOOTH OTHERS: a sample is placed by when it was SENT (d.s, the sender's clock), not when it arrived, so
+           uneven delivery does not make the avatar stutter. The sender's clock is mapped onto ours by the smallest
+           arrival - sent seen (that is its offset plus the fastest trip); the scatter above that is the jitter. */
+        const now = performance.now();
+        let t = now;
+        if (d.s != null) {
+          const o = now - +d.s;
+          if (r.off == null || o < r.off) r.off = o; else r.off += (o - r.off) * 0.002;   /* follows a drifting clock slowly */
+          r.jit = r.jit == null ? 0 : r.jit + (Math.abs(o - r.off) - r.jit) * 0.1;
+          t = +d.s + r.off;
+        }
+        const last = r.buf[r.buf.length - 1];
+        if (last && t <= last.t) return finishHeard(d, from, r);
+        if (last) { const gapMs = Math.min(1500, t - last.t); r.int = r.int == null ? gapMs : r.int + (gapMs - r.int) * 0.15; }                          /* old or doubled: the newer one is here */
+        r.buf.push({ t, x: +d.p[0], y: +d.p[1], z: +d.p[2], yaw: Array.isArray(d.r) ? +d.r[0] : 0,
+                     vx: Array.isArray(d.v) ? +d.v[0] || 0 : 0, vz: Array.isArray(d.v) ? +d.v[1] || 0 : 0 });
+        while (r.buf.length > 40) r.buf.shift();
+        r.g.visible = true;
+      }
+      finishHeard(d, from, r);
+    }
+    function finishHeard(d, from, r) {
+      if (d.I && amHost()) hostApply(String(d.I), String(d.o || ''), from.id);
+      if (d.W && typeof d.W === 'object' && +d.W.seq > W.seq) applyWorld(d.W);
+      if (d.H && amHost()) { room.tell({ W }); lastWorldSent = performance.now(); }
+      if (d.S === 'offered') log(label(from, r.name) + ' made an offering at the shrine.');
+      /* no drawNet() here: positions come 15 times a second from each player, and rewriting the HUD that often
+         was one of the stutters. The HUD is redrawn when somebody comes or goes, and once a second. */
+    }
+    async function connect() {
+      log('Looking for other players…');
+      const res = await net.join(ROOM, { game: GAME, fast: true });
+      if (stopped) { if (res.online) res.room.leave(); return; }
+      if (!res.online) { log('Playing alone (' + (res.why || 'offline') + ').'); drawNet(); return; }
+      room = res.room; joinedAt = Date.now(); electReadyAt = Date.now() + 1500;   /* just joined: listen before deciding who keeps the world */
+      room.on('message', heard);
+      room.on('join', ({ from }) => { remote(from); log(label(from, '') + ' joined.'); if (amHost()) setTimeout(() => room && room.tell({ W }), 500); drawNet(); });
+      room.on('leave', ({ from }) => dropRemote(from.id));
+      room.on('peer', () => drawNet());
+      room.on('closed', why => { log('Disconnected: ' + (why || 'the room closed') + '. Playing alone.'); for (const id of Array.from(remotes.keys())) dropRemote(id); room = null; drawNet(); });
+      room.on('reconnecting', () => { log('Connection lost, reconnecting…'); drawNet(); });
+      room.on('rejoined', () => { log('Back online.'); room.tell({ H: 1 }); sendState(true); drawNet(); });
+      for (const p of room.members()) if (p.id !== room.me.id) remote(p);
+      if (room.me.tag) me.name = '@' + room.me.tag;
+      room.tell({ H: 1 });
+      log(room.fast ? 'Online (fast lane).' : 'Online (through the room).');
+      drawNet();
+    }
+    let lastState = 0, lastKey = '', lastName = 0, lastBeat = 0;
+    function sendState(force) {
+      if (!room) return;
+      const now = performance.now(), every = room.fast ? 66 : 250;
+      if (!force && now - lastState < every) return;
+      const key = [R2(me.x), R2(me.y), R2(me.z), R2(me.yaw), R2(me.pitch)].join(',');
+      if (!force && key === lastKey && now - lastState < 1000) return;   /* standing still: a heartbeat is enough */
+      /* on an even beat: the next send is due one interval after this one was, not after this frame happened to come */
+      lastState = force || now - lastState > every * 2 ? now : lastState + every; lastKey = key;
+      const m = { s: Math.round(now), p: [R2(me.x), R2(me.y), R2(me.z)], r: [R2(me.yaw), R2(me.pitch)], j: joinedAt };
+      if (Math.abs(me.vx || 0) + Math.abs(me.vz || 0) > 0.01) m.v = [R2(me.vx), R2(me.vz)];   /* left out standing still */
+      if (now - lastName > 2000) { lastName = now; if (me.name) m.n = me.name; }
+      room.state(m);
+      /* once a second the same through the room: whatever the fast lane is doing, everyone keeps seeing you */
+      if (room.fast) {
+        const st = Object.values(room.peers()), waiting = st.some(x => x !== 'direct');   /* 'connecting' carries nothing yet */
+        if (force || now - lastBeat > (waiting ? 330 : 1000)) { lastBeat = now; room.beat(m); }
+      }
+    }
+    let remotesT = performance.now();
+    function drawRemotes() {
+      const now = performance.now(), dt = Math.min(0.1, (now - remotesT) / 1000); remotesT = now;
+      for (const [id, r] of Array.from(remotes)) {
+        /* silence is not leaving: a player who has gone quiet is hidden after 15 s and kept; only the room's 'leave'
+           (or a minute without a word and no longer a member) takes them away */
+        if (now - r.heard > 15000) {
+          r.g.visible = false;
+          if (now - r.heard > 60000 && room && !room.members().some(m => m.id === id)) dropRemote(id);
+          continue;
+        }
+        const b = r.buf; if (!b.length) continue;
+        /* how far behind to draw: one send interval plus room for the jitter actually measured, eased so it never jumps */
+        /* SMOOTH FROM THE FIRST SECOND (tbuuol 2026-10-21: bad stutter at the start): how far behind to draw is what this
+           player's samples really need -- the time between them as measured, plus room for jitter -- so while the
+           direct link is still being set up (a sample a second, or three) they glide a little late instead of
+           jumping. It grows at once when the samples thin out and shrinks slowly when they come fast again. */
+        const want = Math.max(60, Math.min(1600, (r.int || 250) * 1.3 + 2.5 * (r.jit || 0)));
+        r.delay = r.delay == null || want > r.delay * 1.4 ? want : r.delay + (want - r.delay) * 0.02;
+        const t = now - r.delay;
+        let x, y, z, yaw;
+        if (b.length === 1 || t <= b[0].t) ({ x, y, z, yaw } = b[0]);
+        if (b.length > 1 && t > b[0].t) {
+          let i = 1; while (i < b.length - 1 && b[i].t < t) i++;
+          const A = b[i - 1], B = b[i];
+          if (t <= B.t) {
+            const k = (t - A.t) / Math.max(1, B.t - A.t);
+            x = A.x + (B.x - A.x) * k; y = A.y + (B.y - A.y) * k; z = A.z + (B.z - A.z) * k; yaw = angLerp(A.yaw, B.yaw, k);
+          } else {
+            /* the next sample is late: carry on at the speed they SAID they had, for as long as their samples usually
+               take (half an interval more, at most 600 ms), then wait for it. Standing still they said none, so a
+               player who stops is not carried past where they stopped. */
+            const ahead = Math.min(Math.min(600, (r.int || 100) * 0.5 + 100), t - B.t) / 1000;
+            x = B.x + B.vx * ahead; y = B.y; z = B.z + B.vz * ahead; yaw = B.yaw;
+          }
+          while (b.length > 2 && b[1].t < t - 1000) b.shift();
+        }
+        /* a last touch of smoothing on what is drawn, so a correction after a late packet glides instead of snapping */
+        const g = r.g.position, far = Math.abs(g.x - x) + Math.abs(g.z - z) > 3, ox = g.x, oz = g.z;
+        const follow = 1 - Math.exp(-dt * 14);   /* the same glide at any frame rate */
+        if (far || !r.drawn) { g.set(x, y, z); r.drawn = true; } else { g.x += (x - g.x) * follow; g.y += (y - g.y) * follow; g.z += (z - g.z) * follow; }
+        r.g.rotation.y = angLerp(r.g.rotation.y, yaw, far ? 1 : follow);
+        /* legs and arms swing with how fast they are drawn moving (eased, so one late packet is not a stumble) */
+        const sp = far || !dt ? 0 : Math.hypot(g.x - ox, g.z - oz) / dt;
+        r.sp = (r.sp || 0) + (sp - (r.sp || 0)) * Math.min(1, dt * 8);
+        r.c.animate(dt, r.sp > 0.3 ? r.sp : 0);
+      }
+    }
+
+    /* --- the wallet ------------------------------------------------------------------------------------ */
+    let who = { ok: false, why: 'asking…' }, store = null, progress = { crystals: 0, offerings: 0 }, paying = false;
+    async function walletUp() {
+      store = await wallet.store();
+      progress = Object.assign(progress, store.get('progress', {}));
+      who = await wallet.who();
+      if (who.ok && who.tag && !me.name) me.name = '@' + who.tag;
+      drawWho(); drawInv();
+    }
+    function drawWho() {
+      const coin = who.ok ? who.coins.toLocaleString(undefined, { maximumFractionDigits: 4 }) + ' ' + (who.ticker || 'coins') : '';
+      $('.lwq-tl').innerHTML = who.ok
+        ? '<b>' + esc(who.tag ? '@' + who.tag : 'no @name yet') + '</b> · ' + esc(coin) + (who.mainnet ? ' · <b>MAINNET</b>' : ' · ' + esc(who.network || 'test'))
+        : 'Wallet: ' + esc(who.why || 'not connected');
+      $('.lwq-tl').innerHTML += '<br><small>' + (store && store.remembered ? 'progress is saved in your wallet' : 'progress is not saved (no wallet viewer)') + '</small>';
+    }
+    function gotItem(def) {
+      if (sound) sound.blip('pickup');
+      if (def.kind === 'crystal') {
+        progress.crystals = (progress.crystals | 0) + 1;
+        if (store) store.set('progress', progress);
+        log('You found a crystal (' + progress.crystals + ' in all).');
+      } else log('You picked up the ' + def.label.toLowerCase() + '.');
+    }
+    function drawInv() {
+      const mine = Object.keys(pickups).filter(id => W.taken[id] === myId());
+      const keysHeld = mine.filter(id => pickups[id].def.kind === 'key').map(id => pickups[id].def.label);
+      const here = mine.filter(id => pickups[id].def.kind === 'crystal').length;
+      const total = Object.keys(pickups).filter(id => pickups[id].def.kind === 'crystal').length;
+      $('.lwq-inv').innerHTML = (keysHeld.length ? 'Key: ' + esc(keysHeld.join(', ')) + '<br>' : '') +
+        'Crystals ' + here + ' / ' + total + ' here · ' + (progress.crystals | 0) + ' in all' +
+        ((progress.offerings | 0) ? ' · ' + progress.offerings + ' offering' + (progress.offerings === 1 ? '' : 's') : '');
+    }
+    function drawNet() {
+      const n = remotes.size + 1;
+      let mode = 'solo';
+      if (room) {
+        const peers = room.peers(), states = Object.values(peers);
+        mode = !room.fast ? 'through the room' : !states.length ? 'fast lane' : states.every(s => s === 'direct') ? 'direct' : states.some(s => s === 'direct') ? 'direct + room' : 'through the room';
+      }
+      $('.lwq-tr').innerHTML = room ? 'Online · ' + n + ' player' + (n === 1 ? '' : 's') + ' · ' + esc(mode) +
+        (amHost() ? '<br><small>you keep this world in sync</small>' : '') : 'Solo';
+      if (showFps) $('.lwq-tr').innerHTML += '<br><small>' + fps + ' fps' + Array.from(remotes.values()).map(r => ' · ' + esc(label(r.from, r.name)) +
+        ' ' + Math.round(r.delay || 0) + ' ms behind').join('') + '</small>';
+    }
+    async function offer(def) {
+      if (paying) return;
+      if (!who.ok || !who.address) { log('The ' + (def.label || 'shrine').toLowerCase() + ' needs a wallet: ' + (who.why || 'none is connected') + '.'); return; }
+      paying = true;
+      try { document.exitPointerLock(); } catch (e) { /* the approval card needs the mouse */ }
+      const sh = shrines[def.id]; sh.glow.material.color.set('#ffd700');
+      log('The ' + (def.label || 'shrine').toLowerCase() + ' asks your wallet for ' + def.offer.amount + ' coin. Approve or refuse it there.');
+      const res = await wallet.pay({ amount: def.offer.amount, to: who.address, label: 'LiteWorldsQuest', note: def.offer.note }, () => { });
+      paying = false;
+      if (res.status === 'sent') {
+        progress.offerings = (progress.offerings | 0) + 1;
+        if (store) store.set('progress', progress);
+        sh.glow.material.color.set('#7CFC00'); if (sound) sound.blip('coin');
+        log('Offering accepted' + (res.txid ? ' (tx ' + res.txid.slice(0, 10) + '…)' : '') + '.');
+        if (room) room.tell({ S: 'offered' });
+        who = await wallet.who(); drawWho();
+      } else {
+        sh.glow.material.color.set('#777');
+        log(res.status === 'denied' ? 'You refused the offering.' : 'The offering did not go through: ' + (res.error || res.status) + '.');
+      }
+      drawInv();
+    }
+
+    /* --- the loop ------------------------------------------------------------------------------------ */
+    let stepAcc = 0, drawing = true;
+    /* RESOLUTION FOLLOWS THE FRAME RATE (tbuuol 2026-10-21: 22 fps): the picture is drawn at fewer pixels while the
+       frames are slow, and at more again once they have been fast for a while; never above 1.5 per screen pixel */
+    const maxPR = Math.min(1.5, G.devicePixelRatio || 1);
+    let pr = Math.min(1.25, maxPR), fastFor = 0;
+    renderer.setPixelRatio(pr);
+    function adapt() {
+      if (!document.hasFocus || document.hidden) return;
+      if (fps && fps < 50 && pr > 0.55) { pr = Math.max(0.55, pr - 0.15); fastFor = 0; renderer.setPixelRatio(pr); resize(); }
+      else if (fps >= 58 && pr < maxPR) { if (++fastFor >= 6) { pr = Math.min(maxPR, pr + 0.1); fastFor = 0; renderer.setPixelRatio(pr); resize(); } }
+      else fastFor = 0;
+    }
+    let last = performance.now(), worldT = 0, netT = 0, fps = 0, fpsN = 0, fpsT = performance.now(), showFps = false, promptNow = '';
+    function frame(now) {
+      if (stopped) return;
+      const dt = Math.max(0, (now - last) / 1000); last = now;
+      renderer.info.reset();
+      move(dt);
+      fpsN++; if (now - fpsT >= 500) { fps = Math.round(fpsN * 1000 / (now - fpsT)); fpsN = 0; fpsT = now; adapt(); if (showFps) drawNet(); }
+      const ease = Math.min(1, Math.min(dt, 0.1) * 4);
+      for (const id in doors) {
+        const D2 = doors[id];
+        if (D2.hinge) D2.hinge.rotation.y += ((W.open[id] ? D2.swing : 0) - D2.hinge.rotation.y) * ease;
+        else { const want = W.open[id] ? D2.y0 + D2.def.size[1] - 0.05 : D2.y0; D2.mesh.position.y += (want - D2.mesh.position.y) * ease; }
+      }
+      const t = now / 1000, fdt = Math.min(dt, 0.1);
+      for (const fn of updates) fn(fdt, t);
+      npcTick(fdt, t);
+      portalTick();
+      if (env) env.update(fdt, t, camera.position);
+      if (sound) {
+        sound.listen(camera);
+        const sp = Math.hypot(me.vx || 0, me.vz || 0);
+        if (me.ground && sp > 0.5) { stepAcc += sp * fdt; if (stepAcc > (sp > 5 ? 1.4 : 0.95)) { stepAcc = 0; sound.step(sp); } } else stepAcc = 0.6;
+      }
+      for (const id in pickups) pickups[id].mesh.rotation.y += dt * 1.5;
+      sendState(false);
+      drawRemotes();
+      if (room && amHost() && now - worldT > 3000) { worldT = now; if (now - lastWorldSent > 2500) room.tell({ W }); }
+      if (now - netT > 1000) { netT = now; drawNet(); }
+      const pr = locked() ? promptFor(aimed()) : '';
+      if (pr !== promptNow) { promptNow = pr; $('.lwq-prompt').textContent = pr; }   /* only when it changes: a DOM write is not free */
+      if (drawing) { if (post) post.render(t); else renderer.render(scene, camera); }
+      G.requestAnimationFrame(frame);
+    }
+    resize(); drawInv(); drawNet(); drawWho();
+    try { renderer.compile(scene, camera); } catch (e) { /* only a head start */ }
+    walletUp().catch(e => log('Wallet: ' + (e && e.message || e)));
+    connect().catch(e => log('Multiplayer: ' + (e && e.message || e)));
+    G.requestAnimationFrame(frame);
+    return {
+      stop() { stopped = true; if (room) room.leave(); G.removeEventListener('resize', resize); },
+      /* for tests and tools: stand somewhere, look somewhere, press E without a captured mouse */
+      goto(x, y, z) { me.x = prev.x = +x; me.y = prev.y = +y; me.z = prev.z = +z; me.vy = 0; },
+      look(yaw, pitch) { me.yaw = +yaw; me.pitch = +(pitch || 0); },
+      use() { camera.position.set(me.x, me.y + EYE, me.z); camera.rotation.set(me.pitch, me.yaw, 0); camera.updateMatrixWorld(); useAim(true); },
+      aimed() { camera.updateMatrixWorld(); return aimed(); },
+      log: () => logLines.slice(),
+      camZ: () => camera.position.z,
+      draw(on) { drawing = !!on; },   /* tests: everything runs, nothing is drawn (a machine without a GPU keeps up) */
+      stats: () => ({ fps, pixelRatio: pr, frozen, calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures }),
+      get state() { return { me: Object.assign({}, me), world: W, host: amHost(), players: remotes.size + 1, online: !!room,
+                       others: Array.from(remotes.values()).map(r => ({ id: r.from.id, tag: r.from.tag, j: r.j, visible: r.g.visible, x: R2(r.g.position.x), y: R2(r.g.position.y), z: R2(r.g.position.z) })), fast: !!(room && room.fast), who, progress }; }
+    };
+  }
+
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 6, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, levels: 1 } },
+    D => ({ start: (el, opts) => start(D, el, opts) }));
+})(typeof globalThis !== 'undefined' ? globalThis : this);

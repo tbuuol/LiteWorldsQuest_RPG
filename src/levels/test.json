@@ -1,0 +1,48 @@
+{
+  "lwq": "module", "name": "level.test", "api": 1, "v": 1,
+  "data": {
+    "id": "test",
+    "title": "The Testing Halls",
+    "spawn": [0, 0, 4], "spawnYaw": 0,
+    "sky": "#9cc4e4", "fog": [18, 60],
+    "solids": [
+      {"pos": [4, -0.25, -4], "size": [32, 0.5, 34], "color": "#6b705c", "floor": true},
+
+      {"pos": [0, 2, 8.25], "size": [17, 4, 0.5], "color": "#b7a98b"},
+      {"pos": [-8.25, 2, 0], "size": [0.5, 4, 17], "color": "#b7a98b"},
+      {"pos": [8.25, 2, -4.75], "size": [0.5, 4, 7.5], "color": "#b7a98b"},
+      {"pos": [8.25, 2, 4.75], "size": [0.5, 4, 7.5], "color": "#b7a98b"},
+      {"pos": [-4.75, 2, -8.25], "size": [7.5, 4, 0.5], "color": "#b7a98b"},
+      {"pos": [4.75, 2, -8.25], "size": [7.5, 4, 0.5], "color": "#b7a98b"},
+
+      {"pos": [12.5, 2, -4.25], "size": [8, 4, 0.5], "color": "#9a8f78"},
+      {"pos": [12.5, 2, 4.25], "size": [8, 4, 0.5], "color": "#9a8f78"},
+      {"pos": [16.75, 2, 0], "size": [0.5, 4, 9], "color": "#9a8f78"},
+
+      {"pos": [-4.25, 2, -12.5], "size": [0.5, 4, 8], "color": "#8c7f9e"},
+      {"pos": [4.25, 2, -12.5], "size": [0.5, 4, 8], "color": "#8c7f9e"},
+      {"pos": [0, 2, -16.75], "size": [9, 4, 0.5], "color": "#8c7f9e"},
+
+      {"pos": [-5, 0.5, 5], "size": [1, 1, 1], "color": "#8b5a2b"},
+      {"pos": [3, 0.4, 4.5], "size": [0.8, 0.8, 0.8], "color": "#8b5a2b"},
+      {"pos": [-6, 0.5, -5], "size": [2, 1, 2], "color": "#7d7d7d"}
+    ],
+    "doors": [
+      {"id": "doorA", "pos": [8.25, 1.5, 0], "size": [0.4, 3, 2], "color": "#5b3a1e", "opens": "switch", "label": "Door"},
+      {"id": "doorB", "pos": [0, 1.5, -8.25], "size": [2, 3, 0.4], "color": "#3e2a52", "opens": "key", "key": "key1", "label": "Sealed door"}
+    ],
+    "switches": [
+      {"id": "switch1", "pos": [-7.95, 1.4, 3], "size": [0.12, 0.45, 0.3], "color": "#c0392b", "targets": ["doorA"], "label": "Lever"}
+    ],
+    "pickups": [
+      {"id": "key1", "kind": "key", "pos": [14, 0.6, 2], "label": "Bronze key"},
+      {"id": "crystal1", "kind": "crystal", "pos": [-6, 1.45, -5], "label": "Crystal"},
+      {"id": "crystal2", "kind": "crystal", "pos": [-2, 0.6, -14], "label": "Crystal"},
+      {"id": "crystal3", "kind": "crystal", "pos": [2.5, 0.6, -11], "label": "Crystal"}
+    ],
+    "shrines": [
+      {"id": "shrine1", "pos": [0, 0.6, -14.5], "size": [1, 1.2, 1], "color": "#d4af37", "label": "Shrine",
+       "offer": {"amount": "1", "note": "LiteWorldsQuest test offering (paid to yourself)"}}
+    ]
+  }
+}

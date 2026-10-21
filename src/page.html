@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en"><head>
+<title>LiteWorldsQuest</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<style>html,body{margin:0;height:100%;background:#000;overflow:hidden}
+#lwq{position:relative;width:100%;height:100%}
+#boot{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#ddd;font:16px system-ui,sans-serif}</style>
+</head><body>
+<div id="lwq"></div><div id="boot">Loading LiteWorldsQuest…</div>
+<script src="/r/realtime.js"></script>
+<script src="/r/storage.js"></script>
+<script>
+/*@@LOADER@@*/
+</script>
+/*@@MODULES@@*/
+<script type="module">
+import * as THREE from '/content//*@@THREE_ID@@*/';
+LWQ.defineValue('three', { api: 160, v: '0.160.0' }, THREE);
+const BAKED = /*@@REGISTRY@@*/;
+let reg = BAKED;
+/* the newest registry by one of the game's publishers wins: a release is new modules + a new registry (as in
+   ASHVALE). Two publishers: @tbuuol, and the publishing key on the build machine (since v0.2). */
+const CREATORS = /*@@CREATORS@@*/;
+for (const who of CREATORS) {
+  try {
+    const L = await (await fetch('/r/inscriptions?creator=' + encodeURIComponent(who) + '&limit=300')).json();
+    for (const p of L || []) { const j = p.json; if (j && j.lwq === 'registry' && (j.loader || 1) <= LWQ.LOADER && j.version > reg.version) reg = j; }
+  } catch (e) { console.warn('LiteWorldsQuest: registry lookup failed for ' + who + ', using what is known', e && e.message); }
+}
+LWQ.boot({ baked: reg }).then(function (m) {
+  document.getElementById('boot').remove();
+  let level; try { level = new URLSearchParams(location.search).get('level') || undefined; } catch (e) { level = undefined; }
+  window.LWQGAME = m.engine.start(document.getElementById('lwq'), { level: level });
+}).catch(function (e) {
+  console.error(e);
+  document.getElementById('boot').textContent = 'LiteWorldsQuest could not start: ' + (e && e.message || e);
+});
+</script>
+</body></html>

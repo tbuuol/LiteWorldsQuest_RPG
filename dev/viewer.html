@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LiteWorldsQuest · dev viewer</title>
+<style>
+  html,body{margin:0;height:100%;background:#111;color:#eee;font:13px system-ui,sans-serif;overflow:hidden}
+  iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+  #bar{position:absolute;left:50%;top:6px;transform:translateX(-50%);background:rgba(20,20,20,.8);padding:4px 10px;
+       border-radius:6px;white-space:nowrap;z-index:2}
+  #bar a{color:#9cf}
+  #ask{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.55);z-index:3}
+  #ask .card{background:#1d1d1d;border:1px solid #444;border-radius:10px;padding:18px 20px;max-width:380px}
+  #ask button{margin:12px 8px 0 0;padding:7px 14px;border-radius:6px;border:0;cursor:pointer}
+  #ask .yes{background:#2e7d32;color:#fff}#ask .no{background:#555;color:#fff}
+</style>
+</head><body>
+<iframe id="game" src="/content/game" sandbox="allow-scripts allow-pointer-lock" referrerpolicy="no-referrer"
+        allow="fullscreen"></iframe>
+<div id="bar"></div>
+<div id="ask"><div class="card"></div></div>
+<script>
+/* A stand-in for the arcade viewer (arcade/web/templates/_page_doors.js.html), only the doors this game uses:
+   realtime -- rooms between the tabs of this browser (BroadcastChannel), with the fast lane always "direct";
+   storage  -- this browser's localStorage, one shelf per ?as= name.
+   The game cannot tell the difference: it talks to the same postMessage protocol, through the arcade's own
+   realtime.js and storage.js. Payment requests (/r/send) are shown here, as the wallet would show them. */
+(function () {
+  'use strict';
+  const q = new URLSearchParams(location.search);
+  const as = (q.get('as') || '').replace(/[^a-z0-9_]/gi, '').slice(0, 20).toLowerCase();
+  const me = as ? { id: 'dev-' + as, address: 'nDev' + as, tag: as, guest: false, node: 'dev' }
+                : { id: 'guest-' + Math.random().toString(16).slice(2, 10), address: null, tag: null, guest: true, node: 'dev' };
+  const frame = document.getElementById('game');
+  const level = (q.get('level') || '').replace(/[^a-z0-9_]/gi, '');
+  const page = /^[0-9a-f]{64}(i\d+)?$/.test(q.get('page') || '') ? '/content/' + q.get('page')   /* ?page=<id>: an inscribed version, as it is on the chain */
+    : q.get('release') ? '/content/release' : '/content/game';   /* ?release=1: the page exactly as it will be inscribed */
+  frame.src = page + (level ? '?level=' + level : '');
+  const bar = document.getElementById('bar');
+  const other = as === 'alice' ? 'bob' : 'alice';
+  bar.innerHTML = 'dev viewer · you are <b>' + (as ? '@' + as : 'a guest') + '</b> · ' +
+    '<a href="?as=' + other + (level ? '&level=' + level : '') + (q.get('flaky') ? '&flaky=1' : '') + '" target="_blank">open @' + other + ' in a new tab</a>' +
+    (q.get('flaky') ? ' · <b>flaky network</b>' : '');
+
+  const post = body => frame.contentWindow && frame.contentWindow.postMessage(body, '*');
+  const event = (room, type, member, extra) => post({ arcade: 'realtime', event: Object.assign({ type, room, member }, extra || {}) });
+
+  /* --- realtime --------------------------------------------------------------------------------------- */
+  const rooms = {};   /* name -> {bc, members: Map(id -> {p, seen}), fast} */
+  /* ?flaky=1: the fast lane as the real viewer behaves on a bad day (_page_doors.js.html): a link is 'connecting'
+     for 3-13 s (fast sends to it are lost), then 'direct' or 'room' (about three a second, the latest only); a
+     direct link now and then goes quiet for 6-10 s while still saying 'direct'. Room messages always arrive, late. */
+  const FLAKY = !!q.get('flaky');
+  const link = {};   /* room/id -> {state, stall, last} */
+  function joinRoom(name, game, fast) {
+    const key = (game || 'game') + '/' + name;
+    const bc = new BroadcastChannel('lwq-dev:' + key);
+    const R = { bc, members: new Map(), fast };
+    rooms[name] = R;
+    const add = p => {
+      const had = R.members.get(p.id);
+      R.members.set(p.id, { p, seen: Date.now() });
+      if (had) return;
+      event(name, 'join', p);
+      if (!R.fast) return;
+      if (!FLAKY) { event(name, 'peer', p, { state: 'direct' }); return; }
+      const L = link[name + '/' + p.id] = { state: 'connecting', stall: 0, last: 0 };
+      event(name, 'peer', p, { state: 'connecting' });
+      setTimeout(() => { L.state = Math.random() < 0.6 ? 'direct' : 'room'; event(name, 'peer', p, { state: L.state }); }, 3000 + Math.random() * 10000);
+    };
+    const late = fn => FLAKY ? setTimeout(fn, 40 + Math.random() * 260) : fn();
+    const fastOk = from => {
+      if (!FLAKY) return true;
+      const L = link[name + '/' + from.id], now = Date.now();
+      if (!L || L.state === 'connecting') return false;
+      if (L.state === 'direct') return now > L.stall;
+      if (now - L.last < 333) return false;   /* through the room: about three a second */
+      L.last = now; return true;
+    };
+    bc.onmessage = ev => {
+      const m = ev.data || {}; if (!m.from || m.from.id === me.id) return;
+      if (m.k === 'hello') { add(m.from); bc.postMessage({ k: 'here', from: me }); }
+      else if (m.k === 'here') add(m.from);
+      else if (m.k === 'bye') { if (R.members.delete(m.from.id)) { event(name, 'leave', m.from); if (R.fast) event(name, 'peer', m.from, { state: 'gone' }); } }
+      else if (m.k === 'msg') { add(m.from); late(() => event(name, 'message', m.from, { data: m.data })); }
+      else if (m.k === 'fast') { add(m.from); if (fastOk(m.from)) event(name, 'fast', m.from, { data: m.data }); }
+    };
+    bc.postMessage({ k: 'hello', from: me });
+    return R;
+  }
+  if (FLAKY) setInterval(() => {   /* now and then a direct link goes quiet without saying so */
+    const now = Date.now();
+    for (const k in link) if (link[k].state === 'direct' && now > link[k].stall && Math.random() < 0.25) link[k].stall = now + 6000 + Math.random() * 4000;
+  }, 5000);
+  setInterval(() => {   /* heartbeats, and the node's rule: silent for 10 s is gone */
+    const now = Date.now();
+    for (const name in rooms) {
+      const R = rooms[name];
+      R.bc.postMessage({ k: 'here', from: me });
+      for (const [id, w] of Array.from(R.members)) if (now - w.seen > 10000) { R.members.delete(id); event(name, 'leave', w.p); }
+    }
+  }, 3000);
+  addEventListener('pagehide', () => { for (const name in rooms) rooms[name].bc.postMessage({ k: 'bye', from: me }); });
+
+  function realtimeDoor(m, answer) {
+    const name = String(m.room || '');
+    if (m.op === 'join') {
+      if (!name || name.length > 60) { answer({ ok: false, error: 'a room is a name of 1 to 60 characters' }); return; }
+      const R = rooms[name] || joinRoom(name, m.game, !!m.fast);
+      answer({ ok: true, online: true, me, members: [me].concat(Array.from(R.members.values()).map(w => w.p)), fast: R.fast });
+      return;
+    }
+    const R = rooms[name];
+    if (m.op === 'fast') { if (R) R.bc.postMessage({ k: 'fast', from: me, data: String(m.data || '') }); return; }
+    if (!R) { answer({ ok: false, error: 'join the room first' }); return; }
+    if (m.op === 'send') {
+      const data = String(m.data || '');
+      if (new TextEncoder().encode(data).length > 512) { answer({ ok: false, error: 'a message is at most 512 bytes' }); return; }
+      R.bc.postMessage({ k: 'msg', from: me, data }); answer({ ok: true });
+    } else if (m.op === 'leave') {
+      R.bc.postMessage({ k: 'bye', from: me }); R.bc.close(); delete rooms[name]; answer({ ok: true });
+    } else answer({ ok: false, error: 'realtime ops are join, send and leave' });
+  }
+
+  /* --- storage --------------------------------------------------------------------------------------- */
+  const SHELF = 'lwq-dev:storage:' + (as || 'guest');
+  const shelf = () => { try { return JSON.parse(localStorage.getItem(SHELF) || '{}'); } catch (e) { return {}; } };
+  function storageDoor(m, answer) {
+    const items = shelf();
+    if (m.op === 'load') { answer({ ok: true, items }); return; }
+    if (m.op === 'set') items[String(m.key)] = String(m.value);
+    else if (m.op === 'remove') delete items[String(m.key)];
+    else if (m.op === 'clear') for (const k in items) delete items[k];
+    else { answer({ ok: false, error: 'storage ops are load, set, remove and clear' }); return; }
+    localStorage.setItem(SHELF, JSON.stringify(items)); answer({ ok: true });
+  }
+
+  addEventListener('message', e => {
+    if (e.source !== frame.contentWindow) return;
+    const m = e.data || {};
+    if (typeof m.seq !== 'number') return;
+    const answer = body => { body.arcade = m.arcade; body.seq = m.seq; post(body); };
+    if (m.arcade === 'realtime') realtimeDoor(m, answer);
+    else if (m.arcade === 'storage') storageDoor(m, answer);
+  });
+
+  /* --- payment requests, shown as the wallet would ---------------------------------------------------- */
+  const ask = document.getElementById('ask'), card = ask.querySelector('.card'), shown = new Set();
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  async function poll() {
+    try {
+      const list = await (await fetch('/dev/requests', { cache: 'no-store' })).json();
+      const r = list.find(x => !shown.has(x.id));
+      if (r && ask.style.display !== 'flex') {
+        shown.add(r.id);
+        card.innerHTML = '<b>' + esc(r.label || 'A page') + '</b> asks your wallet to send<br><br>' +
+          '<b>' + esc(r.amount) + ' coins</b> to ' + esc(r.to) + '<br><i>“' + esc(r.note) + '”</i><br><br>' +
+          '<small>dev wallet: nothing real is sent</small><br>' +
+          '<button class="yes">Approve and send</button><button class="no">Refuse</button>';
+        ask.style.display = 'flex';
+        const decide = yes => fetch('/dev/decide', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: r.id, yes }) }).finally(() => { ask.style.display = 'none'; });
+        card.querySelector('.yes').onclick = () => decide(true);
+        card.querySelector('.no').onclick = () => decide(false);
+      }
+    } catch (e) { /* the dev server is restarting */ }
+    setTimeout(poll, 1000);
+  }
+  poll();
+})();
+</script>
+</body></html>

@@ -1,0 +1,7 @@
+dev/cache/
+__pycache__/
+tools/.venv/
+tools/cache/
+dev/fakechain/
+.publisher/
+dist/

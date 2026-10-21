@@ -1,0 +1,111 @@
+{
+  "name": "LiteWorldsQuest",
+  "family": "liteworldsquest",
+  "registry_version": 4,
+  "three_id": "374cfd2b2f114e9da4ade8add495fe8aa0b2b996a710fb538759a956f15f9539",
+  "modules": {
+    "net": {
+      "file": "src/modules/net.js",
+      "v": 2,
+      "api": 1,
+      "kind": "js",
+      "id": null
+    },
+    "wallet": {
+      "file": "src/modules/wallet.js",
+      "v": 1,
+      "api": 1,
+      "kind": "js",
+      "id": null
+    },
+    "sound": {
+      "file": "src/modules/sound.js",
+      "v": 1,
+      "api": 1,
+      "kind": "js",
+      "id": null
+    },
+    "art": {
+      "file": "src/modules/art.js",
+      "v": 3,
+      "api": 1,
+      "kind": "js",
+      "id": null
+    },
+    "engine": {
+      "file": "src/modules/engine.js",
+      "v": 6,
+      "api": 1,
+      "kind": "js",
+      "id": null
+    }
+  },
+  "levels": {
+    "blockshire": {
+      "file": "src/levels/blockshire.json",
+      "v": 1,
+      "api": 1,
+      "kind": "json",
+      "id": null
+    },
+    "test": {
+      "file": "src/levels/test.json",
+      "v": 1,
+      "api": 1,
+      "kind": "json",
+      "id": null
+    },
+    "weida": {
+      "file": "src/levels/weida.json",
+      "v": 1,
+      "api": 1,
+      "kind": "json",
+      "id": null
+    }
+  },
+  "page_id": "5847750f3bb8d9455edceac192a97914628805932bef3682786f3df713813b0f",
+  "creators": [
+    "nfqSKD76CiBuoAMZNkUBuiHYSaPxG2KidZ",
+    "nb6X4wxqMGq93oE477CiwCvYZYevxTg9R7"
+  ],
+  "version": "0.2",
+  "page_history": [
+    "beda9c074aee01ba9d551c9482868a7ce91bf6a12af6370208fdaadf7fbc53db (v0.1)",
+    "5847750f3bb8d9455edceac192a97914628805932bef3682786f3df713813b0f (v0.2)"
+  ],
+  "asset_ids": {
+    "model.person": "494fcb7b23359483d277bf5cddf6c740d9d1e40a32f6e79061d59d615ec15e8d",
+    "tex.grass.color": "70839bb645354ebec5d976991537cf0b4cbaa74ac3f4083b6adf6cc46b0d0c89",
+    "tex.grass.normal": "8741a4932a005de7a987805783780fa105cf8c23ab30e62f74807bffc5bda16c",
+    "tex.dirt.color": "a776f0ce9aa93ee6f17fbe548d20132978fe816ebf3a498de2747976eeed2c58",
+    "tex.dirt.normal": "9fb53a2894db9deba865c8b5489982de19dfc172025f0f69cc88632c703685a0",
+    "tex.timber.color": "5868e78c77684f5c5b60850e4c4294cdcd5a759d1e22143b85b0b619c3a2622b",
+    "tex.timber.normal": "e9fa2fa973abfea38632732c217355e410dd23188f016b08399eca4b65bd7cd1",
+    "tex.planks.color": "cef67c0389272e4abcd9f444240a0a03a9c889cfc1c57b54963367c64110a85f",
+    "tex.planks.normal": "a57081ff6423f6a9f3f0dd0c395e39aa96cd6e1c6cf6bc003ab591e537ec20fe",
+    "tex.thatch.color": "962612daace906a468174977467f8dcf6a569897bb5c65e17d68519119ffe3d3",
+    "tex.thatch.normal": "3991ab2e315e750ef187b159155e680cc76d83dc27b877020554632fb4a63daa",
+    "tex.stone.color": "5ac9abdaebdcb47a4fa7dc5b1bd9e88e8a32c0e3545073a1ef2b11cdc15e565d",
+    "tex.stone.normal": "4196a9eea641f678504583072f3c6ffcf2ac641b005795babd4ff5b85026ccf6",
+    "tex.bark.color": "d11ec465a194efbcc278b6bb6fbf9a4e2dd160a5e4541f1bfcabcf05e1c52a97",
+    "tex.bark.normal": "4e7407172134535436f22c8e484fe97e95c25583a11a8e275539555d6f0b9a6a",
+    "tex.tiles.color": "466cbce82d2cacbc386423ba7c3d96abbc5f0bb61e8af1de32735edff66862fb",
+    "tex.tiles.normal": "6287238b147b697b50eb96f0c24c64c8ec6b002ef004048ea3230a47471ae2c6",
+    "tex.plaster.color": "f1181581c3c2bb0defe9eff57ed995e2891b539c49df1d9bf538896ec2cef0e8",
+    "tex.plaster.normal": "1e4b937fe8d8de4120c05b2215fad56da7c53a1fa3b1a726d54935ea92de9b85",
+    "tex.person.a": "e428ca36bb30f7b7f1b31df1a7ba5d76b62c256908dff9765d64a16d96794683",
+    "tex.person.b": "76021f3b343b084ff6dddf646b2f0b0337e2775f88d4b1baa21472e6cdc608b5",
+    "tex.person.c": "39cb97a4cd9f7e75a2d1cb238390da5e58be3951d4a2ba4951b33f50a28bc73e",
+    "tex.person.e": "ebf915cc18ab7143d487fce9d2e36ada57f6b4208ab29e5dbd16d69497823212",
+    "tex.person.f": "0ff0894a7cb5e6b2dcdd0c21794a5b8a226897ed3e753d80e651e1050183c991",
+    "tex.person.i": "8382fbe0337e48d87f8f2fe25a197e63ec3118930c4d20a065d21ad6c2c4169b",
+    "tex.person.k": "fe208df736a69d8593b7f955b33239b03f80fc9ed3da443487e4d731fcd63e27",
+    "tex.person.m": "957fd6f0a47f7b599fbc8d2b4831ad5582d57a39c115725ccf25802de20228e1",
+    "tex.person.n": "c57b70b8934a144fdb090c1b28b5e75c5bcdd761e231ba98f622f167893262d3",
+    "tex.person.p": "9d1760de631bf2dda3ddaadfcc3b82910e7cd83accb53d1c45c9c3ccddaf8c8b"
+  },
+  "registry_ids": {
+    "2": "38e0f24df23c0569ce301eaad24ddbcdb8ad4d6b77cb522ccbdda72f3f4f4bd4 (@tbuuol)",
+    "4": "1c194778598fc4f3b4e25303de7f9d6319075dfe2b0d2cc62170505aec2a15d0 (publisher)"
+  }
+}
