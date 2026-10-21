@@ -63,15 +63,16 @@
       "id": null
     }
   },
-  "page_id": "5847750f3bb8d9455edceac192a97914628805932bef3682786f3df713813b0f",
+  "page_id": "5cee58436d34727321b70de78d911eca50c1e3e7bcdd1dbe40078948d17854f0",
   "creators": [
     "nfqSKD76CiBuoAMZNkUBuiHYSaPxG2KidZ",
     "nb6X4wxqMGq93oE477CiwCvYZYevxTg9R7"
   ],
-  "version": "0.2",
+  "version": "0.3",
   "page_history": [
     "beda9c074aee01ba9d551c9482868a7ce91bf6a12af6370208fdaadf7fbc53db (v0.1)",
-    "5847750f3bb8d9455edceac192a97914628805932bef3682786f3df713813b0f (v0.2)"
+    "5847750f3bb8d9455edceac192a97914628805932bef3682786f3df713813b0f (v0.2)",
+    "5cee58436d34727321b70de78d911eca50c1e3e7bcdd1dbe40078948d17854f0 (v0.3, publisher key)"
   ],
   "asset_ids": {
     "model.person": "494fcb7b23359483d277bf5cddf6c740d9d1e40a32f6e79061d59d615ec15e8d",
