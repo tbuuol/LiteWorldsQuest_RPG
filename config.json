@@ -27,7 +27,7 @@
     },
     "art": {
       "file": "src/modules/art.js",
-      "v": 3,
+      "v": 1,
       "api": 1,
       "kind": "js",
       "id": null
