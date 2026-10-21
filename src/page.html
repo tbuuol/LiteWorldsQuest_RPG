@@ -22,12 +22,13 @@ let reg = BAKED;
 /* the newest registry by one of the game's publishers wins: a release is new modules + a new registry (as in
    ASHVALE). Two publishers: @tbuuol, and the publishing key on the build machine (since v0.2). */
 const CREATORS = /*@@CREATORS@@*/;
-for (const who of CREATORS) {
+/* both publishers are asked at once: the start waits for the slower one, not for the two added up */
+await Promise.all(CREATORS.map(async function (who) {
   try {
     const L = await (await fetch('/r/inscriptions?creator=' + encodeURIComponent(who) + '&limit=300')).json();
     for (const p of L || []) { const j = p.json; if (j && j.lwq === 'registry' && (j.loader || 1) <= LWQ.LOADER && j.version > reg.version) reg = j; }
   } catch (e) { console.warn('LiteWorldsQuest: registry lookup failed for ' + who + ', using what is known', e && e.message); }
-}
+}));
 LWQ.boot({ baked: reg }).then(function (m) {
   document.getElementById('boot').remove();
   let level; try { level = new URLSearchParams(location.search).get('level') || undefined; } catch (e) { level = undefined; }

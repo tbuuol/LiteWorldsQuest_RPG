@@ -123,8 +123,8 @@
       const mat = p.kind === 'key'
         ? new THREE.MeshStandardMaterial({ color: '#d4a03a', metalness: 0.8, roughness: 0.3, emissive: '#3a2400' })
         : new THREE.MeshStandardMaterial({ color: '#7ff0ff', metalness: 0.2, roughness: 0.15, emissive: '#1aa9c9', emissiveIntensity: 0.9 });
-      const m = new THREE.Mesh(geo, mat); m.position.set(p.pos[0], p.pos[1], p.pos[2]); m.castShadow = true; m.userData.keep = true; scene.add(m);
-      m.userData = { kind: 'pickup', id: p.id };
+      const m = new THREE.Mesh(geo, mat); m.position.set(p.pos[0], p.pos[1], p.pos[2]); m.castShadow = true; scene.add(m);
+      m.userData = { kind: 'pickup', id: p.id, keep: true };   /* keep: it spins and hides, art.freeze must leave it alone */
       /* small things are hard to aim at (and a key is a ring: the crosshair goes through its hole), so each has an
          unseen sphere around it that the crosshair finds instead */
       const hit = new THREE.Mesh(new THREE.SphereGeometry(0.4, 8, 6), new THREE.MeshBasicMaterial({ visible: false }));
@@ -406,7 +406,16 @@
     /* --- network ------------------------------------------------------------------------------------- */
     let room = null, joinedAt = Date.now(), electReadyAt = 0;
     const remotes = new Map();   /* id -> {from, j, name, buf: [{t, x, y, z, yaw}], heard, g (THREE.Group)} */
-    const myId = () => room ? room.me.id : 'solo';
+    /* who I am in the world: 'solo' until a room gives me an id, and that id from then on, also after the room has
+       closed, so what I took stays mine (a key taken in the first seconds, or before a disconnect, is not lost) */
+    let selfId = 'solo';
+    const myId = () => selfId;
+    function becomeId(id) {
+      if (!id || id === selfId) return;
+      const was = selfId; selfId = id;
+      for (const pid in W.taken) if (W.taken[pid] === was) W.taken[pid] = id;
+      drawInv();
+    }
     function hostId() {
       if (!room) return myId();
       let best = { id: myId(), j: joinedAt };
@@ -438,9 +447,19 @@
       }
       if (!changed) return;
       applyWorld(N);
-      if (room) { room.tell({ W }); lastWorldSent = performance.now(); }
+      sendWorld();
     }
     let lastWorldSent = 0;
+    /* the world on the wire: only open doors and taken things (the rest is closed / free), so it stays well inside a
+       room message; j says when the host joined, so a newcomer knows whom to believe before it has seen them move */
+    function sendWorld() {
+      if (!room) return;
+      const open = {}, taken = {};
+      for (const id in W.open) if (W.open[id]) open[id] = true;
+      for (const id in W.taken) if (W.taken[id] != null) taken[id] = W.taken[id];
+      room.tell({ W: { seq: W.seq, open, taken }, j: joinedAt }).then(ok => { if (!ok) console.warn('LWQ: the world is too big for one room message'); });
+      lastWorldSent = performance.now();
+    }
     /* the world as the host says it is: what changed is said in the log, each change once */
     function applyWorld(next) {
       const before = W;
@@ -497,8 +516,9 @@
     function heard({ from, data }) {
       const d = data && typeof data === 'object' ? data : {};
       const r = remote(from); r.heard = performance.now();
+      /* when they joined is taken once and never changed: nobody becomes host later by claiming an earlier time */
+      if (d.j != null && r.j == null && isFinite(+d.j)) r.j = +d.j;
       if (Array.isArray(d.p)) {
-        if (d.j != null) r.j = +d.j;
         if (d.n && d.n !== r.name) { r.name = String(d.n).slice(0, 24); r.c.setName(label(from, r.name)); }
         /* SMOOTH OTHERS: a sample is placed by when it was SENT (d.s, the sender's clock), not when it arrived, so
            uneven delivery does not make the avatar stutter. The sender's clock is mapped onto ours by the smallest
@@ -523,8 +543,9 @@
     }
     function finishHeard(d, from, r) {
       if (d.I && amHost()) hostApply(String(d.I), String(d.o || ''), from.id);
-      if (d.W && typeof d.W === 'object' && +d.W.seq > W.seq) applyWorld(d.W);
-      if (d.H && amHost()) { room.tell({ W }); lastWorldSent = performance.now(); }
+      /* the world only from the one who keeps it: during a handover, or from a client that lies, another's is ignored */
+      if (d.W && typeof d.W === 'object' && from.id === hostId() && +d.W.seq > W.seq) applyWorld(d.W);
+      if (d.H && amHost()) sendWorld();
       if (d.S === 'offered') log(label(from, r.name) + ' made an offering at the shrine.');
       /* no drawNet() here: positions come 15 times a second from each player, and rewriting the HUD that often
          was one of the stutters. The HUD is redrawn when somebody comes or goes, and once a second. */
@@ -535,13 +556,14 @@
       if (stopped) { if (res.online) res.room.leave(); return; }
       if (!res.online) { log('Playing alone (' + (res.why || 'offline') + ').'); drawNet(); return; }
       room = res.room; joinedAt = Date.now(); electReadyAt = Date.now() + 1500;   /* just joined: listen before deciding who keeps the world */
+      becomeId(room.me.id);
       room.on('message', heard);
-      room.on('join', ({ from }) => { remote(from); log(label(from, '') + ' joined.'); if (amHost()) setTimeout(() => room && room.tell({ W }), 500); drawNet(); });
+      room.on('join', ({ from }) => { remote(from); log(label(from, '') + ' joined.'); if (amHost()) setTimeout(() => amHost() && sendWorld(), 500); drawNet(); });
       room.on('leave', ({ from }) => dropRemote(from.id));
       room.on('peer', () => drawNet());
       room.on('closed', why => { log('Disconnected: ' + (why || 'the room closed') + '. Playing alone.'); for (const id of Array.from(remotes.keys())) dropRemote(id); room = null; drawNet(); });
       room.on('reconnecting', () => { log('Connection lost, reconnecting…'); drawNet(); });
-      room.on('rejoined', () => { log('Back online.'); room.tell({ H: 1 }); sendState(true); drawNet(); });
+      room.on('rejoined', ({ me: m }) => { if (m) becomeId(m.id); log('Back online.'); room.tell({ H: 1 }); sendState(true); drawNet(); });
       for (const p of room.members()) if (p.id !== room.me.id) remote(p);
       if (room.me.tag) me.name = '@' + room.me.tag;
       room.tell({ H: 1 });
@@ -692,7 +714,7 @@
     let pr = Math.min(1.25, maxPR), fastFor = 0;
     renderer.setPixelRatio(pr);
     function adapt() {
-      if (!document.hasFocus || document.hidden) return;
+      if (!document.hasFocus() || document.hidden) return;
       if (fps && fps < 50 && pr > 0.55) { pr = Math.max(0.55, pr - 0.15); fastFor = 0; renderer.setPixelRatio(pr); resize(); }
       else if (fps >= 58 && pr < maxPR) { if (++fastFor >= 6) { pr = Math.min(maxPR, pr + 0.1); fastFor = 0; renderer.setPixelRatio(pr); resize(); } }
       else fastFor = 0;
@@ -723,7 +745,7 @@
       for (const id in pickups) pickups[id].mesh.rotation.y += dt * 1.5;
       sendState(false);
       drawRemotes();
-      if (room && amHost() && now - worldT > 3000) { worldT = now; if (now - lastWorldSent > 2500) room.tell({ W }); }
+      if (room && amHost() && now - worldT > 3000) { worldT = now; if (now - lastWorldSent > 2500) sendWorld(); }
       if (now - netT > 1000) { netT = now; drawNet(); }
       const pr = locked() ? promptFor(aimed()) : '';
       if (pr !== promptNow) { promptNow = pr; $('.lwq-prompt').textContent = pr; }   /* only when it changes: a DOM write is not free */
@@ -751,6 +773,6 @@
     };
   }
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 6, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, levels: 1 } },
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 7, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, levels: 1 } },
     D => ({ start: (el, opts) => start(D, el, opts) }));
 })(typeof globalThis !== 'undefined' ? globalThis : this);

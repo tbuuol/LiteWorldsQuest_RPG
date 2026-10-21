@@ -55,7 +55,14 @@
   L.boot = async function (opts) {
     opts = opts || {};
     let reg = opts.baked, regSrc = 'baked';
-    const list = flatten(reg), baked = Object.assign({}, defs), report = [];
+    const all = flatten(reg), baked = Object.assign({}, defs), report = [], list = [];
+    for (const item of all) {
+      const { name, entry } = item;
+      /* a newer registry may name a module (a new level, say) this page does not carry and that has no inscription
+         yet: leave it out instead of refusing to start. If something here needs it, the interface check says so. */
+      if (!defs[name] && !entry.id) { console.warn('LWQ: ' + name + ' is not on this page and not inscribed, left out'); report.push([name, entry.v, 'left out']); continue; }
+      list.push(item);
+    }
     for (const { name, entry } of list) {
       const have = defs[name];
       if (have && String(have.meta.v) === String(entry.v)) { report.push([name, entry.v, 'page']); continue; }

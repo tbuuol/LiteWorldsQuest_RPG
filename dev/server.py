@@ -46,6 +46,14 @@ WALLET = {"network": "test", "mainnet": False, "addresses": ["nDevWa11etAddressX
           "coin": {"spendable": 100.0, "ticker": "PEP TEST"}, "tokens": [], "inscriptions": 0}
 REQUESTS: dict[str, dict] = {}
 LOCK = threading.Lock()
+BUILD_LOCK = threading.Lock()   # one build at a time: every build rewrites the same files in dist/
+
+
+def fresh_page(release: bool) -> bytes:
+    """Build with the newest build.py and read the page back, without another tab's build writing in between."""
+    with BUILD_LOCK:
+        importlib.reload(build)
+        return build.build(release=release).read_bytes()
 TXIDS = (secrets.token_hex(32) for _ in itertools.count())
 
 
@@ -78,28 +86,28 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         path = self.path.split("?", 1)[0]
         if path == "/download/liteworldsquest.html":   # the page to inscribe, as a file to save
-            importlib.reload(build)
-            body = build.build(release=True).read_bytes()
+            body = fresh_page(release=True)
             return self.send(200, body, "text/html; charset=utf-8",
                              {"Content-Disposition": 'attachment; filename="liteworldsquest.html"'})
         if path in ("/", "/index.html"):
             return self.send(200, (DEV / "viewer.html").read_bytes(), "text/html; charset=utf-8")
         if path in ("/content/game", "/content/release"):
             try:
-                importlib.reload(build)   # build.py changes while the server runs: always build with the newest
-                target = build.build(release=path.endswith("release"))
+                body = fresh_page(release=path.endswith("release"))   # build.py changes while the server runs
             except SystemExit as exc:
                 return self.send(500, str(exc).encode(), "text/plain")
-            return self.send(200, target.read_bytes(), "text/html; charset=utf-8", {"Content-Security-Policy": CSP})
+            return self.send(200, body, "text/html; charset=utf-8", {"Content-Security-Policy": CSP})
         if path.startswith("/content/assets/"):
             f = ROOT / "dist" / "assets" / path[len("/content/assets/"):]
             if f.is_file() and f.parent == ROOT / "dist" / "assets":
                 ctype = {".webp": "image/webp", ".png": "image/png", ".glb": "model/gltf-binary"}.get(f.suffix, "application/octet-stream")
                 return self.send(200, f.read_bytes(), ctype, {"Cache-Control": "public, max-age=3600"})
             return self.send(404, b"no such asset", "text/plain")
-        if path.startswith("/content/") and (FAKE / path[len("/content/"):]).is_file():
-            f = FAKE / path[len("/content/"):]   # dev/fakechain: an update staged as if inscribed
-            return self.send(200, f.read_bytes(), (FAKE / (f.name + ".type")).read_text())
+        staged = (FAKE / path[len("/content/"):]).resolve() if path.startswith("/content/") else None
+        if staged and staged.parent == FAKE.resolve() and staged.is_file():   # dev/fakechain only, no ../
+            meta = staged.with_name(staged.name + ".type")   # an update staged as if inscribed
+            ctype = meta.read_text() if meta.is_file() else "application/octet-stream"
+            return self.send(200, staged.read_bytes(), ctype)
         if path == "/r/inscriptions":
             listing = FAKE / "listing.json"   # what the page's registry lookup finds: the staged update, if any
             return self.send(200, listing.read_bytes() if listing.exists() else b"[]", "application/json")

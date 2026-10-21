@@ -38,17 +38,23 @@
       sent.push(now);
       try { return Promise.resolve(r.send(s)).then(() => true, () => false); } catch (e) { return Promise.resolve(false); }
     }
-    /* what must arrive waits its turn; a refusal from the node puts it back at the front */
-    const outbox = [];
-    let pumping = null;
+    /* what must arrive waits its turn, one in flight at a time: it leaves the queue only once the node took it, so a
+       refusal keeps it at the front (in order) and the pump keeps running until the queue is empty. A message the
+       node keeps refusing (a closed room) is given up after a few tries. */
+    const outbox = [], TRIES = 10;
+    let pumping = null, busy = false;
     function pump() {
       if (pumping) return;
       pumping = setInterval(() => {
-        while (outbox.length && free(Date.now())) {
-          const s = outbox.shift();
-          roomSend(s).then(ok => { if (!ok) outbox.unshift(s); });
-        }
-        if (!outbox.length) { clearInterval(pumping); pumping = null; }
+        if (busy) return;
+        if (!outbox.length) { clearInterval(pumping); pumping = null; return; }
+        if (!free(Date.now())) return;
+        const head = outbox[0]; busy = true;
+        roomSend(head.s).then(ok => {
+          busy = false;
+          if (outbox[0] !== head) return;   /* left the room meanwhile */
+          if (ok || ++head.tries >= TRIES) outbox.shift();
+        });
       }, 120);
     }
     const room = {
@@ -59,7 +65,7 @@
       tell(obj) {
         const s = JSON.stringify(obj);
         if (bytes(s) > MAX) return Promise.resolve(false);
-        outbox.push(s); pump(); return Promise.resolve(true);
+        outbox.push({ s, tries: 0 }); pump(); return Promise.resolve(true);
       },
       members() { try { return (r.members() || []).map(norm); } catch (e) { return [me]; } },
       peers() { return F ? F.peers() : {}; },
@@ -75,7 +81,7 @@
         else if (t === 'reconnecting') r.on('reconnecting', () => fn());
         return room;
       },
-      leave() { outbox.length = 0; try { return Promise.resolve(r.leave()).catch(() => { }); } catch (e) { return Promise.resolve(); } }
+      leave() { outbox.length = 0; if (pumping) { clearInterval(pumping); pumping = null; } try { return Promise.resolve(r.leave()).catch(() => { }); } catch (e) { return Promise.resolve(); } }
     };
     return room;
   }
@@ -93,5 +99,5 @@
       return { online: true, room: arcadeRoom(r, roomId), backend: 'arcade' };
     }
   };
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('net', { api: 1, v: 2 }, () => net);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('net', { api: 1, v: 3 }, () => net);
 })(typeof globalThis !== 'undefined' ? globalThis : this);
