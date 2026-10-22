@@ -92,6 +92,9 @@ def build(release: bool = False) -> pathlib.Path:
         if release:
             (out_dir / f"level.{name}.json.gz").write_bytes(pack(text.encode()))
         registry["modules"]["levels"][name] = entry(m)
+    # A packed entry ("gz") can only be read by loader 2: such a registry says so, and loader-1 pages pass it by.
+    if any("gz" in e for e in [*registry["modules"].values(), *registry["modules"]["levels"].values()]):
+        registry["loader"] = 2
     # The release page carries no module itself: they all go into one gzip bundle, an inscription of its own, which
     # the page unpacks (loader 2). Until the bundle is inscribed its id is unknown, and the dev server stands in.
     packed = None

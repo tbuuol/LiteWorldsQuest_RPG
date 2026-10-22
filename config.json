@@ -1,7 +1,7 @@
 {
   "name": "LiteWorldsQuest",
   "family": "liteworldsquest",
-  "registry_version": 5,
+  "registry_version": 6,
   "three_id": "374cfd2b2f114e9da4ade8add495fe8aa0b2b996a710fb538759a956f15f9539",
   "modules": {
     "net": {
@@ -44,7 +44,8 @@
       "v": 9,
       "api": 1,
       "kind": "js",
-      "id": null
+      "id": null,
+      "gz": "be54ae8c4ac9fcbd6cd5aca07484860760fb0bfff49b6eb2a0c2e05fa78be14d"
     }
   },
   "levels": {
@@ -118,6 +119,7 @@
   "registry_ids": {
     "2": "38e0f24df23c0569ce301eaad24ddbcdb8ad4d6b77cb522ccbdda72f3f4f4bd4 (@tbuuol)",
     "4": "1c194778598fc4f3b4e25303de7f9d6319075dfe2b0d2cc62170505aec2a15d0 (publisher)",
-    "5": "76a02b80611bcda76d3502a4fc5a02232c390b28a5104bc3ee9454640f2a8229 (publisher)"
+    "5": "76a02b80611bcda76d3502a4fc5a02232c390b28a5104bc3ee9454640f2a8229 (publisher)",
+    "6": "0fd0256a44471d809c4a4c21a3bd7c163c9c7a4eea75553bb509257e1f10b65f (publisher, loader 2: engine v9 gz be54ae8c)"
   }
 }
