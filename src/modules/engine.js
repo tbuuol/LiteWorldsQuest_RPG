@@ -17,8 +17,8 @@
              {D: player, d}  /  {K: player, x}                      from the host: damage (negative heals) / a kill's XP
    COMBAT  F or the left mouse button strikes (a sword, in front of you); hit points, level and XP are in the HUD and
      level and XP are kept in the wallet's storage. At 0 hit points you are back inside the gate after a moment.
-   PHONES  a touch screen gets a joystick (left thumb), looking (right thumb) and buttons; the picture is always
-     landscape (turned if the phone is held upright) and asks for full screen on the first tap.
+   PHONES  a touch screen gets a joystick (left thumb), looking (right thumb) and buttons; the first tap asks for full
+     screen and a landscape lock (where the browser allows them; otherwise the picture simply follows the phone).
    THE WALLET  the HUD shows @name and balance; crystals and offerings are remembered (arcade.storage); the shrine
      asks the wallet for a 1-coin payment to the player's own address (only the fee leaves), which the player
      approves or refuses in the wallet. */
@@ -63,7 +63,6 @@
     /* bloom, film tone, grade, vignette after the scene (art.post); without WebGL2 the scene goes straight to the screen */
     const post = LV.env && art.post ? art.post(renderer, scene, camera, { exposure: LV.env.exposure || 1, bloom: LV.env.bloom == null ? 0.32 : LV.env.bloom }) : null;
     function resize() {
-      if (typeof fitLandscape === 'function') fitLandscape();
       const w = el.clientWidth || G.innerWidth, h = el.clientHeight || G.innerHeight;
       renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
       if (post) post.resize(w, h);
@@ -248,7 +247,7 @@
     for (const id in pickups) W.taken[id] = null;
 
     /* --- HUD ------------------------------------------------------------------------------------------ */
-    /* a touch screen (a phone, a tablet): the joystick and buttons, and a landscape picture */
+    /* a touch screen (a phone, a tablet): the joystick and buttons */
     const TOUCH = !!((G.matchMedia && G.matchMedia('(pointer: coarse)').matches) || (G.navigator && G.navigator.maxTouchPoints > 0 && 'ontouchstart' in G));
     const hud = document.createElement('div');
     hud.innerHTML =
@@ -299,7 +298,9 @@
       '.lwq-b-atk{right:28px;bottom:42px;width:84px;height:84px;font-size:34px;background:rgba(150,30,20,.5)}' +
       '.lwq-b-use{right:124px;bottom:30px;width:58px;height:58px}.lwq-b-jump{right:40px;bottom:140px;width:58px;height:58px}' +
       '.lwq-b-run{right:124px;bottom:104px;width:52px;height:52px;font-size:13px}' +
-      (TOUCH ? '.lwq-log{top:48px;bottom:auto;font-size:12px}.lwq-inv{bottom:auto;top:48px}' : '');
+      (TOUCH ? '.lwq-log{top:48px;bottom:auto;font-size:12px}.lwq-inv{bottom:auto;top:48px}' +
+               /* held upright the buttons fill the bottom: the bars go to the top, the log below them */
+               '@media (max-aspect-ratio:1/1){.lwq-stats{bottom:auto;top:52px;width:min(320px,64%)}.lwq-log{top:104px;max-width:70%}}' : '');
     el.appendChild(st);
     const $ = c => hud.querySelector(c);
     const logLines = [];
@@ -326,27 +327,18 @@
     canvas.addEventListener('mousedown', e => { if (e.button === 0 && locked()) attack(); });
     document.addEventListener('pointerlockchange', () => { if (!TOUCH) $('.lwq-start').style.display = locked() ? 'none' : 'flex'; });
 
-    /* --- phones: landscape, full screen, a joystick and buttons ---------------------------------------------- */
-    /* LANDSCAPE, ALWAYS: held upright, the whole game is turned a quarter, so the picture is wide either way (the
-       browser may refuse an orientation lock -- a game in a frame usually cannot have one -- so this does not ask) */
-    let turned = false;
-    function fitLandscape() {
-      if (!TOUCH) return;
-      const w = G.innerWidth, h = G.innerHeight;
-      turned = h > w;
-      el.style.cssText = turned
-        ? 'position:fixed;top:0;left:' + w + 'px;width:' + h + 'px;height:' + w + 'px;transform:rotate(90deg);transform-origin:0 0;overflow:hidden'
-        : 'position:fixed;top:0;left:0;width:100%;height:100%;overflow:hidden';
-    }
-    /* a touch point in the game's own coordinates, whichever way it is turned */
-    const local = t => turned ? { x: t.clientY, y: G.innerWidth - t.clientX } : { x: t.clientX, y: t.clientY };
+    /* --- phones: full screen, a joystick and buttons ------------------------------------------------------- */
+    /* The picture follows the phone: held upright it is tall, turned it is wide. (v0.4 turned the game itself a
+       quarter when the phone was upright; tbuuol 2026-10-22: turning the phone then turned the screen again and
+       nothing fitted -- so the game asks the browser for a landscape lock on the first tap, and does no more.) */
+    const local = t => ({ x: t.clientX, y: t.clientY });
     function goFull() {
       try {
         const d = document.documentElement, ask = d.requestFullscreen || d.webkitRequestFullscreen;
         if (ask) Promise.resolve(ask.call(d)).then(() => {
           const o = G.screen && G.screen.orientation;
           return o && o.lock ? o.lock('landscape') : null;
-        }).catch(() => { /* not allowed here: the turned picture stands in */ }).then(() => setTimeout(resize, 250));
+        }).catch(() => { /* not allowed here (a game in a frame usually is not): the picture follows the phone */ }).then(() => setTimeout(resize, 250));
       } catch (e) { /* ignore */ }
     }
     const move2 = { x: 0, y: 0 };   /* the joystick, -1..1 each way */
@@ -968,7 +960,8 @@
       swingT = Math.max(0, swingT - dt * 3.2);
       const k = Math.sin(swingT * Math.PI);   /* 0 -> 1 -> 0: up, across, back */
       sword.rotation.set(-0.35 - k * 1.3, 0.25 + k * 0.9, -0.3 - k * 0.6);
-      sword.position.set(0.3 - k * 0.22, -0.32 + k * 0.08, -0.55);
+      const sx = 0.3 * Math.min(1, camera.aspect / 1.5);   /* a phone held upright: closer in, or it is off the picture */
+      sword.position.set(sx - k * 0.22, -0.32 + k * 0.08, -0.55);
       sword.visible = !P.dead;
     }
     let last = performance.now(), worldT = 0, netT = 0, fps = 0, fpsN = 0, fpsT = performance.now(), showFps = false, promptNow = '';
@@ -1030,6 +1023,6 @@
     };
   }
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 8, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, levels: 1 } },
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 9, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, levels: 1 } },
     D => ({ start: (el, opts) => start(D, el, opts) }));
 })(typeof globalThis !== 'undefined' ? globalThis : this);

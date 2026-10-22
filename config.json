@@ -41,7 +41,7 @@
     },
     "engine": {
       "file": "src/modules/engine.js",
-      "v": 8,
+      "v": 9,
       "api": 1,
       "kind": "js",
       "id": null
@@ -70,8 +70,8 @@
       "id": null
     }
   },
-  "page_id": "f7ac69b1bddcc4b7ed65a3b5193ecdc6bff3228bfe98824f11dbf67e32d1ef2c",
-  "bundle_id": null,
+  "page_id": "780e737befad5f1d5ee39f62a766940c67f40c43acdbfe3de6dea1be64d858c0",
+  "bundle_id": "082b2ff989017b8b0dd78b5df26a4d712f88dd26ea4826dd73290d567238f13d",
   "creators": [
     "nfqSKD76CiBuoAMZNkUBuiHYSaPxG2KidZ",
     "nb6X4wxqMGq93oE477CiwCvYZYevxTg9R7"
@@ -81,7 +81,8 @@
     "beda9c074aee01ba9d551c9482868a7ce91bf6a12af6370208fdaadf7fbc53db (v0.1)",
     "5847750f3bb8d9455edceac192a97914628805932bef3682786f3df713813b0f (v0.2)",
     "5cee58436d34727321b70de78d911eca50c1e3e7bcdd1dbe40078948d17854f0 (v0.3, publisher key)",
-    "f7ac69b1bddcc4b7ed65a3b5193ecdc6bff3228bfe98824f11dbf67e32d1ef2c (v0.3 game card, @liteworldsquest)"
+    "f7ac69b1bddcc4b7ed65a3b5193ecdc6bff3228bfe98824f11dbf67e32d1ef2c (v0.3 game card, @liteworldsquest)",
+    "780e737befad5f1d5ee39f62a766940c67f40c43acdbfe3de6dea1be64d858c0 (v0.4 page + game card, @liteworldsquest; bundle 082b2ff9 by the publisher key)"
   ],
   "asset_ids": {
     "model.person": "494fcb7b23359483d277bf5cddf6c740d9d1e40a32f6e79061d59d615ec15e8d",
