@@ -20,13 +20,20 @@
     },
     "sound": {
       "file": "src/modules/sound.js",
-      "v": 1,
+      "v": 2,
       "api": 1,
       "kind": "js",
       "id": null
     },
     "art": {
       "file": "src/modules/art.js",
+      "v": 2,
+      "api": 1,
+      "kind": "js",
+      "id": null
+    },
+    "combat": {
+      "file": "src/modules/combat.js",
       "v": 1,
       "api": 1,
       "kind": "js",
@@ -34,16 +41,16 @@
     },
     "engine": {
       "file": "src/modules/engine.js",
-      "v": 7,
+      "v": 8,
       "api": 1,
       "kind": "js",
-      "id": "c044140bf6a448330f7a394cd6660834720a4fa752b601b5a885db8976c6c141"
+      "id": null
     }
   },
   "levels": {
     "blockshire": {
       "file": "src/levels/blockshire.json",
-      "v": 1,
+      "v": 2,
       "api": 1,
       "kind": "json",
       "id": null
@@ -64,11 +71,12 @@
     }
   },
   "page_id": "f7ac69b1bddcc4b7ed65a3b5193ecdc6bff3228bfe98824f11dbf67e32d1ef2c",
+  "bundle_id": null,
   "creators": [
     "nfqSKD76CiBuoAMZNkUBuiHYSaPxG2KidZ",
     "nb6X4wxqMGq93oE477CiwCvYZYevxTg9R7"
   ],
-  "version": "0.3",
+  "version": "0.4",
   "page_history": [
     "beda9c074aee01ba9d551c9482868a7ce91bf6a12af6370208fdaadf7fbc53db (v0.1)",
     "5847750f3bb8d9455edceac192a97914628805932bef3682786f3df713813b0f (v0.2)",

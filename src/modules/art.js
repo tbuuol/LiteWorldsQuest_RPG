@@ -429,9 +429,11 @@
   art.forest = function (ctx, def) {
     const rnd = art.rng(def.seed || 11), list = (def.trees || []).slice();
     const inner = def.inner || 26, outer = def.outer || 90, n = def.count || 160;
+    const clear = def.clear || [];   /* [x0, z0, x1, z1] boxes kept free of trees: a field, a road */
     for (let i = 0; i < n; i++) {
       const a = rnd() * Math.PI * 2, r = inner + Math.pow(rnd(), 0.8) * (outer - inner);
-      list.push([Math.cos(a) * r, Math.sin(a) * r, rnd.range(0.8, 1.5), rnd() < 0.62 ? 'pine' : 'oak']);
+      const t = [Math.cos(a) * r, Math.sin(a) * r, rnd.range(0.8, 1.5), rnd() < 0.62 ? 'pine' : 'oak'];
+      if (!clear.some(b => t[0] > b[0] && t[0] < b[2] && t[1] > b[1] && t[1] < b[3])) list.push(t);
     }
     const height = (x, z) => { const d = Math.hypot(x, z), k = Math.max(0, Math.min(1, (d - (def.flat || 30)) / 40)); return k * k * (Math.sin(x * 0.05) * 4 + Math.cos(z * 0.043) * 5 + Math.sin((x + z) * 0.11) * 1.5 + 3); };
     art.trees(ctx, list, height);
@@ -517,10 +519,19 @@
       }
       ctx.solid([Math.min(ax, bx) - 0.1, 0, Math.min(az, bz) - 0.1], [Math.max(ax, bx) + 0.1, 1.6, Math.max(az, bz) + 0.1]);
     };
-    if (gate) { seg(x0, z1, gate[0], z1); seg(gate[1], z1, x1, z1); ctx.solid([gate[0], 0, z1 - 0.1], [gate[1], 1.6, z1 + 0.1]);
-      /* the gate: two closed wings, and an arch with the camp's name */
-      const gw = (gate[1] - gate[0]) / 2;
-      for (const sgn of [-1, 1]) { const w = mesh(boxM(gw - 0.05, 1.3, 0.08, 1), mat('planks', { m: { color: '#a9835a' } })); w.position.set((gate[0] + gate[1]) / 2 + sgn * gw / 2, 0.75, z1); ctx.scene.add(w); }
+    let door = null;
+    if (gate) { seg(x0, z1, gate[0], z1); seg(gate[1], z1, x1, z1);
+      /* the gate: two wings, each on a hinge at its post, that swing outwards; and an arch with the camp's name.
+         With an id it is a door the engine opens and closes (shared, like a hut's); without one it stays shut. */
+      const gw = (gate[1] - gate[0]) / 2, pivots = [], wings = [];
+      for (const sgn of [-1, 1]) {
+        const pivot = new T.Group(); pivot.position.set(sgn < 0 ? gate[0] : gate[1], 0, z1); pivot.userData.keep = true; ctx.scene.add(pivot);
+        const w = mesh(boxM(gw - 0.05, 1.3, 0.08, 1), mat('planks', { m: { color: '#a9835a' } })); w.position.set(-sgn * gw / 2, 0.75, 0); pivot.add(w);
+        pivots.push({ p: pivot, swing: sgn < 0 ? -1.65 : 1.65 }); wings.push(w);
+      }
+      const box = { min: [gate[0], 0, z1 - 0.1], max: [gate[1], 1.6, z1 + 0.1] };
+      if (def.gateId) door = { id: def.gateId, label: def.gateLabel || 'Gate', opens: 'hand', open: def.gateOpen !== false, wings, pivots, box };
+      else ctx.solid(box.min, box.max);
       for (const gx of gate) { const p = mesh(new T.CylinderGeometry(0.16, 0.18, 4, 8), wood); p.position.set(gx, 2, z1); ctx.scene.add(p); }
       const beam = mesh(new T.BoxGeometry(gate[1] - gate[0] + 0.8, 0.3, 0.3), wood); beam.position.set((gate[0] + gate[1]) / 2, 3.8, z1); ctx.scene.add(beam);
       if (def.sign) {
@@ -529,11 +540,11 @@
         const t = new T.CanvasTexture(c); t.colorSpace = T.SRGBColorSpace;
         const s = mesh(new T.BoxGeometry(3.2, 0.8, 0.08), [plain('#6b4a2b'), plain('#6b4a2b'), plain('#6b4a2b'), plain('#6b4a2b'), new T.MeshStandardMaterial({ map: t, roughness: 0.8 }), new T.MeshStandardMaterial({ map: t, roughness: 0.8 })]);
         s.position.set((gate[0] + gate[1]) / 2, 3.2, z1 + 0.2); ctx.scene.add(s);
-        /* the back reads the right way round too */
-        s.material[5].map = t.clone(); s.material[5].map.repeat.x = -1; s.material[5].map.offset.x = 1; s.material[5].map.needsUpdate = true;
+        /* (a box's back face already reads the right way round from behind: no flip) */
       }
     } else seg(x0, z1, x1, z1);
     seg(x0, z0, x1, z0); seg(x0, z0, x0, z1); seg(x1, z0, x1, z1);
+    return { door };
   };
   art.paths = function (ctx, def) {
     const dirt = mat('dirt', { repeat: [1, 1], m: { bumpScale: 1.5, polygonOffset: true, polygonOffsetFactor: -2 } });
@@ -797,12 +808,13 @@
     });
     return personP;
   }
-  function personMat(letter) {
-    if (personMats[letter]) return personMats[letter];
-    const m = new T.MeshStandardMaterial({ roughness: 0.85, color: '#ffffff' });
+  function personMat(letter, tint) {   /* tint: a colour the picture is multiplied by (raiders: darker, dustier) */
+    const key = letter + (tint || '');
+    if (personMats[key]) return personMats[key];
+    const m = new T.MeshStandardMaterial({ roughness: 0.85, color: tint || '#ffffff' });
     /* glTF's way: no flip, and the UVs run past 0..1 (the default sampler repeats) */
     new T.TextureLoader().load(assetURL('tex.person.' + letter), t => { t.colorSpace = T.SRGBColorSpace; t.flipY = false; t.wrapS = t.wrapT = T.RepeatWrapping; t.needsUpdate = true; m.map = t; m.needsUpdate = true; });
-    return (personMats[letter] = m);
+    return (personMats[key] = m);
   }
   art.PEOPLE = 'abcefikmnp';   /* the looks that belong in a village (no robots, suits or ninjas) */
 
@@ -847,13 +859,13 @@
     const setName = (text, color) => { nx.clearRect(0, 0, 256, 48); nx.font = '600 24px Georgia,serif'; nx.textAlign = 'center'; const w = Math.min(250, nx.measureText(text).width + 20); nx.fillStyle = 'rgba(0,0,0,.45)'; nx.fillRect(128 - w / 2, 6, w, 36); nx.fillStyle = color || '#fff'; nx.fillText(text, 128, 33); ntex.needsUpdate = true; };
     ctx.scene.add(root);
     let phase = 0, breathe = Math.random() * 6;
-    let mixer = null, actions = {}, now = null, once = null;
+    let mixer = null, actions = {}, now = null, once = null, hold = null, swingT = 0;
     const play = (name, fade) => {
       const a = actions[name]; if (!a || now === a) return;
       a.reset().fadeIn(fade == null ? 0.25 : fade).play(); if (now) now.fadeOut(fade == null ? 0.25 : fade); now = a;
     };
     if (assetURL) loadPerson().then(tpl => {
-      const model = tpl.root.clone(true), material = personMat(look.person || art.PEOPLE[Math.abs(hashStr(shirt)) % art.PEOPLE.length]);
+      const model = tpl.root.clone(true), material = personMat(look.person || art.PEOPLE[Math.abs(hashStr(shirt)) % art.PEOPLE.length], look.tint);
       model.traverse(o => { if (o.isMesh) { o.material = material; o.castShadow = true; o.receiveShadow = true; } });
       const k = 1.8 * (look.scale ? look.scale / 0.9 : 1) / tpl.height;
       model.scale.setScalar(k); model.position.y = -tpl.foot * k; model.rotation.y = Math.PI;   /* glTF faces +z, the game faces -z */
@@ -861,15 +873,29 @@
       root.add(model);
       mixer = new T.AnimationMixer(model);
       for (const c of tpl.clips) actions[c.name] = mixer.clipAction(c);
-      for (const n of ['emote-yes', 'emote-no', 'pick-up', 'interact-right']) if (actions[n]) { actions[n].setLoop(T.LoopOnce, 1); actions[n].clampWhenFinished = true; }
+      for (const n of ['emote-yes', 'emote-no', 'pick-up', 'interact-right', 'attack-melee-right', 'die']) if (actions[n]) { actions[n].setLoop(T.LoopOnce, 1); actions[n].clampWhenFinished = true; }
+      if (hold) play(hold, 0);
       mixer.addEventListener('finished', () => { once = null; });
       play('idle', 0);
     }).catch(e => console.warn('LWQ: the people model did not load; blocky stand-ins stay', e && e.message));
     return {
       group: root, head, setName, tag,
-      /* a one-off gesture: 'emote-yes', 'emote-no', 'pick-up', 'interact-right' */
-      emote(name) { if (!actions[name]) return; once = name; play(name, 0.15); },
+      /* a one-off gesture: 'emote-yes', 'emote-no', 'pick-up', 'interact-right', 'attack-melee-right' */
+      emote(name) {
+        if (name === 'attack-melee-right') swingT = 0.45;   /* the blocky stand-in swings its arm instead */
+        if (!actions[name] || hold) return;
+        if (now === actions[name]) now = null;   /* the same swing again starts again */
+        once = name; play(name, 0.1);
+      },
+      /* a pose kept until it is let go: 'die' (falls and stays down); null gets up again */
+      hold(name) {
+        if (hold === name) return;
+        hold = name; once = null; now = null;
+        if (name) play(name, 0.1); else play('idle', 0.3);
+        if (!mixer) g.rotation.x = name === 'die' ? -Math.PI / 2 : 0, g.position.z = name === 'die' ? 0.9 : 0;
+      },
       animate(dt, speed) {
+        if (hold) { if (mixer) mixer.update(dt); return; }
         if (mixer) {
           if (!once || speed > 0.3) { once = null; play(speed > 5 ? 'sprint' : speed > 0.3 ? 'walk' : 'idle'); }
           if (actions.walk) actions.walk.timeScale = Math.max(0.6, speed / 2.6);
@@ -883,6 +909,7 @@
         const idle = 1 - Math.min(1, sp * 3);
         body.scale.y = 1 + Math.sin(breathe) * 0.012 * idle; armL.rotation.z = -0.04 - Math.sin(breathe) * 0.02 * idle; armR.rotation.z = 0.04 + Math.sin(breathe) * 0.02 * idle;
         g.position.y = Math.abs(Math.sin(phase)) * 0.05 * sp;
+        if (swingT > 0) { swingT -= dt; const k = Math.sin(Math.max(0, swingT) / 0.45 * Math.PI); armR.rotation.x = -2.2 * k; }
       },
       wave(t) { armR.rotation.x = -2.6 + Math.sin(t * 9) * 0.3; armR.rotation.z = 0.3; }
     };
@@ -1102,5 +1129,5 @@
     return { groundAt, polys, segs, half, spawn, inside, stats: { buildings: buildings.length, trees: trees.length } };
   };
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('art', { api: 1, v: 1 }, () => art);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('art', { api: 1, v: 2 }, () => art);
 })(typeof globalThis !== 'undefined' ? globalThis : this);

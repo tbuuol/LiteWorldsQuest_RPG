@@ -22,14 +22,19 @@ let reg = BAKED;
 /* the newest registry by one of the game's publishers wins: a release is new modules + a new registry (as in
    ASHVALE). Two publishers: @tbuuol, and the publishing key on the build machine (since v0.2). */
 const CREATORS = /*@@CREATORS@@*/;
-/* both publishers are asked at once: the start waits for the slower one, not for the two added up */
+/* since v0.4 the page's own modules are one gzip bundle, an inscription of its own (a third of their size); the dev
+   page carries them as scripts instead and has no bundle */
+const BUNDLE = /*@@BUNDLE@@*/;
+/* the bundle and both publishers' registries are asked at once: the start waits for the slowest, not for the sum */
+const unpacked = BUNDLE ? LWQ.unpack(BUNDLE) : Promise.resolve(0);
+unpacked.catch(function () { /* said below, once boot is reached */ });
 await Promise.all(CREATORS.map(async function (who) {
   try {
     const L = await (await fetch('/r/inscriptions?creator=' + encodeURIComponent(who) + '&limit=300')).json();
     for (const p of L || []) { const j = p.json; if (j && j.lwq === 'registry' && (j.loader || 1) <= LWQ.LOADER && j.version > reg.version) reg = j; }
   } catch (e) { console.warn('LiteWorldsQuest: registry lookup failed for ' + who + ', using what is known', e && e.message); }
 }));
-LWQ.boot({ baked: reg }).then(function (m) {
+unpacked.then(function () { return LWQ.boot({ baked: reg }); }).then(function (m) {
   document.getElementById('boot').remove();
   let level; try { level = new URLSearchParams(location.search).get('level') || undefined; } catch (e) { level = undefined; }
   window.LWQGAME = m.engine.start(document.getElementById('lwq'), { level: level });

@@ -1,0 +1,12 @@
+How we made LiteWorldsQuest 3x smaller on chain 🗜️
+
+v0.3 was a 237 KB page: 32 transactions, about 56 test coins.
+v0.4, coming next, is a 10 KB page plus a 64 KB bundle: about 11 transactions, roughly a third of the cost, with more game in it (the gate of Blockshire, guards, a priest, raiders, combat, phone controls).
+
+How, if you want to do the same with your game:
+1. Minify your JS before you inscribe it (esbuild --minify). About 45% smaller.
+2. Put all your modules and level data into ONE file, gzip it (zopfli squeezes a few % more), and inscribe it as binary (application/gzip). No base64, which would add a third back.
+3. Your page only keeps a small loader. It fetches /content/<bundle id> and unpacks it in the browser with DecompressionStream('gzip') — a few milliseconds, and much less to download, which phones love.
+4. Updates: inscribe single modules gzipped too, and let your registry point to them.
+
+Works in current Chrome, Edge, Firefox and Safari. Questions welcome — ask @liteworldsquest.

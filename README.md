@@ -4,12 +4,14 @@ A first-person multiplayer game for the DogecoinArcade / PepecoinArcade, built t
 one inscribed page with a small module loader, and the game in modules a registry names.
 
 The game starts in **Blockshire** (`src/levels/blockshire.json`), a small fenced camp with five log huts, a village
-square with a campfire and a wishing well, and five villagers to talk to. In it you can:
+square with a campfire and a wishing well, and four villagers to talk to. In it you can:
 
-- open hut doors (shared with every player)
-- take the storehouse key from the Elder's table and unlock the storehouse
-- find three crystals
+- open hut doors and the camp's gate (shared with every player)
+- fight at the gate: raiders come out of the forest, two guards hold the gate and Brother Anselm heals them; your
+  sword (F, a click, or ⚔ on a phone) earns XP and levels (`src/modules/combat.js`)
 - make a wish at the well (a wallet payment)
+
+On a phone the picture is always landscape, with a joystick and buttons on the screen.
 
 The first test level, "The Testing Halls" (`src/levels/test.json`), is still there.
 
@@ -26,25 +28,25 @@ The first test level, "The Testing Halls" (`src/levels/test.json`), is still the
 | `src/levels/blockshire.json` | Blockshire: where every hut, prop, path and villager stands, and what they say |
 | `src/levels/test.json` | The first test level |
 | `config.json` | Module versions and interfaces, the three.js inscription, and (later) inscription ids |
-| `build.py` | Writes `dist/liteworldsquest.html` (one file, ~107 KB) and `dist/modules/*` |
+| `src/modules/combat.js` | Player stats (hit points, XP, levels) and the fight at the gate: guards, priest, raiders |
+| `build.py` | Writes the dev page `dist/liteworldsquest.html`; with `--release` the page to inscribe (`dist/release/`): a 10 KB page plus `bundle.json.gz`, every module minified (esbuild) and packed (zopfli) |
 | `dev/` | A stand-in for the arcade viewer, to play without inscribing anything |
 
 three.js is not in the page. The page imports the copy ASHVALE already inscribed
 (`374cfd2b…f9539`, r160), so it costs nothing.
 
-## What the graphics cost
+## What it costs on chain
 
-There are no picture files. Every texture is painted by code when the game starts: grass, dirt, logs, planks,
-thatch, stone, bark, leaves and cloth. The village is laid out from a seed, so everyone sees the same one.
+Textures and the people model are real files (the Hybrid tier, ~2 MB, inscribed once). Everything else is code
+and level data, and since v0.4 it goes on chain small:
 
 | Part | Size |
 |---|---|
-| Graphics code (`art.js`) | 46 KB |
-| Blockshire's layout (`blockshire.json`) | 5.4 KB |
-| The whole page | 107 KB, plus three.js, which ASHVALE already inscribed |
+| The page (loader + registry) | 10 KB |
+| `bundle.json.gz`: every module and level, minified and gzipped | 64 KB (174 KB minified, 268 KB as written) |
+| three.js | nothing: ASHVALE's inscription, shared |
 
-The scene has about 470 draw calls and 79,000 triangles. That is fine on a desktop. For phones, the next step is
-to merge the static parts (huts, fence, props) into a few meshes per material.
+How the bundle is made and read is written up for other builders in `docs/collab-notes-entry.md`.
 
 ## Multiplayer
 

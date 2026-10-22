@@ -13,7 +13,34 @@
   'use strict';
   const L = G.LWQ = G.LWQ || {};
   const defs = L._defs = L._defs || {};
-  L.LOADER = 1;
+  /* 2 (v0.4): modules can come packed -- the page's own in one gzip bundle (L.unpack), an update as a gzip inscription
+     (an entry's "gz" id). A registry that only a loader 2 can read says "loader": 2, and older pages pass it by. */
+  L.LOADER = 2;
+  const gunzip = async r => {
+    if (typeof DecompressionStream === 'undefined') throw new Error('this browser cannot unpack the game (no DecompressionStream)');
+    return new Response(r.body.pipeThrough(new DecompressionStream('gzip'))).text();
+  };
+  /* a module's code run as a script of its own (it registers itself with LWQ.define) */
+  function runScript(text, src, name) {
+    const url = URL.createObjectURL(new Blob([text], { type: 'text/javascript' }));
+    return new Promise((res, rej) => {
+      const s = document.createElement('script');
+      s.src = url; s.onload = () => { L._src = null; URL.revokeObjectURL(url); res(); };
+      s.onerror = () => { L._src = null; rej(new Error(name + ': script failed')); };
+      L._src = src; document.head.appendChild(s);
+    });
+  }
+  /* the page's own modules, packed: [{n: name, k: 'js'|'json', t: text}], gzip, an inscription of its own */
+  L.unpack = async function (url) {
+    const r = await fetch(url);
+    if (!r.ok) throw new Error('the game bundle: HTTP ' + r.status);
+    const list = JSON.parse(await gunzip(r));
+    for (const m of list) {
+      if (m.k === 'json') { L._src = 'page'; L.defineData(JSON.parse(m.t)); L._src = null; }
+      else await runScript(m.t, 'page', m.n);
+    }
+    return list.length;
+  };
   L.define = function (name, meta, factory) { defs[name] = { meta: meta || {}, factory, src: L._src || 'page' }; };
   L.defineData = function (j) {
     if (!j || j.lwq !== 'module') throw new Error('not a LiteWorldsQuest data module');
@@ -33,22 +60,17 @@
     return out;
   }
   async function fetchModule(name, e) {
-    const r = await fetch('/content/' + e.id);
+    const packed = !!e.gz && typeof DecompressionStream !== 'undefined';   /* the packed copy when there is one */
+    const r = await fetch('/content/' + (packed ? e.gz : e.id));
     if (!r.ok) throw new Error(name + ': HTTP ' + r.status);
-    if (e.kind === 'json') { const j = await r.json(); L._src = 'remote'; L.defineData(j); L._src = null; return; }
-    const text = await r.text();
-    const url = URL.createObjectURL(new Blob([text], { type: 'text/javascript' }));
+    const text = packed ? await gunzip(r) : await r.text();
+    if (e.kind === 'json') { L._src = 'remote'; L.defineData(JSON.parse(text)); L._src = null; return; }
     if (e.kind === 'esm') {
-      const ns = await import(url);
+      const ns = await import(URL.createObjectURL(new Blob([text], { type: 'text/javascript' })));
       defs[name] = { meta: Object.assign({ api: e.api, v: e.v }, ns.meta || {}), factory: () => ns, src: 'remote' };
       return;
     }
-    await new Promise((res, rej) => {
-      const s = document.createElement('script');
-      s.src = url; s.onload = res; s.onerror = () => rej(new Error(name + ': script failed'));
-      L._src = 'remote'; document.head.appendChild(s);
-    });
-    L._src = null;
+    await runScript(text, 'remote', name);
   }
   const fits = (have, api) => have && String(have.meta.api) === String(api);
 
@@ -60,13 +82,13 @@
       const { name, entry } = item;
       /* a newer registry may name a module (a new level, say) this page does not carry and that has no inscription
          yet: leave it out instead of refusing to start. If something here needs it, the interface check says so. */
-      if (!defs[name] && !entry.id) { console.warn('LWQ: ' + name + ' is not on this page and not inscribed, left out'); report.push([name, entry.v, 'left out']); continue; }
+      if (!defs[name] && !entry.id && !entry.gz) { console.warn('LWQ: ' + name + ' is not on this page and not inscribed, left out'); report.push([name, entry.v, 'left out']); continue; }
       list.push(item);
     }
     for (const { name, entry } of list) {
       const have = defs[name];
       if (have && String(have.meta.v) === String(entry.v)) { report.push([name, entry.v, 'page']); continue; }
-      if (entry.id) {
+      if (entry.id || entry.gz) {
         try { await fetchModule(name, entry); report.push([name, entry.v, 'fetched']); continue; }
         catch (e) { console.warn('LWQ: could not fetch ' + name + ', using the baked copy', e.message); }
       }

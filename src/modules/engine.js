@@ -12,6 +12,13 @@
              {W: world}                                             the world, from the host
              {H: 1}                                                 "I am new: the world, please"
              {S: 'offered'}                                         a shrine offering went through (for the log)
+             {C: snapshot}                                          the fight at the gate, from the host (combat module)
+             {X: unit, d}                                           my blow on a raider, to the host
+             {D: player, d}  /  {K: player, x}                      from the host: damage (negative heals) / a kill's XP
+   COMBAT  F or the left mouse button strikes (a sword, in front of you); hit points, level and XP are in the HUD and
+     level and XP are kept in the wallet's storage. At 0 hit points you are back inside the gate after a moment.
+   PHONES  a touch screen gets a joystick (left thumb), looking (right thumb) and buttons; the picture is always
+     landscape (turned if the phone is held upright) and asks for full screen on the first tap.
    THE WALLET  the HUD shows @name and balance; crystals and offerings are remembered (arcade.storage); the shrine
      asks the wallet for a 1-coin payment to the player's own address (only the fee leaves), which the player
      approves or refuses in the wallet. */
@@ -56,6 +63,7 @@
     /* bloom, film tone, grade, vignette after the scene (art.post); without WebGL2 the scene goes straight to the screen */
     const post = LV.env && art.post ? art.post(renderer, scene, camera, { exposure: LV.env.exposure || 1, bloom: LV.env.bloom == null ? 0.32 : LV.env.bloom }) : null;
     function resize() {
+      if (typeof fitLandscape === 'function') fitLandscape();
       const w = el.clientWidth || G.innerWidth, h = el.clientHeight || G.innerHeight;
       renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
       if (post) post.resize(w, h);
@@ -92,8 +100,17 @@
       const built = art.hut(ctx, h), d = built.door;
       if (!d) continue;
       d.panel.userData = { kind: 'door', id: d.id }; usable.push(d.panel);
-      doors[d.id] = { def: d, mesh: d.panel, hinge: d.pivot, swing: d.swing };
+      doors[d.id] = { def: d, mesh: d.panel, pivots: [{ p: d.pivot, swing: d.swing }] };
       boxes.push({ min: d.box.min, max: d.box.max, on: () => !W.open[d.id] });
+    }
+    /* the camp's fence, and its gate when it has an id: a door of two wings, open at the start if the level says so */
+    if (LV.fence) {
+      const gd = (art.fence(ctx, LV.fence) || {}).door;
+      if (gd) {
+        for (const w of gd.wings) { w.userData = { kind: 'door', id: gd.id }; usable.push(w); }
+        doors[gd.id] = { def: gd, mesh: gd.wings[0], pivots: gd.pivots };
+        boxes.push({ min: gd.box.min, max: gd.box.max, on: () => !W.open[gd.id] });
+      }
     }
     /* a piece of the real Earth (tools/realworld.py): the ground is its heights, the houses its footprints */
     const realW = LV.real ? art.realworld(ctx, LV.real) : null;
@@ -110,7 +127,6 @@
     if (LV.fire) { art.campfire(ctx, LV.fire); if (sound) sound.fire(LV.fire.pos[0], 0, LV.fire.pos[1]); }
     if (LV.forest) art.forest(ctx, LV.forest);
     if (LV.grass) art.grass(ctx, LV.grass);
-    if (LV.fence) art.fence(ctx, LV.fence);
     if (LV.paths) art.paths(ctx, LV.paths);
     for (const pr of LV.props || []) art.prop(ctx, pr);
     for (const s of LV.switches || []) {
@@ -216,25 +232,38 @@
     }
     function closeTalk() { talk = null; $('.lwq-talk').style.display = 'none'; }
 
+    /* --- the fight at the gate (combat module): guards, a priest, raiders out of the forest ------------------ */
+    const combat = D.combat || null;
+    const fight = LV.defense && combat ? combat.create({ THREE, art, ctx, def: LV.defense }) : null;
+
     /* everything that never moves, merged by material: hundreds of parts become a few dozen draw calls */
-    for (const id in doors) if (!doors[id].hinge) doors[id].mesh.userData.keep = true;
+    for (const id in doors) if (!doors[id].pivots) doors[id].mesh.userData.keep = true;
     for (const id in switches) switches[id].mesh.userData.keep = true;
     const frozen = art.freeze ? art.freeze(scene) : null;
     if (frozen) console.info('LWQ: ' + frozen.joined + ' still parts drawn in ' + frozen.calls + ' calls');
 
     /* --- the shared world --------------------------------------------------------------------------- */
     let W = { seq: 0, open: {}, taken: {} };
-    for (const id in doors) W.open[id] = false;
+    for (const id in doors) W.open[id] = !!doors[id].def.open;
     for (const id in pickups) W.taken[id] = null;
 
     /* --- HUD ------------------------------------------------------------------------------------------ */
+    /* a touch screen (a phone, a tablet): the joystick and buttons, and a landscape picture */
+    const TOUCH = !!((G.matchMedia && G.matchMedia('(pointer: coarse)').matches) || (G.navigator && G.navigator.maxTouchPoints > 0 && 'ontouchstart' in G));
     const hud = document.createElement('div');
     hud.innerHTML =
+      '<div class="lwq-hurt"></div>' +
       '<div class="lwq-tl"></div><div class="lwq-tr"></div><div class="lwq-x">+</div><div class="lwq-prompt"></div>' +
       '<div class="lwq-inv"></div><div class="lwq-log"></div><div class="lwq-talk"></div>' +
+      (fight ? '<div class="lwq-stats"><span class="lwq-lv"></span><div class="lwq-bar lwq-hp"><i></i><span></span></div>' +
+               '<div class="lwq-bar lwq-xp"><i></i><span></span></div></div>' : '') +
       (LV.credits ? '<div class="lwq-credit">' + esc(LV.credits) + '</div>' : '') +
-      '<div class="lwq-start"><b>' + esc(LV.title || 'LiteWorldsQuest') + '</b><br>Click to play<br>' +
-      '<small>WASD move · Shift run · Space jump · Mouse look · E use · M sound · F3 fps · Esc release mouse</small></div>';
+      (TOUCH ? '<div class="lwq-touch"><div class="lwq-stick"><div class="lwq-knob"></div></div>' +
+               '<button class="lwq-b lwq-b-atk" data-b="attack">⚔</button><button class="lwq-b lwq-b-use" data-b="use">E</button>' +
+               '<button class="lwq-b lwq-b-jump" data-b="jump">▲</button><button class="lwq-b lwq-b-run" data-b="run">Run</button></div>' : '') +
+      '<div class="lwq-start"><b>' + esc(LV.title || 'LiteWorldsQuest') + '</b><br>' + (TOUCH ? 'Tap to play' : 'Click to play') + '<br>' +
+      (TOUCH ? '<small>Left thumb: walk · right thumb: look · ⚔ strike · E use · ▲ jump</small></div>'
+             : '<small>WASD move · Shift run · Space jump · Mouse look · E use · F / click strike · M sound · F3 fps · Esc release mouse</small></div>');
     el.appendChild(hud);
     const st = document.createElement('style');
     st.textContent =
@@ -253,7 +282,24 @@
       'font:15px/1.45 Georgia,serif;pointer-events:none}.lwq-talk b{color:#ffd88a}' +
       '.lwq-talk small{display:block;margin-top:6px;font:12px system-ui,sans-serif;opacity:.7}' +
       '.lwq-credit{position:absolute;left:50%;bottom:4px;transform:translateX(-50%);font:11px system-ui,sans-serif;' +
-      'color:#fff;opacity:.75;text-shadow:0 1px 2px #000;pointer-events:none;white-space:nowrap}';
+      'color:#fff;opacity:.75;text-shadow:0 1px 2px #000;pointer-events:none;white-space:nowrap}' +
+      '.lwq-hurt{position:absolute;inset:0;pointer-events:none;box-shadow:inset 0 0 140px rgba(190,0,0,.85);opacity:0;transition:opacity .5s}' +
+      '.lwq-stats{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);width:min(320px,44%);pointer-events:none;' +
+      'font:600 12px system-ui,sans-serif;color:#fff;text-shadow:0 1px 2px #000;text-align:center}' +
+      '.lwq-bar{position:relative;height:13px;margin-top:4px;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.25);border-radius:4px;overflow:hidden}' +
+      '.lwq-bar i{position:absolute;left:0;top:0;bottom:0;transition:width .2s}.lwq-hp i{background:linear-gradient(#e5574a,#a4241b)}' +
+      '.lwq-xp{height:8px}.lwq-xp i{background:linear-gradient(#6fb6ff,#2f6fc9)}' +
+      '.lwq-bar span{position:relative;font-size:10px;line-height:13px}.lwq-xp span{display:none}' +
+      '.lwq-touch{display:none;position:absolute;inset:0;touch-action:none;user-select:none;-webkit-user-select:none}' +
+      '.lwq-stick{display:none;position:absolute;width:120px;height:120px;margin:-60px 0 0 -60px;border-radius:50%;' +
+      'background:rgba(255,255,255,.12);border:2px solid rgba(255,255,255,.35);pointer-events:none}' +
+      '.lwq-knob{position:absolute;left:35px;top:35px;width:50px;height:50px;border-radius:50%;background:rgba(255,255,255,.55)}' +
+      '.lwq-b{position:absolute;border-radius:50%;border:2px solid rgba(255,255,255,.55);background:rgba(20,20,20,.38);color:#fff;' +
+      'font:700 18px system-ui,sans-serif;touch-action:none;padding:0}.lwq-b.on{background:rgba(255,200,80,.55)}' +
+      '.lwq-b-atk{right:28px;bottom:42px;width:84px;height:84px;font-size:34px;background:rgba(150,30,20,.5)}' +
+      '.lwq-b-use{right:124px;bottom:30px;width:58px;height:58px}.lwq-b-jump{right:40px;bottom:140px;width:58px;height:58px}' +
+      '.lwq-b-run{right:124px;bottom:104px;width:52px;height:52px;font-size:13px}' +
+      (TOUCH ? '.lwq-log{top:48px;bottom:auto;font-size:12px}.lwq-inv{bottom:auto;top:48px}' : '');
     el.appendChild(st);
     const $ = c => hud.querySelector(c);
     const logLines = [];
@@ -269,9 +315,97 @@
     const keys = {};
     const canvas = renderer.domElement;
     const locked = () => document.pointerLockElement === canvas;
-    $('.lwq-start').addEventListener('click', () => { if (sound) sound.start(); try { canvas.requestPointerLock(); } catch (e) { /* no pointer lock here */ } });
-    canvas.addEventListener('click', () => { if (!locked()) try { canvas.requestPointerLock(); } catch (e) { /* ignore */ } });
-    document.addEventListener('pointerlockchange', () => { $('.lwq-start').style.display = locked() ? 'none' : 'flex'; });
+    let touchPlaying = false;
+    const playing = () => locked() || touchPlaying;
+    $('.lwq-start').addEventListener('click', () => {
+      if (sound) sound.start();
+      if (TOUCH) { startTouch(); return; }
+      try { canvas.requestPointerLock(); } catch (e) { /* no pointer lock here */ }
+    });
+    canvas.addEventListener('click', () => { if (!TOUCH && !locked()) try { canvas.requestPointerLock(); } catch (e) { /* ignore */ } });
+    canvas.addEventListener('mousedown', e => { if (e.button === 0 && locked()) attack(); });
+    document.addEventListener('pointerlockchange', () => { if (!TOUCH) $('.lwq-start').style.display = locked() ? 'none' : 'flex'; });
+
+    /* --- phones: landscape, full screen, a joystick and buttons ---------------------------------------------- */
+    /* LANDSCAPE, ALWAYS: held upright, the whole game is turned a quarter, so the picture is wide either way (the
+       browser may refuse an orientation lock -- a game in a frame usually cannot have one -- so this does not ask) */
+    let turned = false;
+    function fitLandscape() {
+      if (!TOUCH) return;
+      const w = G.innerWidth, h = G.innerHeight;
+      turned = h > w;
+      el.style.cssText = turned
+        ? 'position:fixed;top:0;left:' + w + 'px;width:' + h + 'px;height:' + w + 'px;transform:rotate(90deg);transform-origin:0 0;overflow:hidden'
+        : 'position:fixed;top:0;left:0;width:100%;height:100%;overflow:hidden';
+    }
+    /* a touch point in the game's own coordinates, whichever way it is turned */
+    const local = t => turned ? { x: t.clientY, y: G.innerWidth - t.clientX } : { x: t.clientX, y: t.clientY };
+    function goFull() {
+      try {
+        const d = document.documentElement, ask = d.requestFullscreen || d.webkitRequestFullscreen;
+        if (ask) Promise.resolve(ask.call(d)).then(() => {
+          const o = G.screen && G.screen.orientation;
+          return o && o.lock ? o.lock('landscape') : null;
+        }).catch(() => { /* not allowed here: the turned picture stands in */ }).then(() => setTimeout(resize, 250));
+      } catch (e) { /* ignore */ }
+    }
+    const move2 = { x: 0, y: 0 };   /* the joystick, -1..1 each way */
+    let runOn = false;
+    function startTouch() {
+      touchPlaying = true;
+      $('.lwq-start').style.display = 'none';
+      $('.lwq-touch').style.display = 'block';
+      goFull();
+    }
+    if (TOUCH) {
+      const pad = $('.lwq-touch'), stick = $('.lwq-stick'), knob = $('.lwq-knob'), R = 55;
+      let stickId = null, lookId = null, base = null, last = null;
+      const press = (b, on) => {
+        const k = b.dataset.b;
+        if (k === 'attack' && on) attack();
+        else if (k === 'use' && on) useAim();
+        else if (k === 'jump') keys.Space = on;
+        else if (k === 'run' && on) { runOn = !runOn; b.classList.toggle('on', runOn); }
+      };
+      pad.addEventListener('touchstart', e => {
+        e.preventDefault();
+        for (const t of e.changedTouches) {
+          const b = t.target.closest && t.target.closest('.lwq-b');
+          if (b) { press(b, true); continue; }
+          const p = local(t), wide = el.clientWidth;
+          if (p.x < wide * 0.42 && stickId == null) {
+            stickId = t.identifier; base = p;
+            stick.style.left = p.x + 'px'; stick.style.top = p.y + 'px'; stick.style.display = 'block'; knob.style.transform = '';
+          } else if (lookId == null) { lookId = t.identifier; last = p; }
+        }
+      }, { passive: false });
+      pad.addEventListener('touchmove', e => {
+        e.preventDefault();
+        for (const t of e.changedTouches) {
+          const p = local(t);
+          if (t.identifier === stickId) {
+            let dx = p.x - base.x, dy = p.y - base.y; const d = Math.hypot(dx, dy);
+            if (d > R) { dx *= R / d; dy *= R / d; }
+            move2.x = dx / R; move2.y = dy / R;
+            knob.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
+          } else if (t.identifier === lookId) {
+            me.yaw -= (p.x - last.x) * 0.0065;
+            me.pitch = Math.max(-1.4, Math.min(1.4, me.pitch - (p.y - last.y) * 0.0065));
+            last = p;
+          }
+        }
+      }, { passive: false });
+      const end = e => {
+        for (const t of e.changedTouches) {
+          const b = t.target.closest && t.target.closest('.lwq-b');
+          if (b) press(b, false);
+          if (t.identifier === stickId) { stickId = null; move2.x = move2.y = 0; stick.style.display = 'none'; }
+          if (t.identifier === lookId) lookId = null;
+        }
+      };
+      pad.addEventListener('touchend', end); pad.addEventListener('touchcancel', end);
+      G.addEventListener('orientationchange', () => setTimeout(resize, 200));
+    }
     document.addEventListener('mousemove', e => {
       if (!locked()) return;
       me.yaw -= e.movementX * 0.0022;
@@ -280,6 +414,7 @@
     const onKey = down => e => {
       keys[e.code] = down;
       if (down && e.code === 'KeyE') useAim();
+      if (down && e.code === 'KeyF' && !e.repeat) attack();
       if (down && e.code === 'F3') { showFps = !showFps; drawNet(); e.preventDefault(); }
       if (down && e.code === 'KeyM' && sound) log(sound.mute() ? 'Sound off (M).' : 'Sound on (M).');
       if (down && e.code === 'Space') e.preventDefault();
@@ -332,9 +467,11 @@
       }
     }
     function physics(dt) {
-      const f = (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0);
-      const s = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0);
-      const sp = keys.ShiftLeft || keys.ShiftRight ? RUN : WALK, len = Math.hypot(f, s) || 1;
+      let f = (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0);
+      let s = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0);
+      if (move2.x || move2.y) { f = -move2.y; s = move2.x; }   /* the joystick: how far it is pushed is how fast */
+      if (P && P.dead) f = s = 0;
+      const sp = keys.ShiftLeft || keys.ShiftRight || runOn ? RUN : WALK, len = Math.max(1, Math.hypot(f, s));
       const sin = Math.sin(me.yaw), cos = Math.cos(me.yaw);
       const dx = ((s * cos) - (f * sin)) / len * sp * dt, dz = ((-s * sin) - (f * cos)) / len * sp * dt;
       if (keys.Space && me.ground) { me.vy = JUMP; me.ground = false; }
@@ -390,7 +527,7 @@
       return '';
     }
     function useAim(force) {
-      if (!locked() && !force) return;
+      if (!playing() && !force) return;
       const u = aimed(); if (!u) return;
       if (u.kind === 'shrine') { offer(shrines[u.id].def); return; }
       if (u.kind === 'npc') { speak(u.id); return; }
@@ -402,6 +539,87 @@
       intent(u.kind === 'pickup' ? 'take' : 'use', u.id);
     }
     const hasItem = id => W.taken[id] != null && W.taken[id] === myId();
+
+    /* --- fighting: the player's numbers, the sword, a blow ------------------------------------------------ */
+    let P = combat ? combat.player(null) : null;   /* level and XP come from the wallet's storage (walletUp) */
+    let atkReady = 0, swingT = 0, lastHurt = 0;
+    const sword = new THREE.Group();
+    if (fight) {
+      const steel = new THREE.MeshStandardMaterial({ color: '#cfd5dd', metalness: 0.85, roughness: 0.28 });
+      const brass = new THREE.MeshStandardMaterial({ color: '#b8893a', metalness: 0.7, roughness: 0.4 });
+      const leather = new THREE.MeshStandardMaterial({ color: '#4a2f1c', roughness: 0.9 });
+      const part = (geo, m, y) => { const p = new THREE.Mesh(geo, m); p.position.y = y; sword.add(p); };
+      part(new THREE.BoxGeometry(0.045, 0.6, 0.012), steel, 0.38);
+      part(new THREE.ConeGeometry(0.032, 0.08, 4), steel, 0.72);
+      part(new THREE.BoxGeometry(0.2, 0.035, 0.045), brass, 0.07);
+      part(new THREE.CylinderGeometry(0.02, 0.022, 0.15, 8), leather, -0.02);
+      part(new THREE.SphereGeometry(0.03, 8, 6), brass, -0.11);
+      sword.userData.keep = true;
+      sword.position.set(0.3, -0.32, -0.55);
+      camera.add(sword); scene.add(camera);
+    }
+    function attack() {
+      if (!fight || !P || P.dead || !playing()) return;
+      const now = performance.now();
+      if (now < atkReady) return;
+      atkReady = now + P.cd * 1000; swingT = 1;
+      const id = fight.pick(me.x, me.z, me.yaw, P.range);
+      if (sound) sound.blip(id ? 'hit' : 'swing');
+      if (!id) return;
+      const d = P.dmg + Math.floor(Math.random() * 4);
+      if (amHost()) route(fight.damage(id, d, myId()));
+      else room.tell({ X: id, d });
+    }
+    /* what the host's fight says about players: blows and blessings, and who earned a kill */
+    function route(events) {
+      for (const e of events) {
+        if (e.t === 'hit' || e.t === 'heal') {
+          const d = e.t === 'hit' ? e.d : -e.d;
+          if (e.to === myId()) hurt(d, e.from);
+          else if (room) room.tell({ D: e.to, d });
+        } else if (e.t === 'kill') {
+          if (e.by === myId()) gainXp(e.xp, e.name);
+          else if (room) room.tell({ K: e.by, x: e.xp });
+        }
+      }
+    }
+    function hurt(d, from) {
+      if (!P || P.dead || !d) return;
+      P.hp = Math.max(0, Math.min(P.max, P.hp - d));
+      if (d > 0) {
+        lastHurt = performance.now();
+        const fl = $('.lwq-hurt'); fl.style.transition = 'none'; fl.style.opacity = '0.9';
+        requestAnimationFrame(() => { fl.style.transition = 'opacity .6s'; fl.style.opacity = '0'; });
+      }
+      if (P.hp <= 0) {
+        P.dead = true;
+        log((from ? 'A ' + String(from).toLowerCase() + ' strikes you down.' : 'You fall.') + ' Brother Anselm carries you back inside.');
+        setTimeout(() => {
+          P.dead = false; P.hp = P.max;
+          me.x = prev.x = SPAWN[0]; me.y = prev.y = SPAWN[1]; me.z = prev.z = SPAWN[2]; me.vy = 0; me.yaw = LV.spawnYaw || 0;
+          drawStats();
+        }, 3000);
+      }
+      drawStats();
+    }
+    function gainXp(xp, name) {
+      if (!P || !xp) return;
+      const ups = combat.gain(P, xp);
+      log('You defeated a ' + String(name || 'raider').toLowerCase() + '. +' + xp + ' XP');
+      if (ups) { log('Level ' + P.level + '! More hit points, a harder blow.'); if (sound) sound.blip('pickup'); }
+      if (store) store.set('stats', { level: P.level, xp: P.xp });
+      drawStats();
+    }
+    let statsKey = '';
+    function drawStats() {
+      if (!P || !fight) return;
+      const hp = Math.ceil(P.hp), key = [hp, P.max, P.level, P.xp, P.next, P.dead].join();
+      if (key === statsKey) return;
+      statsKey = key;
+      $('.lwq-lv').textContent = 'Level ' + P.level + (P.dead ? ' · down' : '');
+      $('.lwq-hp i').style.width = (100 * hp / P.max) + '%'; $('.lwq-hp span').textContent = hp + ' / ' + P.max;
+      $('.lwq-xp i').style.width = (100 * P.xp / P.next) + '%';
+    }
 
     /* --- network ------------------------------------------------------------------------------------- */
     let room = null, joinedAt = Date.now(), electReadyAt = 0;
@@ -546,6 +764,15 @@
       /* the world only from the one who keeps it: during a handover, or from a client that lies, another's is ignored */
       if (d.W && typeof d.W === 'object' && from.id === hostId() && +d.W.seq > W.seq) applyWorld(d.W);
       if (d.H && amHost()) sendWorld();
+      /* the fight: the host's picture of it, a player's blow for the host, and what the host says happened to me */
+      if (fight) {
+        const fromHost = from.id === hostId();
+        if (d.C && fromHost && !amHost()) fight.apply(d.C);
+        if (d.X != null && amHost()) route(fight.damage(String(d.X), +d.d || 0, from.id));
+        if (d.D != null && String(d.D) === myId() && fromHost) hurt(+d.d || 0, 'raider');
+        if (d.K != null && String(d.K) === myId() && fromHost) gainXp(+d.x || 0, 'raider');
+      }
+      if (Array.isArray(d.h)) r.hp = [+d.h[0] || 0, +d.h[1] || 100, !!d.h[2]];
       if (d.S === 'offered') log(label(from, r.name) + ' made an offering at the shrine.');
       /* no drawNet() here: positions come 15 times a second from each player, and rewriting the HUD that often
          was one of the stutters. The HUD is redrawn when somebody comes or goes, and once a second. */
@@ -582,6 +809,7 @@
       const m = { s: Math.round(now), p: [R2(me.x), R2(me.y), R2(me.z)], r: [R2(me.yaw), R2(me.pitch)], j: joinedAt };
       if (Math.abs(me.vx || 0) + Math.abs(me.vz || 0) > 0.01) m.v = [R2(me.vx), R2(me.vz)];   /* left out standing still */
       if (now - lastName > 2000) { lastName = now; if (me.name) m.n = me.name; }
+      if (P && fight) m.h = [Math.ceil(P.hp), P.max, P.dead ? 1 : 0];   /* the host's priest needs to know who is hurt */
       room.state(m);
       /* once a second the same through the room: whatever the fast lane is doing, everyone keeps seeing you */
       if (room.fast) {
@@ -643,6 +871,7 @@
     async function walletUp() {
       store = await wallet.store();
       progress = Object.assign(progress, store.get('progress', {}));
+      if (combat && P) { const saved = store.get('stats', null); if (saved) { P = Object.assign(combat.player(saved), { dead: P.dead }); drawStats(); } }
       who = await wallet.who();
       if (who.ok && who.tag && !me.name) me.name = '@' + who.tag;
       drawWho(); drawInv();
@@ -667,9 +896,10 @@
       const keysHeld = mine.filter(id => pickups[id].def.kind === 'key').map(id => pickups[id].def.label);
       const here = mine.filter(id => pickups[id].def.kind === 'crystal').length;
       const total = Object.keys(pickups).filter(id => pickups[id].def.kind === 'crystal').length;
-      $('.lwq-inv').innerHTML = (keysHeld.length ? 'Key: ' + esc(keysHeld.join(', ')) + '<br>' : '') +
-        'Crystals ' + here + ' / ' + total + ' here · ' + (progress.crystals | 0) + ' in all' +
-        ((progress.offerings | 0) ? ' · ' + progress.offerings + ' offering' + (progress.offerings === 1 ? '' : 's') : '');
+      const parts = [];
+      if (total) parts.push('Crystals ' + here + ' / ' + total + ' here · ' + (progress.crystals | 0) + ' in all');
+      if (progress.offerings | 0) parts.push(progress.offerings + ' offering' + (progress.offerings === 1 ? '' : 's'));
+      $('.lwq-inv').innerHTML = (keysHeld.length ? 'Key: ' + esc(keysHeld.join(', ')) + '<br>' : '') + parts.join(' · ');
     }
     function drawNet() {
       const n = remotes.size + 1;
@@ -719,6 +949,28 @@
       else if (fps >= 58 && pr < maxPR) { if (++fastFor >= 6) { pr = Math.min(maxPR, pr + 0.1); fastFor = 0; renderer.setPixelRatio(pr); resize(); } }
       else fastFor = 0;
     }
+    /* the fight each frame: the host runs it and says how it stands (5 a second over the fast lane, once a second
+       through the room), everybody draws it; the sword swings; out of the fight, hit points come back slowly */
+    let fightSent = 0, fightBeat = 0;
+    function fightTick(dt, now) {
+      const host = amHost(), players = [];
+      if (host) {
+        players.push({ id: myId(), x: me.x, z: me.z, hp: P.hp, max: P.max, dead: P.dead });
+        for (const [id, r] of remotes) if (r.g.visible) players.push({ id, x: r.g.position.x, z: r.g.position.z, hp: r.hp ? r.hp[0] : 100, max: r.hp ? r.hp[1] : 100, dead: r.hp ? r.hp[2] : false });
+      }
+      route(fight.update(dt, host, players));
+      if (host && room) {
+        const snap = { C: fight.snapshot() };
+        if (room.fast && now - fightSent > 200) { fightSent = now; room.state(snap); }
+        if (now - fightBeat > 1000) { fightBeat = now; room.send(snap); }
+      }
+      if (!P.dead && P.hp < P.max && now - lastHurt > 6000) { P.hp = Math.min(P.max, P.hp + dt * 3); drawStats(); }
+      swingT = Math.max(0, swingT - dt * 3.2);
+      const k = Math.sin(swingT * Math.PI);   /* 0 -> 1 -> 0: up, across, back */
+      sword.rotation.set(-0.35 - k * 1.3, 0.25 + k * 0.9, -0.3 - k * 0.6);
+      sword.position.set(0.3 - k * 0.22, -0.32 + k * 0.08, -0.55);
+      sword.visible = !P.dead;
+    }
     let last = performance.now(), worldT = 0, netT = 0, fps = 0, fpsN = 0, fpsT = performance.now(), showFps = false, promptNow = '';
     function frame(now) {
       if (stopped) return;
@@ -729,7 +981,7 @@
       const ease = Math.min(1, Math.min(dt, 0.1) * 4);
       for (const id in doors) {
         const D2 = doors[id];
-        if (D2.hinge) D2.hinge.rotation.y += ((W.open[id] ? D2.swing : 0) - D2.hinge.rotation.y) * ease;
+        if (D2.pivots) for (const pv of D2.pivots) pv.p.rotation.y += ((W.open[id] ? pv.swing : 0) - pv.p.rotation.y) * ease;
         else { const want = W.open[id] ? D2.y0 + D2.def.size[1] - 0.05 : D2.y0; D2.mesh.position.y += (want - D2.mesh.position.y) * ease; }
       }
       const t = now / 1000, fdt = Math.min(dt, 0.1);
@@ -743,16 +995,17 @@
         if (me.ground && sp > 0.5) { stepAcc += sp * fdt; if (stepAcc > (sp > 5 ? 1.4 : 0.95)) { stepAcc = 0; sound.step(sp); } } else stepAcc = 0.6;
       }
       for (const id in pickups) pickups[id].mesh.rotation.y += dt * 1.5;
+      if (fight) fightTick(fdt, now);
       sendState(false);
       drawRemotes();
       if (room && amHost() && now - worldT > 3000) { worldT = now; if (now - lastWorldSent > 2500) sendWorld(); }
       if (now - netT > 1000) { netT = now; drawNet(); }
-      const pr = locked() ? promptFor(aimed()) : '';
+      const pr = playing() ? promptFor(aimed()) || (fight && !TOUCH && fight.pick(me.x, me.z, me.yaw, P.range) ? 'F / click: strike' : '') : '';
       if (pr !== promptNow) { promptNow = pr; $('.lwq-prompt').textContent = pr; }   /* only when it changes: a DOM write is not free */
       if (drawing) { if (post) post.render(t); else renderer.render(scene, camera); }
       G.requestAnimationFrame(frame);
     }
-    resize(); drawInv(); drawNet(); drawWho();
+    resize(); drawInv(); drawNet(); drawWho(); drawStats();
     try { renderer.compile(scene, camera); } catch (e) { /* only a head start */ }
     walletUp().catch(e => log('Wallet: ' + (e && e.message || e)));
     connect().catch(e => log('Multiplayer: ' + (e && e.message || e)));
@@ -767,12 +1020,16 @@
       log: () => logLines.slice(),
       camZ: () => camera.position.z,
       draw(on) { drawing = !!on; },   /* tests: everything runs, nothing is drawn (a machine without a GPU keeps up) */
+      play() { if (TOUCH) startTouch(); else touchPlaying = true; },   /* tests: as if the view had been clicked */
+      strike() { attack(); },
+      fight: () => fight ? fight.units() : [],
+      player: () => P ? Object.assign({}, P) : null,
       stats: () => ({ fps, pixelRatio: pr, frozen, calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures }),
       get state() { return { me: Object.assign({}, me), world: W, host: amHost(), players: remotes.size + 1, online: !!room,
                        others: Array.from(remotes.values()).map(r => ({ id: r.from.id, tag: r.from.tag, j: r.j, visible: r.g.visible, x: R2(r.g.position.x), y: R2(r.g.position.y), z: R2(r.g.position.z) })), fast: !!(room && room.fast), who, progress }; }
     };
   }
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 7, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, levels: 1 } },
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 8, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, levels: 1 } },
     D => ({ start: (el, opts) => start(D, el, opts) }));
 })(typeof globalThis !== 'undefined' ? globalThis : this);

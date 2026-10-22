@@ -2,7 +2,7 @@
  "lwq": "module",
  "name": "level.blockshire",
  "api": 1,
- "v": 1,
+ "v": 2,
  "data": {
   "id": "blockshire",
   "title": "Blockshire",
@@ -62,7 +62,10 @@
     -2.5,
     2.5
    ],
-   "sign": "Blockshire"
+   "sign": "Blockshire",
+   "gateId": "gate",
+   "gateLabel": "Gate",
+   "gateOpen": true
   },
   "paths": {
    "circles": [
@@ -114,6 +117,13 @@
      -10,
      11,
      1.8
+    ],
+    [
+     0,
+     20.5,
+     0,
+     34,
+     3
     ]
    ]
   },
@@ -149,7 +159,15 @@
      "pine"
     ]
    ],
-   "haze": "#c9c3b6"
+   "haze": "#c9c3b6",
+   "clear": [
+    [
+     -14,
+     21,
+     14,
+     46
+    ]
+   ]
   },
   "grass": {
    "seed": 5,
@@ -215,6 +233,11 @@
      -6,
      15,
      2
+    ],
+    [
+     0,
+     24,
+     4
     ]
    ]
   },
@@ -318,8 +341,7 @@
     "door": {
      "id": "door_store",
      "label": "Storehouse door",
-     "opens": "key",
-     "key": "storekey"
+     "opens": "hand"
     }
    },
    {
@@ -540,48 +562,6 @@
     "note": "A wish at the Blockshire well (paid to yourself)"
    }
   },
-  "pickups": [
-   {
-    "id": "storekey",
-    "kind": "key",
-    "pos": [
-     -2,
-     1.32,
-     -14.4
-    ],
-    "label": "Storehouse key"
-   },
-   {
-    "id": "crystal1",
-    "kind": "crystal",
-    "pos": [
-     -6,
-     1.65,
-     15
-    ],
-    "label": "Crystal"
-   },
-   {
-    "id": "crystal2",
-    "kind": "crystal",
-    "pos": [
-     12.4,
-     0.95,
-     10.6
-    ],
-    "label": "Crystal"
-   },
-   {
-    "id": "crystal3",
-    "kind": "crystal",
-    "pos": [
-     0,
-     0.6,
-     -17.6
-    ],
-    "label": "Crystal"
-   }
-  ],
   "npcs": [
    {
     "id": "bram",
@@ -607,7 +587,7 @@
     "lines": [
      "Welcome to Blockshire, traveller. Warm yourself by the fire.",
      "We are few, but the world beyond the fence is wide. One day you will see it.",
-     "Mara keeps the storehouse key in my hut, on the table. Take it if you need it.",
+     "Raiders come out of the forest every day now. Hilda and Gareth hold the gate, and Brother Anselm keeps them standing.",
      "They say a wish at the well is heard, if you give something for it."
     ]
    },
@@ -632,7 +612,7 @@
     },
     "lines": [
      "Stew is on in an hour. Bring me nothing but an appetite.",
-     "Three crystals glint around the camp, if you have the eyes for them.",
+     "If you go out to the gate, take something sharp. And stay near the priest.",
      "One sits on old Gorm's cart. You'll have to jump for it."
     ]
    },
@@ -660,30 +640,6 @@
      "Mind the axe. It bites wood and fingers alike.",
      "These logs won't split themselves. Well, not yet. Ask me again next season.",
      "Behind the Elder's hut, by the fence, something glitters. Not my business."
-    ]
-   },
-   {
-    "id": "hilda",
-    "name": "Hilda the Guard",
-    "pos": [
-     3.8,
-     17.6
-    ],
-    "lookAt": [
-     0,
-     10
-    ],
-    "look": {
-     "person": "m",
-     "skin": "#e8c09c",
-     "shirt": "#6b6f78",
-     "pants": "#3a3a40",
-     "hair": "#c9a04a",
-     "hat": "#4a4e58"
-    },
-    "lines": [
-     "The gate stays shut until the roads are safe.",
-     "Nothing gets into Blockshire that I don't let in. Except you, apparently."
     ]
    },
    {
@@ -726,6 +682,101 @@
      "I'm the fastest in Blockshire. Also the only kid."
     ]
    }
-  ]
+  ],
+  "defense": {
+   "guards": [
+    {
+     "id": "g1",
+     "name": "Hilda the Guard",
+     "pos": [
+      -2.4,
+      25
+     ],
+     "face": [
+      -2.4,
+      40
+     ],
+     "look": {
+      "person": "m",
+      "skin": "#e8c09c",
+      "shirt": "#6b6f78",
+      "pants": "#3a3a40",
+      "hair": "#c9a04a",
+      "hat": "#4a4e58"
+     }
+    },
+    {
+     "id": "g2",
+     "name": "Gareth the Guard",
+     "pos": [
+      2.4,
+      25
+     ],
+     "face": [
+      2.4,
+      40
+     ],
+     "look": {
+      "person": "f",
+      "skin": "#d9a882",
+      "shirt": "#5d6470",
+      "pants": "#33333a",
+      "hair": "#3a2a1a",
+      "hat": "#4a4e58"
+     }
+    }
+   ],
+   "priest": {
+    "id": "pr",
+    "name": "Brother Anselm",
+    "pos": [
+     0,
+     22.2
+    ],
+    "face": [
+     0,
+     40
+    ],
+    "look": {
+     "person": "c",
+     "skin": "#e8c09c",
+     "shirt": "#e9e2cf",
+     "pants": "#c9bfa5",
+     "hair": "#8a6a4a",
+     "hood": "#d8cfb6"
+    }
+   },
+   "spawns": {
+    "points": [
+     [
+      -10,
+      40
+     ],
+     [
+      0,
+      43
+     ],
+     [
+      10,
+      40
+     ]
+    ],
+    "every": 11,
+    "max": 4,
+    "first": 5
+   },
+   "raider": {
+    "name": "Raider",
+    "look": {
+     "person": "b",
+     "tint": "#8c7c76",
+     "skin": "#b98a6a",
+     "shirt": "#5b3a2a",
+     "pants": "#2a241e",
+     "hair": "#1c1c1c",
+     "hood": "#2b2622"
+    }
+   }
+  }
  }
 }

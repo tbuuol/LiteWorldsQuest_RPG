@@ -97,6 +97,9 @@ class Handler(BaseHTTPRequestHandler):
             except SystemExit as exc:
                 return self.send(500, str(exc).encode(), "text/plain")
             return self.send(200, body, "text/html; charset=utf-8", {"Content-Security-Policy": CSP})
+        if path == "/content/release-bundle":   # the release page's packed modules, until the bundle is inscribed
+            f = ROOT / "dist" / "release" / "bundle.json.gz"
+            return self.send(200, f.read_bytes(), "application/gzip") if f.is_file() else self.send(404, b"build the release first", "text/plain")
         if path.startswith("/content/assets/"):
             f = ROOT / "dist" / "assets" / path[len("/content/assets/"):]
             if f.is_file() and f.parent == ROOT / "dist" / "assets":

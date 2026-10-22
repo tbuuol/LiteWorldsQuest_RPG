@@ -4,7 +4,7 @@
      s.fire(x, y, z)                   a crackling fire there (heard louder near it, from its side)
      s.listen(camera)                  where the ears are, each frame
      s.step(speed)                     a footstep (the engine calls it at the pace of walking)
-     s.blip(kind)                      'pickup' | 'door' | 'talk' | 'coin'
+     s.blip(kind)                      'pickup' | 'door' | 'talk' | 'coin' | 'swing' | 'hit'
      s.mute(on) -> muted               M in the game
    Everything goes through one master gain, so muting is one switch. */
 (function (G) {
@@ -102,6 +102,13 @@
         if (kind === 'pickup') { tone(880, 0, 0.18); tone(1320, 0.08, 0.25); }
         else if (kind === 'coin') { tone(988, 0, 0.12, 'square', 0.06); tone(1319, 0.09, 0.35, 'square', 0.06); }
         else if (kind === 'talk') { tone(320 + Math.random() * 120, 0, 0.08, 'triangle', 0.08); }
+        else if (kind === 'swing' || kind === 'hit') {   /* a swish of noise; a blow that lands adds a dull thud */
+          const s = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain();
+          s.buffer = noise; f.type = 'bandpass'; f.Q.value = 1.2; f.frequency.setValueAtTime(2400, t); f.frequency.exponentialRampToValueAtTime(700, t + 0.16);
+          g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.18, t + 0.03); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+          s.connect(f); f.connect(g); g.connect(master); s.start(t, Math.random()); s.stop(t + 0.2);
+          if (kind === 'hit') tone(110, 0.05, 0.16, 'triangle', 0.22);
+        }
         else if (kind === 'door') {   /* a creak: a sawtooth sliding down through a narrow filter */
           const o = ctx.createOscillator(), f = ctx.createBiquadFilter(), g = ctx.createGain();
           o.type = 'sawtooth'; o.frequency.setValueAtTime(140, t); o.frequency.linearRampToValueAtTime(90, t + 0.5);
@@ -115,5 +122,5 @@
     };
     return api;
   }
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('sound', { api: 1, v: 1 }, () => ({ api: 1, create }));
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('sound', { api: 1, v: 2 }, () => ({ api: 1, create }));
 })(typeof globalThis !== 'undefined' ? globalThis : this);
