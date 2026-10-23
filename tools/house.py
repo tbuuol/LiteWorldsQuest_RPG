@@ -171,7 +171,9 @@ async def session(p) -> None:
             LAST_GOOD = time.time()
             GOOD_FILE.write_text(str(LAST_GOOD))
             if int(time.time()) % 600 < CHECK_EVERY or s["players"]:
-                s.update(await frame.evaluate("({fps: window.LWQGAME.stats().fps, net: (document.querySelector('.lwq-tr') || {}).innerText})"))
+                s.update(await frame.evaluate("""({fps: window.LWQGAME.stats().fps, net: (document.querySelector('.lwq-tr') || {}).innerText,
+                    fight: window.LWQGAME.fight().map(u => u.id + ':' + u.state + ':' + u.hp).join(' '),
+                    snap: window.LWQGAME.snapBytes ? window.LWQGAME.snapBytes() : null})"""))
                 log("keeping the world:", s)
             await asyncio.sleep(CHECK_EVERY)
         log("six hours: a fresh start")
