@@ -1,7 +1,7 @@
 {
   "name": "LiteWorldsQuest",
   "family": "liteworldsquest",
-  "registry_version": 14,
+  "registry_version": 15,
   "three_id": "374cfd2b2f114e9da4ade8add495fe8aa0b2b996a710fb538759a956f15f9539",
   "modules": {
     "net": {
@@ -31,7 +31,7 @@
       "api": 1,
       "kind": "js",
       "id": null,
-      "gz": null
+      "gz": "3f0066f4641f3932adb75fd04b34a86572974ee5b01a652fe09cd43960ed970e"
     },
     "combat": {
       "file": "src/modules/combat.js",
@@ -63,7 +63,7 @@
       "api": 1,
       "kind": "js",
       "id": null,
-      "gz": null
+      "gz": "5bf80bff89146bedbce582d201f7e368808092ed0227ddc60c368296110c5d42"
     }
   },
   "levels": {
@@ -147,7 +147,8 @@
     "11": "c89a20a19c849f65396c00f0cd3382299f6a0e3d8e37dc43e2c2660d942492c0 (publisher, loader 2)",
     "12": "f4a5fd16aa33d2b33a1c6f47e0f727537a2219f4d1235198c9a82715a7af8bc6 (publisher, loader 2)",
     "13": "11d0489fe633be498d54ef5dc02db8897adb76cde8fb069a75e053abbc4f09c3 (publisher, loader 2)",
-    "14": "df135324805d9836a1c8e5b330339b2c1124e6746685167add337887cf25762c (publisher, loader 2)"
+    "14": "df135324805d9836a1c8e5b330339b2c1124e6746685167add337887cf25762c (publisher, loader 2)",
+    "15": "69dd25c1e3087ec80c4c1e2c8a043ce7d412f3127e450063d992708b79d33a86 (publisher, loader 2)"
   },
   "house": [
     "notHZVkLNJjG6ymtWGjM6rhBapuh3VU8eb"
