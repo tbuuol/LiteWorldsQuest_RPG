@@ -46,6 +46,54 @@ async def find_game(pg):
     return None
 
 
+async def unlock(pg, password: str) -> None:
+    """The wallet locks on every page load: unlock it on the page we are on. Clicked and typed from the page itself:
+    under load Playwright waits for things to hold still, and on this busy machine they do not (2026-10-23)."""
+    await asyncio.sleep(4)
+    asked = await pg.evaluate("""() => { const b = document.getElementById('unlockbar-go') || [...document.querySelectorAll('button')]
+        .find(x => x.textContent.trim() === 'Unlock' && x.offsetParent); if (!b || !b.offsetParent) return false; b.click(); return true; }""")
+    if not asked:
+        return
+    await asyncio.sleep(1.5)
+    typed = await pg.evaluate("""(pw) => { const i = [...document.querySelectorAll('input[type=password]')].find(x => x.offsetParent);
+        if (!i) return false; i.focus(); i.value = pw; i.dispatchEvent(new Event('input', {bubbles: true})); return true; }""", password)
+    if typed:
+        await pg.keyboard.press("Enter")
+        await asyncio.sleep(5)
+
+
+async def wallet_access(pg, game: str, password: str) -> bool:
+    """Wallet access on for our own card, on the Apps page. The page sets the switches from this browser's own
+    record a moment after it loads (2026-10-23: the house read one too early, took it for off and clicked it OFF),
+    so it waits for the switch to settle, clicks only when it is really off, and looks again afterwards."""
+    await pg.goto(f"{NODE}/apps?sort=latest", timeout=120_000)
+    switch = pg.locator(f'[data-access="{game}"] input[type=checkbox]')
+    for _ in range(3):
+        await unlock(pg, password)
+        if not await switch.count():
+            log("our card is not on the Apps page")
+            return False
+        if await switch.first.is_checked():
+            return True
+        await switch.first.scroll_into_view_if_needed()
+        await switch.first.click()
+        for _ in range(10):   # the sheet that asks, naming the publisher
+            await asyncio.sleep(1)
+            # the page has more than one such button (one of them hidden): only the one on screen counts
+            allow = pg.get_by_role("button", name="Allow wallet access", exact=True).filter(visible=True)
+            if await allow.count():
+                if "@liteworldsquest" in await pg.inner_text("body"):   # only for our own app, published by the house
+                    # clicked from the page itself: under load Playwright waits for the sheet to hold still, and it
+                    # never quite does (2026-10-23); whether it took is looked at again below
+                    await pg.evaluate("""() => { const b = [...document.querySelectorAll('button')].find(x =>
+                        x.textContent.trim() === 'Allow wallet access' && x.offsetParent); if (b) b.click(); }""")
+                    await asyncio.sleep(2)
+                    log("wallet access asked for", game[:12])
+                break
+        await pg.reload(timeout=120_000)
+    return await switch.count() > 0 and await switch.first.is_checked()
+
+
 async def session(p) -> None:
     cfg = json.loads((ROOT / "config.json").read_text())
     game = cfg["page_id"]
@@ -60,25 +108,9 @@ async def session(p) -> None:
               "--disable-backgrounding-occluded-windows"])
     try:
         pg = ctx.pages[0] if ctx.pages else await ctx.new_page()
-        await pg.goto(f"{NODE}/games?sort=latest", timeout=120_000)
-        await asyncio.sleep(4)
-        if await pg.get_by_text("Unlock", exact=True).count():
-            await pg.get_by_text("Unlock", exact=True).first.click()
-            await asyncio.sleep(1.5)
-            box = pg.locator("input[type=password]:visible")
-            if await box.count():
-                await box.first.fill(password)
-                await pg.keyboard.press("Enter")
-                await asyncio.sleep(5)
-        switch = pg.locator(f'[data-access="{game}"] input[type=checkbox]')
-        if await switch.count() and not await switch.first.is_checked():
-            await switch.first.click()
-            await asyncio.sleep(1.5)
-            sheet = await pg.inner_text("body")
-            allow = pg.get_by_role("button", name="Allow wallet access", exact=True)
-            if "@liteworldsquest" in sheet and await allow.count():   # only for our own game, published by the house
-                await allow.first.click()
-                log("wallet access turned on for", game[:12])
+        if not await wallet_access(pg, game, password):
+            log("Wallet access could not be turned on; trying again")
+            return
         await pg.goto(f"{NODE}/play/{game}", timeout=120_000)
         frame = None
         for _ in range(600):
