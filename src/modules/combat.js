@@ -44,6 +44,10 @@
     const T = o.THREE, art = o.art, ctx = o.ctx, def = o.def || {}, scene = ctx.scene;
     const units = new Map();
     let raiderNo = 0, spawnIn = (def.spawns && def.spawns.first) || 6, seq = 0;
+    /* a client draws the host's fight a little in the past, between two snapshots, by the host's own clock (like
+       other players): off maps the host's clock onto ours (the smallest arrival - sent seen), gap is how far apart
+       snapshots come, and the delay is what that needs -- smooth whether they come ten times a second or once */
+    let off = null, gap = 250, lastT = null, delay = 300, jit = 0;
 
     /* --- what is drawn ------------------------------------------------------------------------------- */
     /* a bar over a head: drawn again only when its hp changes */
@@ -84,7 +88,7 @@
       return (d && d.name) || kind;
     }
     function make(id, kind, x, z) {
-      const b = BASE[kind], u = { id, kind, name: nameOf(kind, id), x, z, tx: x, tz: z, yaw: 0, tyaw: 0, hp: b.max, max: b.max,
+      const b = BASE[kind], u = { id, kind, name: nameOf(kind, id), x, z, tx: x, tz: z, yaw: 0, tyaw: 0, buf: [], hp: b.max, max: b.max,
         state: 'idle', cd: Math.random() * 0.5, atk: 0, shown: { hp: -1, atk: 0, state: '' }, gone: 0, target: null, aggro: null };
       u.c = art.character(ctx, look(kind, id));
       u.c.setName(u.name, kind === 'raider' ? '#ff9a8a' : kind === 'priest' ? '#c9f5c0' : '#cfe1ff');
@@ -202,7 +206,27 @@
     function view(dt, host) {
       for (const u of units.values()) {
         const ox = u.c.group.position.x, oz = u.c.group.position.z;
-        if (!host) { const k = Math.min(1, dt * 8); u.x += (u.tx - u.x) * k; u.z += (u.tz - u.z) * k; }
+        if (!host) {
+          const b = u.buf, t = performance.now() - delay;
+          if (b.length) {
+            let i = 1; while (i < b.length - 1 && b[i].t < t) i++;
+            const A = b[Math.max(0, i - 1)], B = b[i] || A;
+            let x, z;
+            if (t <= B.t || b.length < 2) {
+              const k = B.t > A.t ? Math.max(0, Math.min(1, (t - A.t) / (B.t - A.t))) : 1;
+              x = A.x + (B.x - A.x) * k; z = A.z + (B.z - A.z) * k;
+            } else {
+              /* the next snapshot is late (the house paused): carry on as it was going, at most 0.6 s; one that had
+                 stopped stays stopped */
+              const ahead = Math.min(600, t - B.t), span = Math.max(1, B.t - A.t);
+              x = B.x + (B.x - A.x) / span * ahead; z = B.z + (B.z - A.z) / span * ahead;
+            }
+            /* and a correction glides rather than snaps; a big one (a respawn) is taken at once */
+            const far = Math.abs(u.x - x) + Math.abs(u.z - z) > 3, follow = 1 - Math.exp(-dt * 14);
+            if (far || !u.drawn) { u.x = x; u.z = z; u.drawn = true; } else { u.x += (x - u.x) * follow; u.z += (z - u.z) * follow; }
+            while (b.length > 3 && b[1].t < t - 1000) b.shift();
+          }
+        }
         u.c.group.position.set(u.x, 0, u.z);
         let d = u.tyaw - u.yaw; d = Math.atan2(Math.sin(d), Math.cos(d)); u.yaw += d * Math.min(1, dt * 8);
         u.c.group.rotation.y = u.yaw;
@@ -254,10 +278,23 @@
       snapshot() {
         const u = [];
         for (const v of units.values()) u.push([v.id, KIND.indexOf(v.kind), Math.round(v.x * 10), Math.round(v.z * 10), Math.round(v.tyaw * 100), v.hp, STATE.indexOf(v.state), v.atk % 100]);
-        return { s: ++seq, u };
+        return { s: ++seq, t: Math.round(performance.now()), u };
       },
       apply(snap) {
         if (!snap || !Array.isArray(snap.u)) return;
+        const now = performance.now(), sent = +snap.t;
+        let at = now;
+        if (isFinite(sent) && sent > 0) {
+          const o = now - sent;
+          off = off == null || o < off ? o : off + (o - off) * 0.002;   /* follows a drifting clock slowly */
+          jit += (Math.abs(o - off) - jit) * 0.1;                        /* how unevenly they arrive */
+          at = sent + off;
+          if (lastT != null && sent > lastT) gap += (Math.min(1500, sent - lastT) - gap) * 0.2;
+          if (lastT != null && sent <= lastT) return;   /* old or doubled: the newer one is here */
+          lastT = sent;
+        }
+        const want = Math.max(120, Math.min(1500, gap * 1.3 + 2.5 * jit + 50));   /* the same rule as for players */
+        delay = want > delay ? want : delay + (want - delay) * 0.05;   /* grows at once, shrinks slowly */
         const seen = new Set();
         for (const row of snap.u) {
           if (!Array.isArray(row) || row.length < 8) continue;
@@ -267,6 +304,7 @@
           let u = units.get(String(id));
           if (!u) { u = make(String(id), kind, x / 10, z / 10); u.post = u.post || [x / 10, z / 10]; u.face = u.face || [0, 40]; u.shown.atk = atk; u.atk = atk; }
           u.tx = x / 10; u.tz = z / 10; u.tyaw = yaw / 100; u.hp = +hp || 0; u.state = STATE[st] || 'idle';
+          u.buf.push({ t: at, x: x / 10, z: z / 10 }); if (u.buf.length > 40) u.buf.shift();
           if (atk !== u.atk % 100) u.atk = atk;
         }
         for (const u of Array.from(units.values())) if (u.kind === 'raider' && !seen.has(u.id)) drop(u);
@@ -276,5 +314,5 @@
   }
 
   const combat = { api: 1, player, gain, nextXp, create };
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('combat', { api: 1, v: 1, needs: { three: 160, art: 1 } }, () => combat);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('combat', { api: 1, v: 2, needs: { three: 160, art: 1 } }, () => combat);
 })(typeof globalThis !== 'undefined' ? globalThis : this);

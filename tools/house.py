@@ -54,7 +54,10 @@ async def session(p) -> None:
         shutil.copytree(SECRET / "arcade-browser", PROFILE, ignore=shutil.ignore_patterns("Singleton*"))
     ctx = await p.chromium.launch_persistent_context(
         str(PROFILE), headless=True, viewport={"width": 320, "height": 180},
-        args=["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--mute-audio"])
+        # a window nobody looks at must not be slowed down: the house's frames are the fight's clock
+        args=["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--mute-audio",
+              "--disable-background-timer-throttling", "--disable-renderer-backgrounding",
+              "--disable-backgrounding-occluded-windows"])
     try:
         pg = ctx.pages[0] if ctx.pages else await ctx.new_page()
         await pg.goto(f"{NODE}/games?sort=latest", timeout=120_000)
@@ -98,7 +101,8 @@ async def session(p) -> None:
             if not s["online"] or s["house"] != "me":
                 log("not the house any more:", s, "; starting again")
                 return
-            if int(time.time()) % 600 < CHECK_EVERY:
+            if int(time.time()) % 600 < CHECK_EVERY or s["players"]:
+                s.update(await frame.evaluate("({fps: window.LWQGAME.stats().fps, net: (document.querySelector('.lwq-tr') || {}).innerText})"))
                 log("keeping the world:", s)
             await asyncio.sleep(CHECK_EVERY)
         log("six hours: a fresh start")

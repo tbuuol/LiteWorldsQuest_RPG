@@ -990,11 +990,16 @@
         if (!iAmHouse) players.push({ id: myId(), x: me.x, z: me.z, hp: P.hp, max: P.max, dead: P.dead });
         for (const [id, r] of remotes) if (r.g.visible) players.push({ id, x: r.g.position.x, z: r.g.position.z, hp: r.hp ? r.hp[0] : 100, max: r.hp ? r.hp[1] : 100, dead: r.hp ? r.hp[2] : false });
       }
-      route(fight.update(dt, host, players));
+      /* the fight runs on real time in small steps: a house on a busy machine may get few frames, and one big step
+         made raiders and guards jump (tbuuol 2026-10-23, as a client: "they stutter") */
+      let rest = dt;
+      do { const st = Math.min(rest, 0.1); route(fight.update(st, host, players)); rest -= st; } while (rest > 1e-6);
       if (host && room) {
+        /* how the fight stands: 10 a second over the fast lane; through the room 3 a second from the house (it sends
+           no position of its own, so the room's allowance is free), once a second from a player who keeps it */
         const snap = { C: fight.snapshot() };
-        if (room.fast && now - fightSent > 200) { fightSent = now; room.state(snap); }
-        if (now - fightBeat > 1000) { fightBeat = now; room.send(snap); }
+        if (room.fast && now - fightSent > 100) { fightSent = now; room.state(snap); }
+        if (now - fightBeat > (iAmHouse ? 330 : 1000)) { fightBeat = now; room.send(snap); }
       }
       if (!P.dead && P.hp < P.max && now - lastHurt > 6000) { P.hp = Math.min(P.max, P.hp + dt * 3); drawStats(); }
       swingT = Math.max(0, swingT - dt * 3.2);
@@ -1028,7 +1033,7 @@
         if (me.ground && sp > 0.5) { stepAcc += sp * fdt; if (stepAcc > (sp > 5 ? 1.4 : 0.95)) { stepAcc = 0; sound.step(sp); } } else stepAcc = 0.6;
       }
       for (const id in pickups) pickups[id].mesh.rotation.y += dt * 1.5;
-      if (fight) fightTick(fdt, now);
+      if (fight) fightTick(iAmHouse ? Math.min(dt, 1) : fdt, now);
       sendState(false);
       drawRemotes();
       if (room && amHost() && now - worldT > 3000) { worldT = now; if (now - lastWorldSent > 2500) sendWorld(); }
@@ -1063,6 +1068,6 @@
     };
   }
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 10, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, levels: 1 } },
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 11, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, levels: 1 } },
     D => ({ start: (el, opts) => start(D, el, opts) }));
 })(typeof globalThis !== 'undefined' ? globalThis : this);
