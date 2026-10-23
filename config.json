@@ -1,7 +1,7 @@
 {
   "name": "LiteWorldsQuest",
   "family": "liteworldsquest",
-  "registry_version": 9,
+  "registry_version": 10,
   "three_id": "374cfd2b2f114e9da4ade8add495fe8aa0b2b996a710fb538759a956f15f9539",
   "modules": {
     "net": {
@@ -37,14 +37,16 @@
       "v": 4,
       "api": 1,
       "kind": "js",
-      "id": null
+      "id": null,
+      "gz": "7f1fb4ae9cd21b19b5a55a7d60a6461b17dba85154cdb23943eec06c4f64759f"
     },
     "engine": {
       "file": "src/modules/engine.js",
       "v": 13,
       "api": 1,
       "kind": "js",
-      "id": null
+      "id": null,
+      "gz": "2c2cf2f0c6d4149e08c83c26f237eae76c40b23efa47e3ce36d0bfc6b976e1c6"
     }
   },
   "levels": {
@@ -53,7 +55,8 @@
       "v": 3,
       "api": 1,
       "kind": "json",
-      "id": null
+      "id": null,
+      "gz": "b9cc47e8ae70bc35fd6f963f63c854bad466b850a424e2f10dbf580dab24b404"
     },
     "test": {
       "file": "src/levels/test.json",
@@ -122,7 +125,8 @@
     "6": "0fd0256a44471d809c4a4c21a3bd7c163c9c7a4eea75553bb509257e1f10b65f (publisher, loader 2: engine v9 gz be54ae8c)",
     "7": "44be7f1e96cab65104823f7942b8824a78658e18ae0739789703973a143000f8 (publisher, loader 2: engine v10 gz 2984502d, house @liteworldsquest)",
     "8": "1bebe9d34d290be01d702266f74016a6ef7c2025744107c661e6432e45f1e52b (publisher, loader 2: engine v11 gz f475bb8e, combat v2 gz f2101e21, house)",
-    "9": "b84a448d514766d831188bfaedbf2770146c4b4761dad2bc23963b261a5eaac8 (publisher, loader 2: engine v12 gz 4207e117, combat v3 gz 3e03a4d7, house)"
+    "9": "b84a448d514766d831188bfaedbf2770146c4b4761dad2bc23963b261a5eaac8 (publisher, loader 2: engine v12 gz 4207e117, combat v3 gz 3e03a4d7, house)",
+    "10": "049ad572ade07af7fb24ac4bf172e4915740c22cf3f90c0c185334ec0122de18 (publisher, loader 2: engine v13, combat v4, blockshire v3 gz, house)"
   },
   "house": [
     "notHZVkLNJjG6ymtWGjM6rhBapuh3VU8eb"

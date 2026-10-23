@@ -138,6 +138,10 @@ async def session(p) -> None:
         if not await wallet_access(pg, game, password):
             log("Wallet access could not be turned on; trying again")
             return
+        # the game in a tab of its own: the Apps page reloads itself after an unlock or a switch, and that cut the way
+        # to the game off (2026-10-23, "interrupted by another navigation to /apps")
+        apps, pg = pg, await ctx.new_page()
+        await apps.close()
         await pg.goto(f"{NODE}/play/{game}", timeout=120_000)
         frame = None
         for _ in range(600):
