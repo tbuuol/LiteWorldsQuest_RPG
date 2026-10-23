@@ -82,11 +82,21 @@ async def unlock(pg, password: str) -> None:
     if not asked:
         return
     await asyncio.sleep(1.5)
-    typed = await pg.evaluate("""(pw) => { const i = [...document.querySelectorAll('input[type=password]')].find(x => x.offsetParent);
-        if (!i) return false; i.focus(); i.value = pw; i.dispatchEvent(new Event('input', {bubbles: true})); return true; }""", password)
+    typed = await pg.evaluate("""(pw) => { const i = [...document.querySelectorAll('input[type=password]')].find(x => x.offsetParent && !x.dataset.lwqAnswered);
+        if (!i) return false; i.dataset.lwqAnswered = '1'; i.focus(); i.value = pw; i.dispatchEvent(new Event('input', {bubbles: true})); return true; }""", password)
     if typed:
         await pg.keyboard.press("Enter")
         await asyncio.sleep(5)
+
+
+async def answer_password(pg, password: str) -> bool:
+    """A password asked for on the page (the viewer's unlock sheet): typed in from the page itself."""
+    return await pg.evaluate("""(pw) => { const i = [...document.querySelectorAll('input[type=password]')].find(x => x.offsetParent && !x.dataset.lwqAnswered);
+        if (!i) return false; i.dataset.lwqAnswered = '1'; i.focus(); i.value = pw; i.dispatchEvent(new Event('input', {bubbles: true}));
+        const f = i.closest('form'); const b = (f || i.closest('div,dialog,section') || document).querySelector('button[type=submit], button.primary');
+        i.dispatchEvent(new KeyboardEvent('keydown', {key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true}));
+        if (f && f.requestSubmit) f.requestSubmit(); else if (b) b.click();
+        return true; }""", password)
 
 
 async def wallet_access(pg, game: str, password: str) -> bool:
@@ -143,6 +153,29 @@ async def session(p) -> None:
         apps, pg = pg, await ctx.new_page()
         await apps.close()
         await pg.goto(f"{NODE}/play/{game}", timeout=120_000)
+        # JOINING SIGNS WHO YOU ARE, once a day, and only this tab remembers it: the viewer asks for the password
+        # ("Join this game as you?") -- for another node too -- and the game gives up asking after 20 s (2026-10-23
+        # evening). So every ask is answered while the game joins, and a game left alone after one is loaded again:
+        # the signatures are kept in the tab by then.
+        for load in range(4):
+            answered = False
+            for _ in range(60):
+                await asyncio.sleep(1)
+                asked = await pg.evaluate("() => { const i = [...document.querySelectorAll('input[type=password]')].find(x => x.offsetParent && !x.dataset.lwqAnswered); return i ? (i.closest('form,dialog,div') || document.body).innerText.slice(0, 120) : ''; }")
+                if asked and await answer_password(pg, password):
+                    answered = True
+                    log("answered the viewer's ask:", " ".join(asked.split())[:100])
+                frame = await find_game(pg)
+                if frame and await frame.evaluate("window.LWQGAME.state.online"):
+                    break
+                if frame and not asked and any("Playing alone" in x for x in await frame.evaluate("window.LWQGAME.log()")):
+                    break
+            if frame and await frame.evaluate("window.LWQGAME.state.online"):
+                break
+            if not answered and load:
+                break
+            log("the game is alone; loading it again (" + str(load + 1) + ")")
+            await pg.reload(timeout=120_000)
         frame = None
         for _ in range(600):
             frame = await find_game(pg)
