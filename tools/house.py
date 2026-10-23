@@ -90,7 +90,10 @@ async def session(p) -> None:
             log("the game did not start; trying again")
             return
         started = time.time()
-        await asyncio.sleep(20)
+        for _ in range(18):   # joining the room can take a while on a busy node: up to 90 s before judging
+            await asyncio.sleep(5)
+            if await frame.evaluate("window.LWQGAME.state.online"):
+                break
         log("started:", await frame.evaluate("(() => { const s = window.LWQGAME.state; return {online: s.online, house: s.house, players: s.players, seq: s.world.seq, engine: (window.LWQ.get('$report').find(r => r[0] === 'engine') || [])[1]}; })()"))
         while time.time() - started < FRESH_EVERY:
             frame = await find_game(pg)
