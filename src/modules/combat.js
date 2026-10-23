@@ -20,7 +20,7 @@
   const STATE = ['idle', 'walk', 'attack', 'down', 'dead'];
   /* what each kind can do: hit points, damage, reach, seconds between blows, speed (m/s) */
   const BASE = {
-    guard: { max: 140, dmg: 9, range: 1.7, cd: 1.15, speed: 3.2, guard: 8 },
+    guard: { max: 140, dmg: 15, range: 1.7, cd: 1.0, speed: 3.2, guard: 8 },   /* 15-18 a blow (tbuuol: more damage) */
     priest: { max: 80, heal: 16, every: 2.2, range: 11 },
     raider: { max: 34, dmg: 5, range: 1.4, cd: 1.45, speed: 2.3, xp: 12 }
   };
@@ -260,7 +260,14 @@
             while (b.length > 3 && b[1].t < t - 1000) b.shift();
           }
         }
-        u.c.group.position.set(u.x, 0, u.z);
+        /* a raider that died lies a moment, then sinks into the ground before it is gone (the host drops it at 3.2 s) */
+        let y = 0;
+        if (u.state === 'dead') {
+          u.deadSince = u.deadSince || performance.now();
+          const lying = (performance.now() - u.deadSince) / 1000;
+          if (lying > 1.6) y = -Math.min(1.4, (lying - 1.6) * 1.2);
+        } else u.deadSince = 0;
+        u.c.group.position.set(u.x, y, u.z);
         let d = u.tyaw - u.yaw; d = Math.atan2(Math.sin(d), Math.cos(d)); u.yaw += d * Math.min(1, dt * 8);
         u.c.group.rotation.y = u.yaw;
         const speed = dt > 0 ? Math.hypot(u.x - ox, u.z - oz) / dt : 0;
@@ -380,10 +387,10 @@
            piece says nothing) */
         for (const u of Array.from(units.values())) if (u.kind === 'raider' && now - (u.seenAt || now) > 3000) drop(u);
       },
-      units() { return Array.from(units.values()).map(u => ({ id: u.id, kind: u.kind, name: u.name, x: Math.round(u.x * 10) / 10, z: Math.round(u.z * 10) / 10, hp: u.hp, max: u.max, state: u.state })); }
+      units() { return Array.from(units.values()).map(u => ({ id: u.id, kind: u.kind, name: u.name, x: Math.round(u.x * 10) / 10, z: Math.round(u.z * 10) / 10, y: Math.round(u.c.group.position.y * 100) / 100, hp: u.hp, max: u.max, state: u.state })); }
     };
   }
 
   const combat = { api: 1, player, gain, nextXp, create };
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('combat', { api: 1, v: 4, needs: { three: 160, art: 1 } }, () => combat);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('combat', { api: 1, v: 5, needs: { three: 160, art: 1 } }, () => combat);
 })(typeof globalThis !== 'undefined' ? globalThis : this);

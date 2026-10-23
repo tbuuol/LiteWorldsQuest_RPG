@@ -27,18 +27,17 @@
     },
     "art": {
       "file": "src/modules/art.js",
-      "v": 2,
+      "v": 3,
       "api": 1,
       "kind": "js",
       "id": null
     },
     "combat": {
       "file": "src/modules/combat.js",
-      "v": 4,
+      "v": 5,
       "api": 1,
       "kind": "js",
-      "id": null,
-      "gz": "7f1fb4ae9cd21b19b5a55a7d60a6461b17dba85154cdb23943eec06c4f64759f"
+      "id": null
     },
     "engine": {
       "file": "src/modules/engine.js",

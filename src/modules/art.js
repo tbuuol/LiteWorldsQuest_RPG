@@ -890,8 +890,11 @@
       /* a pose kept until it is let go: 'die' (falls and stays down); null gets up again */
       hold(name) {
         if (hold === name) return;
-        hold = name; once = null; now = null;
-        if (name) play(name, 0.1); else play('idle', 0.3);
+        hold = name; once = null;
+        /* every other action stops first: left running at full weight, a walk under the fall kept a dying raider on
+           its feet, and a fall under the idle kept a guard who was raised again on the ground (tbuuol 2026-10-23) */
+        if (mixer) { mixer.stopAllAction(); now = null; }
+        if (name) play(name, 0); else play('idle', 0);
         if (!mixer) g.rotation.x = name === 'die' ? -Math.PI / 2 : 0, g.position.z = name === 'die' ? 0.9 : 0;
       },
       animate(dt, speed) {
@@ -1129,5 +1132,5 @@
     return { groundAt, polys, segs, half, spawn, inside, stats: { buildings: buildings.length, trees: trees.length } };
   };
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('art', { api: 1, v: 2 }, () => art);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('art', { api: 1, v: 3 }, () => art);
 })(typeof globalThis !== 'undefined' ? globalThis : this);
