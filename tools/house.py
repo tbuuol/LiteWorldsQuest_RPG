@@ -88,6 +88,7 @@ async def session(p) -> None:
             return
         started = time.time()
         await asyncio.sleep(20)
+        log("started:", await frame.evaluate("(() => { const s = window.LWQGAME.state; return {online: s.online, house: s.house, players: s.players, seq: s.world.seq, engine: (window.LWQ.get('$report').find(r => r[0] === 'engine') || [])[1]}; })()"))
         while time.time() - started < FRESH_EVERY:
             frame = await find_game(pg)
             if not frame:
