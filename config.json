@@ -1,7 +1,7 @@
 {
   "name": "LiteWorldsQuest",
   "family": "liteworldsquest",
-  "registry_version": 13,
+  "registry_version": 14,
   "three_id": "374cfd2b2f114e9da4ade8add495fe8aa0b2b996a710fb538759a956f15f9539",
   "modules": {
     "net": {
@@ -30,7 +30,8 @@
       "v": 5,
       "api": 1,
       "kind": "js",
-      "id": null
+      "id": null,
+      "gz": "2ad135bbbcd4109bb981aee3e3fbbc385afd4e9ffcd2f38964211cdb08f7c502"
     },
     "combat": {
       "file": "src/modules/combat.js",
@@ -45,21 +46,24 @@
       "v": 3,
       "api": 1,
       "kind": "js",
-      "id": null
+      "id": null,
+      "gz": "01b32204a55ff90fe68ac0b3ef90220a9a80bf544eb27aa12f4f93f392cccbbc"
     },
     "menu": {
       "file": "src/modules/menu.js",
       "v": 2,
       "api": 1,
       "kind": "js",
-      "id": null
+      "id": null,
+      "gz": "77875f1ef61b9de3b66d605b11f11aa77c64a29088fee3950bd163fff984f747"
     },
     "engine": {
       "file": "src/modules/engine.js",
       "v": 16,
       "api": 1,
       "kind": "js",
-      "id": null
+      "id": null,
+      "gz": "19a56088d2f6b6d9d07b0cb1890ff98933e38436a2eff1f231ca882d90a35ded"
     }
   },
   "levels": {
@@ -68,7 +72,8 @@
       "v": 6,
       "api": 1,
       "kind": "json",
-      "id": null
+      "id": null,
+      "gz": "d1c50c0d88d4a8c66876ae156a5ccdb10d360eab73f691dcac6e8b1e7d1f3973"
     },
     "test": {
       "file": "src/levels/test.json",
@@ -141,7 +146,8 @@
     "10": "049ad572ade07af7fb24ac4bf172e4915740c22cf3f90c0c185334ec0122de18 (publisher, loader 2: engine v13, combat v4, blockshire v3 gz, house)",
     "11": "c89a20a19c849f65396c00f0cd3382299f6a0e3d8e37dc43e2c2660d942492c0 (publisher, loader 2)",
     "12": "f4a5fd16aa33d2b33a1c6f47e0f727537a2219f4d1235198c9a82715a7af8bc6 (publisher, loader 2)",
-    "13": "11d0489fe633be498d54ef5dc02db8897adb76cde8fb069a75e053abbc4f09c3 (publisher, loader 2)"
+    "13": "11d0489fe633be498d54ef5dc02db8897adb76cde8fb069a75e053abbc4f09c3 (publisher, loader 2)",
+    "14": "df135324805d9836a1c8e5b330339b2c1124e6746685167add337887cf25762c (publisher, loader 2)"
   },
   "house": [
     "notHZVkLNJjG6ymtWGjM6rhBapuh3VU8eb"
