@@ -34,19 +34,17 @@
     },
     "combat": {
       "file": "src/modules/combat.js",
-      "v": 2,
+      "v": 3,
       "api": 1,
       "kind": "js",
-      "id": null,
-      "gz": "f2101e2155280ff57517c0f9845220afa9f2c44d1540860b7f23afa84ba61eb2"
+      "id": null
     },
     "engine": {
       "file": "src/modules/engine.js",
-      "v": 11,
+      "v": 12,
       "api": 1,
       "kind": "js",
-      "id": null,
-      "gz": "f475bb8ec4358d3d44b14aa8261e7350ccd806b761d90ccf91f25d8b8350543d"
+      "id": null
     }
   },
   "levels": {

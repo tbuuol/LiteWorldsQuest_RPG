@@ -235,8 +235,11 @@
         else { u.c.hold(null); if (u.atk !== u.shown.atk) u.c.emote(u.kind === 'priest' ? 'interact-right' : 'attack-melee-right'); u.c.animate(dt, speed > 0.4 ? speed : 0); }
         if (u.hp !== u.shown.hp) {
           if (u.shown.hp >= 0) {
-            const diff = u.hp - u.shown.hp;
-            if (diff < 0) floater(u.x, 2.2, u.z, String(diff), '#ff6b5a');
+            const diff = u.hp - u.shown.hp, now = performance.now();
+            u.predicted = (u.predicted || []).filter(q => q.until > now);
+            const mine = diff < 0 ? u.predicted.findIndex(q => q.d === -diff) : -1;
+            if (mine >= 0) u.predicted.splice(mine, 1);   /* my own blow, already shown when I struck */
+            else if (diff < 0) floater(u.x, 2.2, u.z, String(diff), '#ff6b5a');
             else if (diff > 0) floater(u.x, 2.2, u.z, '+' + diff, '#7dff8a');
           }
           u.bar.draw(u.hp, u.max, u.kind === 'raider' ? '#e0483a' : '#4cc35a');
@@ -257,6 +260,13 @@
         if (host) simulate(dt, players || [], events);
         view(dt, host);
         return events;
+      },
+      /* a client's own blow, shown at once; the host's word on it is then not shown a second time */
+      predict(id, d) {
+        const u = units.get(String(id)); d = Math.round(+d || 0);
+        if (!u || !alive(u) || d <= 0) return;
+        floater(u.x, 2.2, u.z, '-' + d, '#ff6b5a');
+        (u.predicted = u.predicted || []).push({ d, until: performance.now() + 2500 });
       },
       damage(id, d, byPlayer) {
         const events = [], u = units.get(String(id));
@@ -314,5 +324,5 @@
   }
 
   const combat = { api: 1, player, gain, nextXp, create };
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('combat', { api: 1, v: 2, needs: { three: 160, art: 1 } }, () => combat);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('combat', { api: 1, v: 3, needs: { three: 160, art: 1 } }, () => combat);
 })(typeof globalThis !== 'undefined' ? globalThis : this);

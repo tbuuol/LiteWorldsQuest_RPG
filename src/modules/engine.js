@@ -535,6 +535,16 @@
     /* --- fighting: the player's numbers, the sword, a blow ------------------------------------------------ */
     let P = combat ? combat.player(null) : null;   /* level and XP come from the wallet's storage (walletUp) */
     let atkReady = 0, swingT = 0, lastHurt = 0;
+    let blowNo = Math.floor(Math.random() * 1e9);   /* numbered from a random start: a reload is not mistaken for a repeat */
+    const blowsSeen = new Map();                    /* the host: player id -> the numbers of their latest blows */
+    function freshBlow(who, n) {
+      if (n == null) return true;
+      const seen = blowsSeen.get(who) || [];
+      if (seen.includes(n)) return false;
+      seen.push(n); if (seen.length > 30) seen.shift();
+      blowsSeen.set(who, seen);
+      return true;
+    }
     const sword = new THREE.Group();
     if (fight) {
       const steel = new THREE.MeshStandardMaterial({ color: '#cfd5dd', metalness: 0.85, roughness: 0.28 });
@@ -559,8 +569,14 @@
       if (sound) sound.blip(id ? 'hit' : 'swing');
       if (!id) return;
       const d = P.dmg + Math.floor(Math.random() * 4);
-      if (amHost()) route(fight.damage(id, d, myId()));
-      else room.tell({ X: id, d });
+      if (amHost()) { route(fight.damage(id, d, myId())); return; }
+      /* a blow for the host: over the direct link when there is one (no queue, no node in between), and through the
+         room as well, which always arrives; the host counts each blow once by its number. The number shows here at
+         once; the host's answer then confirms it instead of showing it again. */
+      const msg = { X: id, d, n: ++blowNo };
+      if (room.fast && room.peers()[hostId()] === 'direct') room.state(msg);
+      room.tell(msg);
+      fight.predict(id, d);
     }
     /* what the host's fight says about players: blows and blessings, and who earned a kill */
     function route(events) {
@@ -782,7 +798,7 @@
       if (fight) {
         const fromHost = from.id === hostId();
         if (d.C && ((fromHost && !amHost()) || takingOver)) fight.apply(d.C);
-        if (d.X != null && amHost()) route(fight.damage(String(d.X), +d.d || 0, from.id));
+        if (d.X != null && amHost() && freshBlow(from.id, d.n)) route(fight.damage(String(d.X), +d.d || 0, from.id));
         if (d.D != null && String(d.D) === myId() && fromHost) hurt(+d.d || 0, 'raider');
         if (d.K != null && String(d.K) === myId() && fromHost) gainXp(+d.x || 0, 'raider');
       }
@@ -1068,6 +1084,6 @@
     };
   }
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 11, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, levels: 1 } },
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 12, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, levels: 1 } },
     D => ({ start: (el, opts) => start(D, el, opts) }));
 })(typeof globalThis !== 'undefined' ? globalThis : this);
