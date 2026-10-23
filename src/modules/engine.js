@@ -626,8 +626,22 @@
       for (const pid in W.taken) if (W.taken[pid] === was) W.taken[pid] = id;
       drawInv();
     }
+    /* THE HOUSE (tbuuol 2026-10-23: "a dedicated server"): the game's own account, kept in the room by a machine, keeps
+       the world whenever it is there. Its addresses come from the registry (inscribed by a publisher the page trusts),
+       and an address in a room is stamped by the arcade node, so nobody can pass for it. Without it, the first
+       player keeps the world as before. The house plays nobody: it draws nothing, is not drawn and is not counted. */
+    const HOUSE = (() => { try { const r = G.LWQ.get('$registry'); return Array.isArray(r && r.house) ? r.house.map(String) : []; } catch (e) { return []; } })();
+    const isHouse = p => !!(p && p.address && HOUSE.includes(p.address));
+    let iAmHouse = false;
+    function houseId() {
+      if (iAmHouse) return myId();
+      for (const [id, r] of remotes) if (isHouse(r.from)) return id;
+      return null;
+    }
     function hostId() {
       if (!room) return myId();
+      const h = houseId();
+      if (h) return h;
       let best = { id: myId(), j: joinedAt };
       for (const [id, r] of remotes) {
         if (r.j == null) continue;
@@ -636,8 +650,13 @@
       return best.id;
     }
     /* alone in the room you keep the world at once; with others, listen 1.5 s first to learn who came before you
-       (an intent sent in those first moments used to go to a host that did not exist yet, and was lost) */
-    const amHost = () => !room || remotes.size === 0 || (Date.now() >= electReadyAt && hostId() === myId());
+       (an intent sent in those first moments used to go to a host that did not exist yet, and was lost). With the
+       house there, it decides at once, and nobody else does. */
+    const amHost = () => {
+      if (iAmHouse || !room) return true;
+      if (houseId()) return false;
+      return remotes.size === 0 || (Date.now() >= electReadyAt && hostId() === myId());
+    };
 
     function intent(op, id) {
       if (amHost()) { hostApply(op, id, myId()); return; }
@@ -712,6 +731,7 @@
         r.g = r.c.group;
         r.c.setName(label(from, ''));
         r.g.visible = false;
+        r.house = isHouse(from);   /* the house plays nobody: never drawn, never a target */
         remotes.set(from.id, r);
         drawNet();
       }
@@ -720,7 +740,7 @@
     function dropRemote(id) {
       const r = remotes.get(id); if (!r) return;
       scene.remove(r.g); remotes.delete(id);
-      log(label(r.from, r.name) + ' left.');
+      log(r.house ? 'The house has gone; a player keeps the world now.' : label(r.from, r.name) + ' left.');
       drawNet();
     }
     function heard({ from, data }) {
@@ -754,12 +774,14 @@
     function finishHeard(d, from, r) {
       if (d.I && amHost()) hostApply(String(d.I), String(d.o || ''), from.id);
       /* the world only from the one who keeps it: during a handover, or from a client that lies, another's is ignored */
-      if (d.W && typeof d.W === 'object' && from.id === hostId() && +d.W.seq > W.seq) applyWorld(d.W);
+      /* the house, just arrived, takes the world over from whoever kept it so far (a few seconds to hear it) */
+      const takingOver = iAmHouse && Date.now() < electReadyAt + 3000;
+      if (d.W && typeof d.W === 'object' && (from.id === hostId() || takingOver) && +d.W.seq > W.seq) applyWorld(d.W);
       if (d.H && amHost()) sendWorld();
       /* the fight: the host's picture of it, a player's blow for the host, and what the host says happened to me */
       if (fight) {
         const fromHost = from.id === hostId();
-        if (d.C && fromHost && !amHost()) fight.apply(d.C);
+        if (d.C && ((fromHost && !amHost()) || takingOver)) fight.apply(d.C);
         if (d.X != null && amHost()) route(fight.damage(String(d.X), +d.d || 0, from.id));
         if (d.D != null && String(d.D) === myId() && fromHost) hurt(+d.d || 0, 'raider');
         if (d.K != null && String(d.K) === myId() && fromHost) gainXp(+d.x || 0, 'raider');
@@ -776,8 +798,24 @@
       if (!res.online) { log('Playing alone (' + (res.why || 'offline') + ').'); drawNet(); return; }
       room = res.room; joinedAt = Date.now(); electReadyAt = Date.now() + 1500;   /* just joined: listen before deciding who keeps the world */
       becomeId(room.me.id);
+      iAmHouse = isHouse(room.me);
+      if (iAmHouse) {   /* the machine that keeps the world: it runs the world and the fight, and draws nothing */
+        drawing = false; renderer.setPixelRatio(0.25);
+        log('This is the house: it keeps the world.');
+      }
       room.on('message', heard);
-      room.on('join', ({ from }) => { remote(from); log(label(from, '') + ' joined.'); if (amHost()) setTimeout(() => amHost() && sendWorld(), 500); drawNet(); });
+      room.on('join', ({ from }) => {
+        const wasHost = amHost();
+        remote(from);
+        if (isHouse(from)) {   /* hand the world and the fight over to the house, which decides from now on */
+          log('The house keeps this world now.');
+          if (wasHost && !iAmHouse) { sendWorld(); if (fight) room.send({ C: fight.snapshot() }); }
+        } else {
+          log(label(from, '') + ' joined.');
+          if (amHost()) setTimeout(() => amHost() && sendWorld(), 500);
+        }
+        drawNet();
+      });
       room.on('leave', ({ from }) => dropRemote(from.id));
       room.on('peer', () => drawNet());
       room.on('closed', why => { log('Disconnected: ' + (why || 'the room closed') + '. Playing alone.'); for (const id of Array.from(remotes.keys())) dropRemote(id); room = null; drawNet(); });
@@ -791,7 +829,7 @@
     }
     let lastState = 0, lastKey = '', lastName = 0, lastBeat = 0;
     function sendState(force) {
-      if (!room) return;
+      if (!room || iAmHouse) return;
       const now = performance.now(), every = room.fast ? 66 : 250;
       if (!force && now - lastState < every) return;
       const key = [R2(me.x), R2(me.y), R2(me.z), R2(me.yaw), R2(me.pitch)].join(',');
@@ -894,14 +932,16 @@
       $('.lwq-inv').innerHTML = (keysHeld.length ? 'Key: ' + esc(keysHeld.join(', ')) + '<br>' : '') + parts.join(' · ');
     }
     function drawNet() {
-      const n = remotes.size + 1;
+      let n = iAmHouse ? 0 : 1;
+      for (const r of remotes.values()) if (!r.house) n++;   /* the house is nobody */
       let mode = 'solo';
       if (room) {
         const peers = room.peers(), states = Object.values(peers);
         mode = !room.fast ? 'through the room' : !states.length ? 'fast lane' : states.every(s => s === 'direct') ? 'direct' : states.some(s => s === 'direct') ? 'direct + room' : 'through the room';
       }
       $('.lwq-tr').innerHTML = room ? 'Online · ' + n + ' player' + (n === 1 ? '' : 's') + ' · ' + esc(mode) +
-        (amHost() ? '<br><small>you keep this world in sync</small>' : '') : 'Solo';
+        (iAmHouse ? '<br><small>the house: keeping this world</small>' : houseId() ? '<br><small>the house keeps this world</small>'
+          : amHost() ? '<br><small>you keep this world in sync</small>' : '') : 'Solo';
       if (showFps) $('.lwq-tr').innerHTML += '<br><small>' + fps + ' fps' + Array.from(remotes.values()).map(r => ' · ' + esc(label(r.from, r.name)) +
         ' ' + Math.round(r.delay || 0) + ' ms behind').join('') + '</small>';
     }
@@ -947,7 +987,7 @@
     function fightTick(dt, now) {
       const host = amHost(), players = [];
       if (host) {
-        players.push({ id: myId(), x: me.x, z: me.z, hp: P.hp, max: P.max, dead: P.dead });
+        if (!iAmHouse) players.push({ id: myId(), x: me.x, z: me.z, hp: P.hp, max: P.max, dead: P.dead });
         for (const [id, r] of remotes) if (r.g.visible) players.push({ id, x: r.g.position.x, z: r.g.position.z, hp: r.hp ? r.hp[0] : 100, max: r.hp ? r.hp[1] : 100, dead: r.hp ? r.hp[2] : false });
       }
       route(fight.update(dt, host, players));
@@ -1018,11 +1058,11 @@
       fight: () => fight ? fight.units() : [],
       player: () => P ? Object.assign({}, P) : null,
       stats: () => ({ fps, pixelRatio: pr, frozen, calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures }),
-      get state() { return { me: Object.assign({}, me), world: W, host: amHost(), players: remotes.size + 1, online: !!room,
+      get state() { return { me: Object.assign({}, me), world: W, host: amHost(), house: iAmHouse ? 'me' : houseId() ? 'there' : null, players: Array.from(remotes.values()).filter(r => !r.house).length + (iAmHouse ? 0 : 1), online: !!room,
                        others: Array.from(remotes.values()).map(r => ({ id: r.from.id, tag: r.from.tag, j: r.j, visible: r.g.visible, x: R2(r.g.position.x), y: R2(r.g.position.y), z: R2(r.g.position.z) })), fast: !!(room && room.fast), who, progress }; }
     };
   }
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 9, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, levels: 1 } },
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 10, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, levels: 1 } },
     D => ({ start: (el, opts) => start(D, el, opts) }));
 })(typeof globalThis !== 'undefined' ? globalThis : this);

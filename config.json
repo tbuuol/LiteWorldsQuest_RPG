@@ -41,11 +41,10 @@
     },
     "engine": {
       "file": "src/modules/engine.js",
-      "v": 9,
+      "v": 10,
       "api": 1,
       "kind": "js",
-      "id": null,
-      "gz": "be54ae8c4ac9fcbd6cd5aca07484860760fb0bfff49b6eb2a0c2e05fa78be14d"
+      "id": null
     }
   },
   "levels": {
@@ -121,5 +120,8 @@
     "4": "1c194778598fc4f3b4e25303de7f9d6319075dfe2b0d2cc62170505aec2a15d0 (publisher)",
     "5": "76a02b80611bcda76d3502a4fc5a02232c390b28a5104bc3ee9454640f2a8229 (publisher)",
     "6": "0fd0256a44471d809c4a4c21a3bd7c163c9c7a4eea75553bb509257e1f10b65f (publisher, loader 2: engine v9 gz be54ae8c)"
-  }
+  },
+  "house": [
+    "notHZVkLNJjG6ymtWGjM6rhBapuh3VU8eb"
+  ]
 }

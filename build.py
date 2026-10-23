@@ -92,6 +92,9 @@ def build(release: bool = False) -> pathlib.Path:
         if release:
             (out_dir / f"level.{name}.json.gz").write_bytes(pack(text.encode()))
         registry["modules"]["levels"][name] = entry(m)
+    # The house: the game's own account, kept in the room by a machine, keeps the world when it is there (engine v10).
+    # The dev viewer's ?as=house is one too, so it can be tried without the real account.
+    registry["house"] = list(cfg.get("house") or []) + ([] if release else ["nDevhouse"])
     # A packed entry ("gz") can only be read by loader 2: such a registry says so, and loader-1 pages pass it by.
     if any("gz" in e for e in [*registry["modules"].values(), *registry["modules"]["levels"].values()]):
         registry["loader"] = 2
