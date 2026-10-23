@@ -1,7 +1,7 @@
 {
   "name": "LiteWorldsQuest",
   "family": "liteworldsquest",
-  "registry_version": 11,
+  "registry_version": 12,
   "three_id": "374cfd2b2f114e9da4ade8add495fe8aa0b2b996a710fb538759a956f15f9539",
   "modules": {
     "net": {
@@ -38,28 +38,32 @@
       "v": 6,
       "api": 1,
       "kind": "js",
-      "id": null
+      "id": null,
+      "gz": "70abd6ab0a43da098c58dba978cb321cce21afe0448c0c6596f9aa09b85224cd"
     },
     "rpg": {
       "file": "src/modules/rpg.js",
       "v": 1,
       "api": 1,
       "kind": "js",
-      "id": null
+      "id": null,
+      "gz": "a915b111a9d5a5d2e81d4bf03c0a43fe511217fa43a567336bde3e707ffd1f54"
     },
     "menu": {
       "file": "src/modules/menu.js",
       "v": 1,
       "api": 1,
       "kind": "js",
-      "id": null
+      "id": null,
+      "gz": "b2bdb39ffe002f6701fef8b3f16f081d00c607392398185899ca58d1f5b891ca"
     },
     "engine": {
       "file": "src/modules/engine.js",
       "v": 14,
       "api": 1,
       "kind": "js",
-      "id": null
+      "id": null,
+      "gz": "14533482cfd5830e25fdfe47ee87361e42251fc3fe60bfc60473acb25a2dc079"
     }
   },
   "levels": {
@@ -68,7 +72,8 @@
       "v": 4,
       "api": 1,
       "kind": "json",
-      "id": null
+      "id": null,
+      "gz": "ebb3782ee2b276282956cbb43124fcff82e488efad0f9737073b92e6d067110d"
     },
     "test": {
       "file": "src/levels/test.json",
@@ -139,7 +144,8 @@
     "8": "1bebe9d34d290be01d702266f74016a6ef7c2025744107c661e6432e45f1e52b (publisher, loader 2: engine v11 gz f475bb8e, combat v2 gz f2101e21, house)",
     "9": "b84a448d514766d831188bfaedbf2770146c4b4761dad2bc23963b261a5eaac8 (publisher, loader 2: engine v12 gz 4207e117, combat v3 gz 3e03a4d7, house)",
     "10": "049ad572ade07af7fb24ac4bf172e4915740c22cf3f90c0c185334ec0122de18 (publisher, loader 2: engine v13, combat v4, blockshire v3 gz, house)",
-    "11": "c89a20a19c849f65396c00f0cd3382299f6a0e3d8e37dc43e2c2660d942492c0 (publisher, loader 2)"
+    "11": "c89a20a19c849f65396c00f0cd3382299f6a0e3d8e37dc43e2c2660d942492c0 (publisher, loader 2)",
+    "12": "f4a5fd16aa33d2b33a1c6f47e0f727537a2219f4d1235198c9a82715a7af8bc6 (publisher, loader 2)"
   },
   "house": [
     "notHZVkLNJjG6ymtWGjM6rhBapuh3VU8eb"
