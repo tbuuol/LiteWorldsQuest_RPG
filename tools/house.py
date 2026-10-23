@@ -35,6 +35,21 @@ def log(*parts) -> None:
         f.write(time.strftime("%Y-%m-%d %H:%M:%S ") + " ".join(str(p) for p in parts) + "\n")
 
 
+def node_pid() -> int | None:
+    """The arcade's web worker (`python -m arcade.web`, restarted by its parent on updates). When it restarts, the
+    house's room link is gone without the page noticing (2026-10-23 18:10: the house thought itself online, alone, in
+    a room nobody else was in), so a new worker means a fresh start."""
+    for d in pathlib.Path("/proc").iterdir():
+        if d.name.isdigit():
+            try:
+                args = (d / "cmdline").read_bytes().split(b"\0")
+            except OSError:
+                continue
+            if b"-m" in args and b"arcade.web" in args:
+                return int(d.name)
+    return None
+
+
 async def find_game(pg):
     """The game runs in the viewer's inner frame: the one that has LWQGAME."""
     for fr in pg.frames:
@@ -127,7 +142,11 @@ async def session(p) -> None:
             if await frame.evaluate("window.LWQGAME.state.online"):
                 break
         log("started:", await frame.evaluate("(() => { const s = window.LWQGAME.state; return {online: s.online, house: s.house, players: s.players, seq: s.world.seq, engine: (window.LWQ.get('$report').find(r => r[0] === 'engine') || [])[1]}; })()"))
+        worker = node_pid()
         while time.time() - started < FRESH_EVERY:
+            if worker and node_pid() not in (None, worker):
+                log("the arcade's web worker restarted; joining again")
+                return
             frame = await find_game(pg)
             if not frame:
                 log("the game frame is gone; starting again")
