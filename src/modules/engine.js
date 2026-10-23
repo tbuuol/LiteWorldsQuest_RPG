@@ -128,6 +128,15 @@
     if (LV.grass) art.grass(ctx, LV.grass);
     if (LV.paths) art.paths(ctx, LV.paths);
     for (const pr of LV.props || []) art.prop(ctx, pr);
+    /* THINGS TO GATHER around the camp (tbuuol 2026-10-23): an oak, an ore boulder, herbs. Which are spent is part of
+       the shared world (W.dep); the house decides what gathering gives, and when a spent one grows back. */
+    const resources = {};
+    for (const n of (LV.resources && LV.resources.nodes) || []) {
+      const look = art.resource(ctx, n);
+      look.use.userData = { kind: 'res', id: n.id }; usable.push(look.use);
+      resources[n.id] = { def: n, look };
+    }
+    const RES_NAME = { tree: 'oak', rock: 'ore boulder', herb: 'herbs' };
     for (const s of LV.switches || []) {
       const m = box(s); m.userData = { kind: 'switch', id: s.id };
       switches[s.id] = { def: s, mesh: m };
@@ -242,7 +251,7 @@
     if (frozen) console.info('LWQ: ' + frozen.joined + ' still parts drawn in ' + frozen.calls + ' calls');
 
     /* --- the shared world --------------------------------------------------------------------------- */
-    let W = { seq: 0, open: {}, taken: {} };
+    let W = { seq: 0, open: {}, taken: {}, dep: {} };
     for (const id in doors) W.open[id] = !!doors[id].def.open;
     for (const id in pickups) W.taken[id] = null;
 
@@ -534,6 +543,12 @@
         return d.opens === 'key' ? (hasItem(d.key) ? 'E: unlock the ' + word : d.label + ': it needs a key') : d.label + ': opened somewhere else';
       }
       if (u.kind === 'npc') return 'E: talk to ' + npcs[u.id].def.name;
+      if (u.kind === 'res') {
+        const n = resources[u.id].def, name = RES_NAME[n.kind], g = rpg && rpg.GATHER[n.kind];
+        if (W.dep[u.id]) return 'The ' + name + (n.kind === 'herb' ? ' are' : ' is') + ' spent; it grows back';
+        const lv = g && mine ? mine.jobs[g.skill] || 0 : 0;
+        return 'E: ' + (g ? g.verb : 'gather') + ' the ' + name + (g ? ' (' + rpg.SKILLS[g.skill].name + ' ' + lv + ')' : '');
+      }
       if (u.kind === 'switch') return 'E: pull the ' + switches[u.id].def.label.toLowerCase();
       if (u.kind === 'pickup') return 'E: take the ' + pickups[u.id].def.label.toLowerCase();
       if (u.kind === 'shrine') return paying ? 'The wallet is asking you…' : 'E: ' + (shrines[u.id].def.action || 'make an offering') + ' (1 coin, to yourself)';
@@ -544,6 +559,7 @@
       const u = aimed(); if (!u) return;
       if (u.kind === 'shrine') { offer(shrines[u.id].def); return; }
       if (u.kind === 'npc') { speak(u.id); return; }
+      if (u.kind === 'res') { gather(u.id); return; }
       if (u.kind === 'door') {
         const d = doors[u.id].def;
         if (d.opens === 'switch' || (d.opens === 'key' && W.open[u.id])) return;
@@ -583,7 +599,7 @@
     function heldModel(model, look) {
       const g = new THREE.Group(), add = (geo, m, x, y, z) => { const p = new THREE.Mesh(geo, m); p.position.set(x || 0, y || 0, z || 0); g.add(p); return p; };
       const steel = M({ color: look || '#cfd5dd', metalness: 0.85, roughness: 0.3 }), wood = M({ color: '#6b4a2e' }), brass = M({ color: '#b8893a', metalness: 0.7, roughness: 0.4 });
-      if (model === 'fist') { add(new THREE.BoxGeometry(0.11, 0.11, 0.14), M({ color: '#d9a882' })); add(new THREE.BoxGeometry(0.1, 0.1, 0.22), M({ color: '#5a3f2a' }), 0, -0.02, 0.17); }
+      if (model === 'fist') { add(new THREE.BoxGeometry(0.08, 0.08, 0.1), M({ color: '#d9a882' })); add(new THREE.BoxGeometry(0.075, 0.075, 0.2), M({ color: '#5a3f2a' }), 0, -0.01, 0.15); }
       else if (model === 'sword') { add(new THREE.BoxGeometry(0.045, 0.6, 0.012), steel, 0, 0.38); add(new THREE.ConeGeometry(0.032, 0.08, 4), steel, 0, 0.72);
         add(new THREE.BoxGeometry(0.2, 0.035, 0.045), brass, 0, 0.07); add(new THREE.CylinderGeometry(0.02, 0.022, 0.15, 8), wood, 0, -0.02); }
       else if (model === 'axe') { add(new THREE.CylinderGeometry(0.022, 0.025, 0.62, 8), wood, 0, 0.2); add(new THREE.BoxGeometry(0.16, 0.14, 0.02), steel, 0.07, 0.44); }
@@ -640,6 +656,45 @@
       if (room.fast && room.peers()[hostId()] === 'direct') room.state(msg);
       room.tell(msg);
       fight.predict(id, 0);
+    }
+    /* GATHERING: E on an oak, a boulder or herbs. The house decides: near enough, not spent; it rolls what it gives
+       (better with the skill), teaches the skill, and after so many a thing is spent for everyone until it grows back */
+    let gatherReady = 0;
+    function gather(id) {
+      const now = performance.now();
+      if (now < gatherReady || !fight || (P && P.dead)) return;
+      gatherReady = now + 1200; swingT = 1;
+      if (sound) sound.blip('swing');
+      if (W.dep[id]) return;
+      if (!room || !houseId() || iAmHouse) { log('Gathering needs the house: it keeps what you carry.'); return; }
+      const msg = { G: id, n: ++blowNo };
+      if (room.fast && room.peers()[hostId()] === 'direct') room.state(msg);
+      room.tell(msg);
+    }
+    const charges = {}, growAt = {};
+    function houseGather(from, id) {
+      const res = resources[id], a = addrOf(from), r = remotes.get(from.id);
+      if (!res || !a || W.dep[id]) return;
+      if (r && Math.hypot(r.g.position.x - res.def.pos[0], r.g.position.z - res.def.pos[1]) > 4.5) return;   /* from afar: no */
+      const kind = res.def.kind, conf = LV.resources || {};
+      if (charges[id] == null) charges[id] = (conf.charges && conf.charges[kind]) || 3;
+      const out = book.gather(a, kind);
+      dirty.add(a);
+      notice(from.id, out.got.length ? 'Into your bag: ' + out.got.join(', ') + '.' : 'Nothing this time.');
+      for (const u of out.up) notice(from.id, u + '!');
+      if (--charges[id] > 0) return;
+      const N = { seq: W.seq + 1, open: Object.assign({}, W.open), taken: Object.assign({}, W.taken), dep: Object.assign({}, W.dep) };
+      N.dep[id] = 1; applyWorld(N); sendWorld();
+      growAt[id] = performance.now() + (conf.respawn || 90) * 1000; delete charges[id];
+    }
+    function growBack(now) {
+      /* a spent one with no time to grow back (the house took the world over, or started again): it gets one */
+      for (const id in W.dep) if (W.dep[id] && growAt[id] == null) growAt[id] = now + ((LV.resources && LV.resources.respawn) || 90) * 1000;
+      const due = Object.keys(growAt).filter(id => now >= growAt[id]);
+      if (!due.length) return;
+      const N = { seq: W.seq + 1, open: Object.assign({}, W.open), taken: Object.assign({}, W.taken), dep: Object.assign({}, W.dep) };
+      for (const id of due) { delete N.dep[id]; delete growAt[id]; }
+      applyWorld(N); sendWorld();
     }
     /* what the host's fight says about players: blows and blessings, and who made a kill */
     function route(events) {
@@ -780,7 +835,7 @@
       room.tell({ I: op, o: id });
     }
     function hostApply(op, id, by) {
-      const N = { seq: W.seq + 1, open: Object.assign({}, W.open), taken: Object.assign({}, W.taken) };
+      const N = { seq: W.seq + 1, open: Object.assign({}, W.open), taken: Object.assign({}, W.taken), dep: Object.assign({}, W.dep) };
       let changed = false;
       if (op === 'use' && switches[id]) {
         for (const t of switches[id].def.targets || []) { N.open[t] = !N.open[t]; changed = true; }
@@ -803,13 +858,15 @@
       const open = {}, taken = {};
       for (const id in W.open) if (W.open[id]) open[id] = true;
       for (const id in W.taken) if (W.taken[id] != null) taken[id] = W.taken[id];
-      room.tell({ W: { seq: W.seq, open, taken }, j: joinedAt }).then(ok => { if (!ok) console.warn('LWQ: the world is too big for one room message'); });
+      const dep = {}; for (const id in W.dep) if (W.dep[id]) dep[id] = 1;
+      room.tell({ W: { seq: W.seq, open, taken, dep }, j: joinedAt }).then(ok => { if (!ok) console.warn('LWQ: the world is too big for one room message'); });
       lastWorldSent = performance.now();
     }
     /* the world as the host says it is: what changed is said in the log, each change once */
     function applyWorld(next) {
       const before = W;
-      W = { seq: +next.seq || 0, open: Object.assign({}, next.open), taken: Object.assign({}, next.taken) };
+      W = { seq: +next.seq || 0, open: Object.assign({}, next.open), taken: Object.assign({}, next.taken), dep: Object.assign({}, next.dep) };
+      for (const id in resources) resources[id].look.set(!!W.dep[id]);
       for (const pid in pickups) {
         const now = W.taken[pid] == null ? null : W.taken[pid], was = before.taken[pid] == null ? null : before.taken[pid];
         pickups[pid].mesh.visible = pickups[pid].hit.visible = now == null;
@@ -907,6 +964,7 @@
       /* what is mine: a notice and my record from the house; and, at the house, what a player asks of it */
       if (Array.isArray(d.N) && String(d.N[0]) === myId() && from.id === hostId()) { log(String(d.N[1])); if (/bag|level/.test(d.N[1]) && sound) sound.blip('pickup'); }
       if (d.R && typeof d.R === 'object' && String(d.to) === myId() && from.id === hostId() && rpg) myRecord(d.R);
+      if (d.G != null && iAmHouse && book && freshBlow(from.id, d.n)) houseGather(from, String(d.G));
       if (d.Q && iAmHouse && book && addrOf(from)) {
         const a = addrOf(from);
         if (d.Q === 'equip') { const res = book.equip(a, +d.u); if (!res.ok) notice(from.id, 'Cannot wear that: ' + res.why + '.'); }
@@ -1168,6 +1226,7 @@
       if (fight) fightTick(iAmHouse ? Math.min(dt, 1) : fdt, now);
       sendState(false);
       drawRemotes();
+      if (amHost()) growBack(now);
       if (room && amHost() && now - worldT > 3000) { worldT = now; if (now - lastWorldSent > 2500) sendWorld(); }
       if (now - netT > 1000) {
         netT = now; drawNet();
@@ -1209,6 +1268,6 @@
     };
   }
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 14, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, levels: 1 } },
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 15, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, levels: 1 } },
     D => ({ start: (el, opts) => start(D, el, opts) }));
 })(typeof globalThis !== 'undefined' ? globalThis : this);

@@ -560,6 +560,45 @@
       const m = mesh(g, dirt, false); m.receiveShadow = true; m.position.set((ax + bx) / 2, 0.01, (az + bz) / 2); m.rotation.y = Math.atan2(bx - ax, bz - az); ctx.scene.add(m);
     }
   };
+  /* A THING TO GATHER (tbuuol 2026-10-23: wood, ore and plants around Blockshire): an oak to fell, a boulder with
+     copper and iron in it, a patch of herbs. Returns {use: the mesh the crosshair finds, set(spent)}: spent, the oak
+     is a stump, the boulder a dull stone, the herbs gone, until it grows back. */
+  art.resource = function (ctx, def) {
+    const [x, z] = def.pos, g = new T.Group(), rnd = art.rng(Math.round(x * 31 + z * 17)), full = new T.Group(), left = new T.Group();
+    g.add(full, left);
+    let use;
+    if (def.kind === 'tree') {
+      const bark = mat('bark'), trunk = mesh(new T.CylinderGeometry(0.32, 0.42, 3.2, 10), bark); trunk.position.y = 1.6; full.add(trunk);
+      const leaf = plain('#3f6b2a'), leaf2 = plain('#4f7d33');
+      for (let i = 0; i < 5; i++) { const b = mesh(new T.IcosahedronGeometry(1.15 + rnd() * 0.4, 1), i % 2 ? leaf : leaf2); b.position.set((rnd() - 0.5) * 1.6, 3.4 + rnd() * 1.1, (rnd() - 0.5) * 1.6); full.add(b); }
+      const stump = mesh(new T.CylinderGeometry(0.34, 0.42, 0.45, 10), bark); stump.position.y = 0.22; left.add(stump);
+      const ring = mesh(new T.CylinderGeometry(0.3, 0.3, 0.02, 10), plain('#c9a27a')); ring.position.y = 0.46; left.add(ring);
+      use = mesh(new T.CylinderGeometry(0.6, 0.6, 2.4, 8), new T.MeshBasicMaterial({ visible: false })); use.position.y = 1.2;
+      ctx.solid([x - 0.45, 0, z - 0.45], [x + 0.45, 3, z + 0.45]);
+    } else if (def.kind === 'rock') {
+      const geo = new T.DodecahedronGeometry(0.9, 1), p = geo.attributes.position;
+      for (let i = 0; i < p.count; i++) { const k = 0.85 + rnd() * 0.3; p.setXYZ(i, p.getX(i) * k * 1.2, p.getY(i) * k * 0.8, p.getZ(i) * k); }
+      geo.computeVertexNormals();
+      const stone = mesh(geo, mat('stone', { m: { color: '#9a958c' } })); stone.position.y = 0.55; g.add(stone);
+      const copper = plain('#c87533', { metalness: 0.6, roughness: 0.35 }), iron = plain('#7d8590', { metalness: 0.7, roughness: 0.3 });
+      for (let i = 0; i < 9; i++) {   /* veins: bits of ore in the stone's skin */
+        const a = rnd() * Math.PI * 2, h = rnd() * 0.6, v = mesh(new T.BoxGeometry(0.16, 0.12, 0.08), i % 3 ? copper : iron);
+        v.position.set(Math.cos(a) * 0.95, 0.35 + h, Math.sin(a) * 0.75); v.lookAt(0, 0.6, 0); full.add(v);
+      }
+      use = mesh(new T.SphereGeometry(1.1, 8, 6), new T.MeshBasicMaterial({ visible: false })); use.position.y = 0.6;
+      ctx.solid([x - 0.9, 0, z - 0.75], [x + 0.9, 1.1, z + 0.75]);
+    } else {
+      const leaf = plain('#5d8c3a'), flower = plain('#d9c2f0'), flax = plain('#7fa3d9');
+      for (let i = 0; i < 7; i++) { const b = mesh(new T.IcosahedronGeometry(0.22 + rnd() * 0.12, 0), leaf); b.position.set((rnd() - 0.5) * 0.9, 0.2, (rnd() - 0.5) * 0.9); full.add(b); }
+      for (let i = 0; i < 6; i++) { const f = mesh(new T.SphereGeometry(0.06, 6, 4), i % 2 ? flower : flax); f.position.set((rnd() - 0.5) * 0.8, 0.42, (rnd() - 0.5) * 0.8); full.add(f); }
+      const dirt = mesh(new T.CylinderGeometry(0.55, 0.6, 0.04, 12), plain('#5a4632')); dirt.position.y = 0.02; left.add(dirt);
+      use = mesh(new T.SphereGeometry(0.7, 8, 6), new T.MeshBasicMaterial({ visible: false })); use.position.y = 0.3;
+    }
+    g.add(use);
+    g.position.set(x, 0, z); g.rotation.y = rnd() * Math.PI * 2; g.userData.keep = true; ctx.scene.add(g);
+    left.visible = false;
+    return { use, set(spent) { full.visible = !spent; left.visible = !!spent; } };
+  };
   art.prop = function (ctx, def) {
     const [x, z] = def.pos, r = (def.rot || 0) * Math.PI / 180, g = new T.Group();
     let box = null;
@@ -1132,5 +1171,5 @@
     return { groundAt, polys, segs, half, spawn, inside, stats: { buildings: buildings.length, trees: trees.length } };
   };
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('art', { api: 1, v: 3 }, () => art);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('art', { api: 1, v: 4 }, () => art);
 })(typeof globalThis !== 'undefined' ? globalThis : this);

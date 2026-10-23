@@ -27,7 +27,8 @@
   const SKILLS = {
     melee: { name: 'Melee', per: 1000, all: ['sword', 'axe', 'mace', 'unarmed'] },   /* +1 on every melee weapon */
     sword: { name: 'Swordsman', per: 100 }, axe: { name: 'Axeman', per: 100 }, mace: { name: 'Maceman', per: 100 },
-    unarmed: { name: 'Brawler', per: 100 }, defense: { name: 'Defender', per: 100 }
+    unarmed: { name: 'Brawler', per: 100 }, defense: { name: 'Defender', per: 100 },
+    woodcutting: { name: 'Woodcutter', per: 100 }, mining: { name: 'Miner', per: 100 }, herbalism: { name: 'Herbalist', per: 100 }
   };
   const ATTRS = { str: 'Strength', sta: 'Stamina', dex: 'Dexterity', int: 'Intelligence' };
   /* things. slot: what fits where (main/off: a hand). dmg: a weapon's roll; def: armour; at: attributes it adds;
@@ -47,7 +48,16 @@
     lucky_coin: { name: 'Lucky Coin', slot: 'trinket', at: { dex: 2 } },
     /* raw materials: counted, not worn */
     scrap_iron: { name: 'Scrap Iron', material: true }, torn_cloth: { name: 'Torn Cloth', material: true },
-    leather_scrap: { name: 'Leather Scrap', material: true }
+    leather_scrap: { name: 'Leather Scrap', material: true },
+    oak_log: { name: 'Oak Log', material: true }, copper_ore: { name: 'Copper Ore', material: true },
+    iron_ore: { name: 'Iron Ore', material: true }, wild_herb: { name: 'Wild Herb', material: true }, flax: { name: 'Flax', material: true }
+  };
+  /* what gathering a kind of thing gives: [material, chance, more with the skill's level], the skill it teaches, and
+     the attributes it trains (tbuuol 2026-10-23: wood, ore and plants around Blockshire) */
+  const GATHER = {
+    tree: { skill: 'woodcutting', verb: 'chop', yields: [['oak_log', 1, 0.15]], at: { str: 0.3, sta: 0.2 } },
+    rock: { skill: 'mining', verb: 'mine', yields: [['copper_ore', 0.8, 0.05], ['iron_ore', 0.12, 0.1]], at: { str: 0.4, sta: 0.2 } },
+    herb: { skill: 'herbalism', verb: 'gather', yields: [['wild_herb', 1, 0.15], ['flax', 0.35, 0.05]], at: { dex: 0.3, int: 0.2 } }
   };
   const FISTS = { name: 'Fists', skill: 'unarmed', model: 'fists', dmg: [2, 4] };
   /* what a raider leaves, each by its own chance */
@@ -138,10 +148,24 @@
         r.eq[slot] = uid;
         return { ok: true, slot };
       },
+      /* gathering: what the thing gives (each by its chance, better with the skill's level), straight into the bag */
+      gather(a, kind, rnd) {
+        const r = of(a), g = GATHER[kind]; rnd = rnd || Math.random;
+        if (!g) return { got: [], up: [] };
+        const lv = jobs(r)[g.skill] || 0, got = [];
+        for (const [id, p, more] of g.yields) {
+          if (rnd() >= Math.min(1, p + more * lv)) continue;
+          const n = 1 + (rnd() < more * lv ? 1 : 0);
+          r.mat[id] = (r.mat[id] || 0) + n; got.push(ITEMS[id].name + (n > 1 ? ' ×' + n : ''));
+        }
+        const sk = {}; sk[g.skill] = 1; gain(r, sk, g.at);
+        const up = (jobs(r)[g.skill] || 0) > lv ? [SKILLS[g.skill].name + ' level ' + (lv + 1)] : [];
+        return { got, up };
+      },
       unequip(a, slot) { const r = of(a); if (!r.eq[slot]) return { ok: false, why: 'nothing there' }; delete r.eq[slot]; return { ok: true }; }
     };
   }
 
-  const rpg = { api: 1, SLOTS, SKILLS, ATTRS, ITEMS, FISTS, LOOT, fresh, stats, jobs, meets, itemOf, attr, book };
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('rpg', { api: 1, v: 1 }, () => rpg);
+  const rpg = { api: 1, SLOTS, SKILLS, ATTRS, ITEMS, FISTS, LOOT, GATHER, fresh, stats, jobs, meets, itemOf, attr, book };
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('rpg', { api: 1, v: 2 }, () => rpg);
 })(typeof globalThis !== 'undefined' ? globalThis : this);
