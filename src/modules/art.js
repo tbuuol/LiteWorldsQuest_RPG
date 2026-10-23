@@ -599,6 +599,31 @@
     left.visible = false;
     return { use, set(spent) { full.visible = !spent; left.visible = !!spent; } };
   };
+  /* THE FORGE (tbuuol 2026-10-23: "a smithy in Blockshire where the craft menu opens"): a stone hearth with glowing
+     coals and a flickering light, a chimney, an anvil on a block, a workbench. Returns {use}: the crosshair finds it. */
+  art.forge = function (ctx, def) {
+    const [x, z] = def.pos, g = new T.Group(), stone = mat('stone', { m: { color: '#8f877c' } }), bark = mat('bark');
+    const hearth = mesh(boxM(2.2, 1.1, 1.6, 1), stone); hearth.position.set(0, 0.55, -0.4); g.add(hearth);
+    const coals = mesh(new T.BoxGeometry(1.4, 0.12, 0.9), new T.MeshStandardMaterial({ color: '#ff6a1a', emissive: '#ff4a00', emissiveIntensity: 2.4 }), false);
+    coals.position.set(0, 1.14, -0.35); g.add(coals);
+    const hood = mesh(new T.CylinderGeometry(0.35, 1.0, 0.9, 4), stone); hood.position.set(0, 1.95, -0.5); hood.rotation.y = Math.PI / 4; g.add(hood);
+    const chimney = mesh(boxM(0.55, 2.4, 0.55, 1), stone); chimney.position.set(0, 3.5, -0.5); g.add(chimney);
+    const glow = new T.PointLight('#ff7a2a', 2.2, 7, 1.6); glow.position.set(0, 1.6, 0.2); g.add(glow);
+    const block = mesh(new T.CylinderGeometry(0.32, 0.38, 0.55, 10), bark); block.position.set(1.7, 0.27, 0.6); g.add(block);
+    const iron = plain('#3b3d42', { metalness: 0.75, roughness: 0.4 });
+    const anvil = mesh(new T.BoxGeometry(0.62, 0.18, 0.26), iron); anvil.position.set(1.7, 0.66, 0.6); g.add(anvil);
+    const horn = mesh(new T.ConeGeometry(0.12, 0.3, 8), iron); horn.rotation.z = -Math.PI / 2; horn.position.set(2.15, 0.68, 0.6); g.add(horn);
+    const waist = mesh(new T.BoxGeometry(0.3, 0.16, 0.2), iron); waist.position.set(1.7, 0.5, 0.6); g.add(waist);
+    const bench = mesh(boxM(1.6, 0.12, 0.7, 1), mat('planks')); bench.position.set(-1.9, 0.85, 0.5); g.add(bench);
+    for (const lx of [-2.55, -1.25]) for (const lz of [0.25, 0.75]) { const leg = mesh(new T.BoxGeometry(0.1, 0.8, 0.1), bark); leg.position.set(lx, 0.4, lz); g.add(leg); }
+    const hammer = mesh(new T.BoxGeometry(0.16, 0.08, 0.08), iron); hammer.position.set(-1.7, 0.95, 0.5); g.add(hammer);
+    const use = mesh(new T.BoxGeometry(5, 2.2, 2.4), new T.MeshBasicMaterial({ visible: false })); use.position.set(0, 1.1, 0.1); g.add(use);
+    g.position.set(x, 0, z); g.rotation.y = (def.rot || 0) * Math.PI / 180; g.userData.keep = true; ctx.scene.add(g);
+    g.updateMatrixWorld(true);
+    const box = new T.Box3().setFromObject(hearth); ctx.solid([box.min.x, 0, box.min.z], [box.max.x, 1.1, box.max.z]);
+    let t = 0; ctx.every(dt => { t += dt; glow.intensity = 2.0 + Math.sin(t * 11) * 0.25 + Math.sin(t * 23) * 0.15; });
+    return { use };
+  };
   art.prop = function (ctx, def) {
     const [x, z] = def.pos, r = (def.rot || 0) * Math.PI / 180, g = new T.Group();
     let box = null;
@@ -1171,5 +1196,5 @@
     return { groundAt, polys, segs, half, spawn, inside, stats: { buildings: buildings.length, trees: trees.length } };
   };
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('art', { api: 1, v: 4 }, () => art);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('art', { api: 1, v: 5 }, () => art);
 })(typeof globalThis !== 'undefined' ? globalThis : this);

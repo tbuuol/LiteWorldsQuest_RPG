@@ -38,7 +38,8 @@
     const root = document.createElement('div'); root.className = 'lwq-menu';
     root.innerHTML = '<div class="card"><div class="top">' +
       '<button class="tab on" data-t="char">Character</button><button class="tab" data-t="skills">Skills</button>' +
-      '<button class="tab" data-t="bag">Bag</button><button class="tab x" data-t="close" title="Close (I)">×</button></div>' +
+      '<button class="tab" data-t="bag">Bag</button><button class="tab" data-t="craft">Craft</button>' +
+      '<button class="tab x" data-t="close" title="Close (I)">×</button></div>' +
       '<div class="body"></div></div>';
     el.appendChild(root);
     const body = root.querySelector('.body');
@@ -53,6 +54,7 @@
       if (a) {
         if (a.disabled) return;
         if (a.dataset.act === 'wear') o.ask({ op: 'equip', uid: +a.dataset.uid });
+        else if (a.dataset.act === 'make') o.ask({ op: 'craft', recipe: a.dataset.recipe });
         else o.ask({ op: 'unequip', slot: a.dataset.slot });
         a.disabled = true; a.textContent = 'Asking the house…';
         return;
@@ -96,6 +98,29 @@
         h += '<h4 style="margin-top:12px">Attribute points</h4>';
         for (const k in rpg.ATTRS) { const pts = rec.at[k] || 0, into = pts % 25; h += '<div class="row"><span>' + rpg.ATTRS[k] + ' ' + rpg.attr(rec, k) + '</span><span class="muted">' + Math.floor(into) + ' / 25</span></div>'; }
         body.innerHTML = h;
+      } else if (tab === 'craft') {
+        /* the recipes this player knows, by craft: what each needs (have / need), what it makes, and Make -- at the forge */
+        const at = o.atForge ? o.atForge() : false;
+        let h = at ? '<p class="muted">At the forge. Making teaches the craft; now and then a new recipe turns up while you work.</p>'
+                   : '<p class="bad">Walk to the forge in Blockshire (east of the square) to make things. You can look at your recipes here.</p>';
+        let hidden = 0;
+        for (const craft of ['smithing', 'woodworking', 'tailoring']) {
+          const sk = rpg.SKILLS[craft], lv = stats.jobs[craft] || 0;
+          h += '<h4 style="margin-top:12px">' + esc(sk.name) + ' · level ' + lv + '</h4>';
+          for (const rid in rpg.RECIPES) {
+            const rc = rpg.RECIPES[rid]; if (rc.skill !== craft) continue;
+            if (!rpg.knows(rec, rid)) { hidden++; continue; }
+            const it = rpg.ITEMS[rid], tooLow = lv < rc.level;
+            let enough = true;
+            const needs = Object.keys(rc.needs).map(m => { const have = rec.mat[m] || 0, ok = have >= rc.needs[m]; if (!ok) enough = false;
+              return '<span class="' + (ok ? 'good' : 'bad') + '">' + esc(rpg.ITEMS[m].name) + ' ' + have + '/' + rc.needs[m] + '</span>'; }).join(' · ');
+            h += '<div class="detail" style="margin-top:6px"><b>' + esc(it.name) + '</b> <span class="muted">' + esc(statLine(it) || '') + '</span>' +
+              '<div>' + needs + (rc.level ? ' · <span class="' + (tooLow ? 'bad' : 'good') + '">' + esc(sk.name) + ' level ' + rc.level + '</span>' : '') + '</div>' +
+              '<button class="act" data-act="make" data-recipe="' + rid + '"' + (at && enough && !tooLow ? '' : ' disabled') + '>Make</button></div>';
+          }
+        }
+        if (hidden) h += '<p class="muted" style="margin-top:12px">' + hidden + ' more recipes are still to be found.</p>';
+        body.innerHTML = h;
       } else {
         let mats = '';
         for (const id in rec.mat) if (rec.mat[id] > 0) mats += '<div class="row"><span>' + esc(rpg.ITEMS[id] ? rpg.ITEMS[id].name : id) + '</span><b>× ' + rec.mat[id] + '</b></div>';
@@ -121,12 +146,12 @@
     }
     function close() { open = false; root.style.display = 'none'; }
     return {
-      open() { open = true; root.style.display = 'flex'; draw(); },
+      open(t) { if (t) tab = t; open = true; root.style.display = 'flex'; draw(); },
       close, isOpen: () => open,
       update(r, s) { rec = r; stats = s; if (open) draw(); }
     };
   }
 
   const menu = { api: 1, create };
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('menu', { api: 1, v: 1 }, () => menu);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('menu', { api: 1, v: 2 }, () => menu);
 })(typeof globalThis !== 'undefined' ? globalThis : this);

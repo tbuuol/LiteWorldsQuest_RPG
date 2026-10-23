@@ -137,6 +137,10 @@
       resources[n.id] = { def: n, look };
     }
     const RES_NAME = { tree: 'oak', rock: 'ore boulder', herb: 'herbs' };
+    /* THE FORGE: E opens the menu's Craft tab; making is asked of the house, which wants the player at the forge */
+    let forge = null;
+    if (LV.forge) { forge = art.forge(ctx, LV.forge); forge.use.userData = { kind: 'forge' }; usable.push(forge.use); }
+    const nearForge = (x, z) => !!LV.forge && Math.hypot(x - LV.forge.pos[0], z - LV.forge.pos[1]) < 5;
     for (const s of LV.switches || []) {
       const m = box(s); m.userData = { kind: 'switch', id: s.id };
       switches[s.id] = { def: s, mesh: m };
@@ -322,10 +326,10 @@
        the house, which keeps the record; I or Tab, or the ☰ button on a phone. */
     let menu = null;
     if (D.menu && D.rpg && LV.defense) {
-      menu = D.menu.create({ el, rpg: D.rpg, touch: TOUCH,
+      menu = D.menu.create({ el, rpg: D.rpg, touch: TOUCH, atForge: () => nearForge(me.x, me.z),
         ask(q) {
           if (!room || !houseId()) { log('The house is away: what you carry is kept by the house, so nothing can change now.'); return; }
-          const msg = Object.assign({ Q: q.op }, q.op === 'equip' ? { u: q.uid } : { s: q.slot });
+          const msg = Object.assign({ Q: q.op }, q.op === 'equip' ? { u: q.uid } : q.op === 'craft' ? { r: q.recipe } : { s: q.slot });
           if (room.fast && room.peers()[hostId()] === 'direct') room.state(msg);
           else room.tell(msg);
         } });
@@ -543,6 +547,7 @@
         return d.opens === 'key' ? (hasItem(d.key) ? 'E: unlock the ' + word : d.label + ': it needs a key') : d.label + ': opened somewhere else';
       }
       if (u.kind === 'npc') return 'E: talk to ' + npcs[u.id].def.name;
+      if (u.kind === 'forge') return 'E: work at the forge';
       if (u.kind === 'res') {
         const n = resources[u.id].def, name = RES_NAME[n.kind], g = rpg && rpg.GATHER[n.kind];
         if (W.dep[u.id]) return 'The ' + name + (n.kind === 'herb' ? ' are' : ' is') + ' spent; it grows back';
@@ -560,6 +565,7 @@
       if (u.kind === 'shrine') { offer(shrines[u.id].def); return; }
       if (u.kind === 'npc') { speak(u.id); return; }
       if (u.kind === 'res') { gather(u.id); return; }
+      if (u.kind === 'forge') { if (menu) { try { document.exitPointerLock(); } catch (e) { /* not locked */ } menu.open('craft'); } return; }
       if (u.kind === 'door') {
         const d = doors[u.id].def;
         if (d.opens === 'switch' || (d.opens === 'key' && W.open[u.id])) return;
@@ -969,6 +975,19 @@
         const a = addrOf(from);
         if (d.Q === 'equip') { const res = book.equip(a, +d.u); if (!res.ok) notice(from.id, 'Cannot wear that: ' + res.why + '.'); }
         else if (d.Q === 'unequip') book.unequip(a, String(d.s));
+        else if (d.Q === 'craft') {
+          const r = remotes.get(from.id);
+          if (r && !nearForge(r.g.position.x, r.g.position.z)) notice(from.id, 'You are not at the forge.');
+          else {
+            const res = book.craft(a, String(d.r));
+            if (!res.ok) notice(from.id, 'Cannot make that: ' + res.why + '.');
+            else {
+              notice(from.id, 'You made: ' + res.made + '. It is in your bag.');
+              if (res.learnt) notice(from.id, 'While you worked, you worked out a new recipe: ' + res.learnt + '!');
+              for (const u of res.up) notice(from.id, u + '!');
+            }
+          }
+        }
         dirty.add(a); lastRecords = 0;
       }
       if (Array.isArray(d.h)) r.hp = [+d.h[0] || 0, +d.h[1] || 100, !!d.h[2]];
@@ -1268,6 +1287,6 @@
     };
   }
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 15, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, levels: 1 } },
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 16, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, levels: 1 } },
     D => ({ start: (el, opts) => start(D, el, opts) }));
 })(typeof globalThis !== 'undefined' ? globalThis : this);

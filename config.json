@@ -27,11 +27,10 @@
     },
     "art": {
       "file": "src/modules/art.js",
-      "v": 4,
+      "v": 5,
       "api": 1,
       "kind": "js",
-      "id": null,
-      "gz": "cb08e161f18de31360df8256ca55a48856d666ac8a81dc79bea5f598f8f70cf6"
+      "id": null
     },
     "combat": {
       "file": "src/modules/combat.js",
@@ -43,37 +42,33 @@
     },
     "rpg": {
       "file": "src/modules/rpg.js",
-      "v": 2,
+      "v": 3,
       "api": 1,
       "kind": "js",
-      "id": null,
-      "gz": "b12ed9a34234fd40ae29b5cf1e47f7358dcd765c866d36715ea0a6da36cc22f8"
+      "id": null
     },
     "menu": {
       "file": "src/modules/menu.js",
-      "v": 1,
+      "v": 2,
       "api": 1,
       "kind": "js",
-      "id": null,
-      "gz": "b2bdb39ffe002f6701fef8b3f16f081d00c607392398185899ca58d1f5b891ca"
+      "id": null
     },
     "engine": {
       "file": "src/modules/engine.js",
-      "v": 15,
+      "v": 16,
       "api": 1,
       "kind": "js",
-      "id": null,
-      "gz": "4106cfa624425f6d6cdb71150dcdd3de50c4018edbb8a93ff4b80f1eee78c9c8"
+      "id": null
     }
   },
   "levels": {
     "blockshire": {
       "file": "src/levels/blockshire.json",
-      "v": 5,
+      "v": 6,
       "api": 1,
       "kind": "json",
-      "id": null,
-      "gz": "509c3eaf4d1d49d30f3d82dd555f91c9379a27d15523b89c2f2d797e53dc1c44"
+      "id": null
     },
     "test": {
       "file": "src/levels/test.json",

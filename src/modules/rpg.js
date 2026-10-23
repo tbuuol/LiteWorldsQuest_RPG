@@ -28,7 +28,8 @@
     melee: { name: 'Melee', per: 1000, all: ['sword', 'axe', 'mace', 'unarmed'] },   /* +1 on every melee weapon */
     sword: { name: 'Swordsman', per: 100 }, axe: { name: 'Axeman', per: 100 }, mace: { name: 'Maceman', per: 100 },
     unarmed: { name: 'Brawler', per: 100 }, defense: { name: 'Defender', per: 100 },
-    woodcutting: { name: 'Woodcutter', per: 100 }, mining: { name: 'Miner', per: 100 }, herbalism: { name: 'Herbalist', per: 100 }
+    woodcutting: { name: 'Woodcutter', per: 100 }, mining: { name: 'Miner', per: 100 }, herbalism: { name: 'Herbalist', per: 100 },
+    smithing: { name: 'Smith', per: 100 }, woodworking: { name: 'Carpenter', per: 100 }, tailoring: { name: 'Tailor', per: 100 }
   };
   const ATTRS = { str: 'Strength', sta: 'Stamina', dex: 'Dexterity', int: 'Intelligence' };
   /* things. slot: what fits where (main/off: a hand). dmg: a weapon's roll; def: armour; at: attributes it adds;
@@ -49,6 +50,20 @@
     /* raw materials: counted, not worn */
     scrap_iron: { name: 'Scrap Iron', material: true }, torn_cloth: { name: 'Torn Cloth', material: true },
     leather_scrap: { name: 'Leather Scrap', material: true },
+    /* made at the forge (stage 3) */
+    copper_sword: { name: 'Copper Sword', slot: 'main', skill: 'sword', model: 'sword', dmg: [6, 10], look: '#c87533' },
+    copper_axe: { name: 'Copper Axe', slot: 'main', skill: 'axe', model: 'axe', dmg: [6, 12], look: '#c87533' },
+    copper_bracers: { name: 'Copper Bracers', slot: 'wrists', def: 2 },
+    iron_sword: { name: 'Iron Sword', slot: 'main', skill: 'sword', model: 'sword', dmg: [9, 15], req: { sword: 2 } },
+    iron_mace: { name: 'Iron Mace', slot: 'main', skill: 'mace', model: 'mace', dmg: [8, 14], req: { mace: 1, str: 12 } },
+    iron_helm: { name: 'Iron Helm', slot: 'head', def: 4, req: { defense: 1 } },
+    iron_ring: { name: 'Iron Ring', slot: 'ring', at: { str: 1, sta: 1 }, req: { sta: 11 } },
+    oak_shield: { name: 'Oak Shield', slot: 'off', model: 'shield', def: 4, look: '#9a7448' },
+    oak_belt_charm: { name: 'Oak Charm', slot: 'trinket', at: { sta: 1, dex: 1 } },
+    flax_tunic: { name: 'Flax Tunic', slot: 'chest', def: 2, at: { dex: 1 } },
+    leather_boots: { name: 'Leather Boots', slot: 'feet', def: 2 },
+    leather_belt: { name: 'Leather Belt', slot: 'belt', def: 1, at: { sta: 1 } },
+    herb_amulet: { name: 'Herb Amulet', slot: 'amulet', at: { int: 2, sta: 1 }, req: { int: 11 } },
     oak_log: { name: 'Oak Log', material: true }, copper_ore: { name: 'Copper Ore', material: true },
     iron_ore: { name: 'Iron Ore', material: true }, wild_herb: { name: 'Wild Herb', material: true }, flax: { name: 'Flax', material: true }
   };
@@ -59,6 +74,26 @@
     rock: { skill: 'mining', verb: 'mine', yields: [['copper_ore', 0.8, 0.05], ['iron_ore', 0.12, 0.1]], at: { str: 0.4, sta: 0.2 } },
     herb: { skill: 'herbalism', verb: 'gather', yields: [['wild_herb', 1, 0.15], ['flax', 0.35, 0.05]], at: { dex: 0.3, int: 0.2 } }
   };
+  /* RECIPES (tbuuol 2026-10-23: a forge in Blockshire; crafting has its own skills; better recipes come rarely, as a
+     drop while crafting). known: everybody knows it from the start; level: the craft's job level it needs. */
+  const RECIPES = {
+    copper_sword: { skill: 'smithing', level: 0, needs: { copper_ore: 3, oak_log: 1 }, known: true },
+    copper_axe: { skill: 'smithing', level: 0, needs: { copper_ore: 3, oak_log: 2 }, known: true },
+    copper_bracers: { skill: 'smithing', level: 0, needs: { copper_ore: 2, leather_scrap: 1 }, known: true },
+    oak_shield: { skill: 'woodworking', level: 0, needs: { oak_log: 3, leather_scrap: 1 }, known: true },
+    oak_belt_charm: { skill: 'woodworking', level: 0, needs: { oak_log: 1, wild_herb: 1 }, known: true },
+    flax_tunic: { skill: 'tailoring', level: 0, needs: { flax: 4 }, known: true },
+    leather_belt: { skill: 'tailoring', level: 0, needs: { leather_scrap: 2 }, known: true },
+    iron_sword: { skill: 'smithing', level: 1, needs: { iron_ore: 4, oak_log: 1, leather_scrap: 1 } },
+    iron_mace: { skill: 'smithing', level: 1, needs: { iron_ore: 4, oak_log: 1 } },
+    iron_helm: { skill: 'smithing', level: 1, needs: { iron_ore: 3, torn_cloth: 1 } },
+    iron_ring: { skill: 'smithing', level: 2, needs: { iron_ore: 1, copper_ore: 1 } },
+    leather_boots: { skill: 'tailoring', level: 1, needs: { leather_scrap: 3, torn_cloth: 1 } },
+    herb_amulet: { skill: 'tailoring', level: 1, needs: { wild_herb: 3, flax: 1, copper_ore: 1 } }
+  };
+  const CRAFT_AT = { smithing: { str: 0.5, int: 0.3 }, woodworking: { dex: 0.3, str: 0.2 }, tailoring: { dex: 0.4, int: 0.2 } };
+  const RECIPE_DROP = 0.04;   /* very low: a recipe of the craft being done, up to a level above the crafter's */
+  const knows = (r, rid) => !!RECIPES[rid] && (RECIPES[rid].known || (r.rk || []).includes(rid));
   const FISTS = { name: 'Fists', skill: 'unarmed', model: 'fists', dmg: [2, 4] };
   /* what a raider leaves, each by its own chance */
   const LOOT = [['torn_cloth', 0.35], ['scrap_iron', 0.2], ['leather_scrap', 0.2], ['rusty_sword', 0.05], ['leather_cap', 0.05],
@@ -162,10 +197,30 @@
         const up = (jobs(r)[g.skill] || 0) > lv ? [SKILLS[g.skill].name + ' level ' + (lv + 1)] : [];
         return { got, up };
       },
+      /* crafting at the forge: a known recipe, the craft's level, the materials -- used up, and the thing in the bag;
+         it teaches the craft, and now and then a recipe not known yet turns up */
+      craft(a, rid, rnd) {
+        const r = of(a), rc = RECIPES[rid]; rnd = rnd || Math.random;
+        if (!rc) return { ok: false, why: 'there is no such recipe' };
+        if (!knows(r, rid)) return { ok: false, why: 'you do not know that recipe yet' };
+        const lv = jobs(r)[rc.skill] || 0;
+        if (lv < rc.level) return { ok: false, why: 'it needs ' + SKILLS[rc.skill].name + ' level ' + rc.level };
+        for (const m in rc.needs) if ((r.mat[m] || 0) < rc.needs[m]) return { ok: false, why: 'not enough ' + ITEMS[m].name };
+        for (const m in rc.needs) { r.mat[m] -= rc.needs[m]; if (!r.mat[m]) delete r.mat[m]; }
+        r.bag.push([r.n++, rid]);
+        const sk = {}; sk[rc.skill] = 10; gain(r, sk, CRAFT_AT[rc.skill] || {});
+        const after = jobs(r)[rc.skill] || 0, up = after > lv ? [SKILLS[rc.skill].name + ' level ' + after] : [];
+        let learnt = null;
+        if (rnd() < RECIPE_DROP) {
+          const open = Object.keys(RECIPES).filter(k => !knows(r, k) && RECIPES[k].skill === rc.skill && RECIPES[k].level <= after + 1);
+          if (open.length) { learnt = open[Math.floor(rnd() * open.length)]; (r.rk = r.rk || []).push(learnt); }
+        }
+        return { ok: true, made: ITEMS[rid].name, up, learnt: learnt && ITEMS[learnt].name };
+      },
       unequip(a, slot) { const r = of(a); if (!r.eq[slot]) return { ok: false, why: 'nothing there' }; delete r.eq[slot]; return { ok: true }; }
     };
   }
 
-  const rpg = { api: 1, SLOTS, SKILLS, ATTRS, ITEMS, FISTS, LOOT, GATHER, fresh, stats, jobs, meets, itemOf, attr, book };
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('rpg', { api: 1, v: 2 }, () => rpg);
+  const rpg = { api: 1, SLOTS, SKILLS, ATTRS, ITEMS, FISTS, LOOT, GATHER, RECIPES, knows, fresh, stats, jobs, meets, itemOf, attr, book };
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('rpg', { api: 1, v: 3 }, () => rpg);
 })(typeof globalThis !== 'undefined' ? globalThis : this);
