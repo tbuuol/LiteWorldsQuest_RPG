@@ -7,7 +7,7 @@
    PLAYERS  each page sends its position 15 times a second over the fast lane (browser to browser), or 4 a second
      through the room when there is none, and a heartbeat once a second standing still. Others are drawn a little
      behind (100 ms on the fast lane, 300 ms through the room) and interpolated between the samples.
-   MESSAGES  {p: [x, y, z], r: [yaw, pitch], j: joinedAt, n?: name}   where a player is
+   MESSAGES  {p: [x, y, z], r: [yaw, pitch], j: joinedAt, n?: name, w?: [main, off] item ids}   where a player is
              {I: op, o: id}                                         an intent, to the host
              {W: world}                                             the world, from the host
              {H: 1}                                                 "I am new: the world, please"
@@ -904,6 +904,14 @@
       return art.character(ctx, { shirt: 'hsl(' + h + ',55%,45%)', pants: 'hsl(' + ((h + 200) % 360) + ',25%,28%)',
                                   hair: ['#2a1a10', '#6b3e1e', '#c9a04a', '#1c1c1c', '#8a4a1e'][h % 5] });
     }
+    /* what another player holds, from the item ids they send now and then (nothing worn: fists, so nothing shown) */
+    function armAvatar(r, w) {
+      const key = w.slice(0, 2).map(String).join('|');
+      if (key === r.w) return;
+      r.w = key;
+      const [main, off] = w.slice(0, 2).map(id => rpg.ITEMS[id] && !rpg.ITEMS[id].material ? rpg.ITEMS[id] : null);
+      r.c.holdItem(main && main.model ? heldModel(main.model, main.look) : null, off && off.model ? heldModel(off.model, off.look) : null);
+    }
     function remote(from) {
       let r = remotes.get(from.id);
       if (!r) {
@@ -990,6 +998,7 @@
         }
         dirty.add(a); lastRecords = 0;
       }
+      if (Array.isArray(d.w) && rpg && !r.house) armAvatar(r, d.w);
       if (Array.isArray(d.h)) r.hp = [+d.h[0] || 0, +d.h[1] || 100, !!d.h[2]];
       if (d.S === 'offered') log(label(from, r.name) + ' made an offering at the shrine.');
       /* no drawNet() here: positions come 15 times a second from each player, and rewriting the HUD that often
@@ -1031,7 +1040,7 @@
       log(room.fast ? 'Online (fast lane).' : 'Online (through the room).');
       drawNet();
     }
-    let lastState = 0, lastKey = '', lastName = 0, lastBeat = 0;
+    let lastState = 0, lastKey = '', lastName = 0, lastBeat = 0, handsSent = '';
     function sendState(force) {
       if (!room || iAmHouse) return;
       const now = performance.now(), every = room.fast ? 66 : 250;
@@ -1042,7 +1051,10 @@
       lastState = force || now - lastState > every * 2 ? now : lastState + every; lastKey = key;
       const m = { s: Math.round(now), p: [R2(me.x), R2(me.y), R2(me.z)], r: [R2(me.yaw), R2(me.pitch)], j: joinedAt };
       if (Math.abs(me.vx || 0) + Math.abs(me.vz || 0) > 0.01) m.v = [R2(me.vx), R2(me.vz)];   /* left out standing still */
-      if (now - lastName > 2000) { lastName = now; if (me.name) m.n = me.name; }
+      if (now - lastName > 2000 || handsKey !== handsSent) {   /* a change of weapon goes out with the next step */
+        lastName = now; handsSent = handsKey; if (me.name) m.n = me.name;
+        if (rec) m.w = ['main', 'off'].map(sl => { const it = rec.eq[sl] && rpg.itemOf(rec, rec.eq[sl]); return it ? it.id : ''; });   /* what you hold, for your avatar */
+      }
       if (P && fight) m.h = [Math.ceil(P.hp), P.max, P.dead ? 1 : 0];   /* the host's priest needs to know who is hurt */
       room.state(m);
       /* once a second the same through the room: whatever the fast lane is doing, everyone keeps seeing you */
@@ -1107,6 +1119,12 @@
       progress = Object.assign(progress, store.get('progress', {}));
       who = await wallet.who();
       if (who.ok && who.tag && !me.name) me.name = '@' + who.tag;
+      /* opened on an arcade where the player has no account signed in (tbuuol 2026-10-23, dogecoinarcade.com: "nobody
+         signed in"): the arcade names no address, so the house can keep nothing -- say so instead of fists in silence */
+      if (!who.ok && /signed in/.test(who.why || '')) {
+        who.why = 'not signed in on this arcade';
+        log('You are not signed in on this arcade, so you play as a guest: fists only, and nothing is kept. Sign in here (or open the game on the arcade where your account is) to keep your character.');
+      }
       drawWho(); drawInv();
     }
     function drawWho() {
@@ -1114,7 +1132,7 @@
       $('.lwq-tl').innerHTML = who.ok
         ? '<b>' + esc(who.tag ? '@' + who.tag : 'no @name yet') + '</b> · ' + esc(coin) + (who.mainnet ? ' · <b>MAINNET</b>' : ' · ' + esc(who.network || 'test'))
         : 'Wallet: ' + esc(who.why || 'not connected');
-      $('.lwq-tl').innerHTML += '<br><small>' + (store && store.remembered ? 'progress is saved in your wallet' : 'progress is not saved (no wallet viewer)') + '</small>';
+      $('.lwq-tl').innerHTML += '<br><small>' + (!who.ok ? 'playing as a guest: nothing is kept' : store && store.remembered ? 'progress is saved in your wallet' : 'progress is not saved (no wallet viewer)') + '</small>';
     }
     function gotItem(def) {
       if (sound) sound.blip('pickup');

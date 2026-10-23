@@ -5,7 +5,7 @@
      art.hut(ctx, def)    -> {door}                     a log hut with a thatched roof, a door that swings, a room inside
      art.campfire(ctx, def), art.forest(ctx, def), art.fence(ctx, def), art.paths(ctx, def), art.prop(ctx, def),
      art.well(ctx, def) -> {use: mesh}, art.grass(ctx, def)
-     art.character(ctx, look) -> {group, animate(dt, speed), face(yaw), setName(text)}   a blocky person
+     art.character(ctx, look) -> {group, animate(dt, speed), face(yaw), setName(text), holdItem(right, left)}   a blocky person
    ctx = {THREE, scene, rng, solid(min, max, on), usable(mesh, data), every(fn(dt, t))}
    Units are metres; y is up; a thing whose "rot" is 0 faces -z (towards the camp's north). */
 (function (G) {
@@ -928,6 +928,20 @@
       const a = actions[name]; if (!a || now === a) return;
       a.reset().fadeIn(fade == null ? 0.25 : fade).play(); if (now) now.fadeOut(fade == null ? 0.25 : fade); now = a;
     };
+    /* WHAT IS IN THE HANDS (tbuuol: a new weapon should be seen -- by the others too): things built in metres, held in
+       the model's hands (the arm's end, pointing forward), or in the stand-in's until the model is there */
+    let hands = { right: armR, left: armL, at: [0, -0.67, 0.04], to: [0, -0.67, 0.04], k: s }, held = null;
+    function holdItem(right, left) {
+      if (held) for (const o of held) if (o && o.parent) o.parent.remove(o);
+      held = [right, left];
+      [[right, hands.right, hands.at, 0], [left, hands.left, hands.to, 1]].forEach(([o, arm, at, isLeft]) => {
+        if (!o || !arm) return;
+        o.position.fromArray(at); o.scale.setScalar(1.25 / hands.k);   /* a little bigger than in your own hands: seen from afar */
+        o.rotation.set(Math.PI / 2, isLeft ? Math.PI / 2 : 0, 0);   /* upright in the hand is forward on a hanging arm; a shield faces out */
+        o.traverse(m => { if (m.isMesh) m.castShadow = true; });
+        arm.add(o);
+      });
+    }
     if (assetURL) loadPerson().then(tpl => {
       const model = tpl.root.clone(true), material = personMat(look.person || art.PEOPLE[Math.abs(hashStr(shirt)) % art.PEOPLE.length], look.tint);
       model.traverse(o => { if (o.isMesh) { o.material = material; o.castShadow = true; o.receiveShadow = true; } });
@@ -935,6 +949,8 @@
       model.scale.setScalar(k); model.position.y = -tpl.foot * k; model.rotation.y = Math.PI;   /* glTF faces +z, the game faces -z */
       g.children.forEach(ch => { if (ch !== tag) ch.visible = false; });
       root.add(model);
+      hands = { right: model.getObjectByName('arm-right'), left: model.getObjectByName('arm-left'), at: [-0.2, -0.95, 0.02], to: [0.2, -0.95, 0.02], k };
+      if (held) holdItem(held[0], held[1]);
       mixer = new T.AnimationMixer(model);
       for (const c of tpl.clips) actions[c.name] = mixer.clipAction(c);
       for (const n of ['emote-yes', 'emote-no', 'pick-up', 'interact-right', 'attack-melee-right', 'die']) if (actions[n]) { actions[n].setLoop(T.LoopOnce, 1); actions[n].clampWhenFinished = true; }
@@ -943,7 +959,7 @@
       play('idle', 0);
     }).catch(e => console.warn('LWQ: the people model did not load; blocky stand-ins stay', e && e.message));
     return {
-      group: root, head, setName, tag,
+      group: root, head, setName, tag, holdItem,
       /* a one-off gesture: 'emote-yes', 'emote-no', 'pick-up', 'interact-right', 'attack-melee-right' */
       emote(name) {
         if (name === 'attack-melee-right') swingT = 0.45;   /* the blocky stand-in swings its arm instead */
