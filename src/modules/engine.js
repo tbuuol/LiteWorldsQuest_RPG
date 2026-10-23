@@ -259,7 +259,8 @@
       (LV.credits ? '<div class="lwq-credit">' + esc(LV.credits) + '</div>' : '') +
       (TOUCH ? '<div class="lwq-touch"><div class="lwq-stick"><div class="lwq-knob"></div></div>' +
                '<button class="lwq-b lwq-b-atk" data-b="attack">⚔</button><button class="lwq-b lwq-b-use" data-b="use">E</button>' +
-               '<button class="lwq-b lwq-b-jump" data-b="jump">▲</button><button class="lwq-b lwq-b-run" data-b="run">Run</button></div>' : '') +
+               '<button class="lwq-b lwq-b-jump" data-b="jump">▲</button><button class="lwq-b lwq-b-run" data-b="run">Run</button>' +
+               '<button class="lwq-b lwq-b-menu" data-b="menu">☰</button></div>' : '') +
       '<div class="lwq-start"><b>' + esc(LV.title || 'LiteWorldsQuest') + '</b><br>' + (TOUCH ? 'Tap to play' : 'Click to play') + '<br>' +
       (TOUCH ? '<small>Left thumb: walk · right thumb: look · ⚔ strike · E use · ▲ jump</small></div>'
              : '<small>WASD move · Shift run · Space jump · Mouse look · E use · F / click strike · M sound · F3 fps · Esc release mouse</small></div>');
@@ -297,7 +298,7 @@
       'font:700 18px system-ui,sans-serif;touch-action:none;padding:0}.lwq-b.on{background:rgba(255,200,80,.55)}' +
       '.lwq-b-atk{right:28px;bottom:42px;width:84px;height:84px;font-size:34px;background:rgba(150,30,20,.5)}' +
       '.lwq-b-use{right:124px;bottom:30px;width:58px;height:58px}.lwq-b-jump{right:40px;bottom:140px;width:58px;height:58px}' +
-      '.lwq-b-run{right:124px;bottom:104px;width:52px;height:52px;font-size:13px}' +
+      '.lwq-b-run{right:124px;bottom:104px;width:52px;height:52px;font-size:13px}.lwq-b-menu{right:14px;top:120px;width:48px;height:48px;font-size:22px}' +
       (TOUCH ? '.lwq-log{top:48px;bottom:auto;font-size:12px}.lwq-inv{bottom:auto;top:48px}' +
                /* held upright the buttons fill the bottom: the bars go to the top, the log below them */
                '@media (max-aspect-ratio:1/1){.lwq-stats{bottom:auto;top:52px;width:min(320px,64%)}.lwq-log{top:104px;max-width:70%}}' : '');
@@ -307,6 +308,24 @@
     function log(text) {
       logLines.push(text); while (logLines.length > 6) logLines.shift();
       $('.lwq-log').innerHTML = logLines.map(esc).join('<br>');
+    }
+    /* THE PLAYER'S MENU (menu module): skills, attributes, the bag, what is worn. Wearing and taking off are asked of
+       the house, which keeps the record; I or Tab, or the ☰ button on a phone. */
+    let menu = null;
+    if (D.menu && D.rpg && LV.defense) {
+      menu = D.menu.create({ el, rpg: D.rpg, touch: TOUCH,
+        ask(q) {
+          if (!room || !houseId()) { log('The house is away: what you carry is kept by the house, so nothing can change now.'); return; }
+          const msg = Object.assign({ Q: q.op }, q.op === 'equip' ? { u: q.uid } : { s: q.slot });
+          if (room.fast && room.peers()[hostId()] === 'direct') room.state(msg);
+          else room.tell(msg);
+        } });
+    }
+    function toggleMenu() {
+      if (!menu) return;
+      if (menu.isOpen()) { menu.close(); return; }
+      try { document.exitPointerLock(); } catch (e) { /* not locked */ }
+      menu.open();
     }
 
     /* --- the player ------------------------------------------------------------------------------------ */
@@ -355,6 +374,7 @@
       const press = (b, on) => {
         const k = b.dataset.b;
         if (k === 'attack' && on) attack();
+        else if (k === 'menu' && on) toggleMenu();
         else if (k === 'use' && on) useAim();
         else if (k === 'jump') keys.Space = on;
         else if (k === 'run' && on) { runOn = !runOn; b.classList.toggle('on', runOn); }
@@ -407,6 +427,7 @@
       keys[e.code] = down;
       if (down && e.code === 'KeyE') useAim();
       if (down && e.code === 'KeyF' && !e.repeat) attack();
+      if (down && (e.code === 'KeyI' || e.code === 'Tab') && !e.repeat && menu) { e.preventDefault(); toggleMenu(); }
       if (down && e.code === 'F3') { showFps = !showFps; drawNet(); e.preventDefault(); }
       if (down && e.code === 'KeyM' && sound) log(sound.mute() ? 'Sound off (M).' : 'Sound on (M).');
       if (down && e.code === 'Space') e.preventDefault();
@@ -532,8 +553,17 @@
     }
     const hasItem = id => W.taken[id] != null && W.taken[id] === myId();
 
-    /* --- fighting: the player's numbers, the sword, a blow ------------------------------------------------ */
-    let P = combat ? combat.player(null) : null;   /* level and XP come from the wallet's storage (walletUp) */
+    /* --- fighting, and what a player is (rpg module) --------------------------------------------------------- */
+    /* THE HOUSE KEEPS EVERY PLAYER (tbuuol 2026-10-23): skills, attributes, the bag and what is worn are in the house's
+       book, by wallet address; it rolls every blow (the weapon's range, strength and job level, less the target's
+       defence), teaches skills, drops loot into the bag and sends each player its own record. Without the house a
+       player fights with bare fists and nothing is kept. */
+    const rpg = D.rpg || null;
+    let P = combat ? combat.player(null) : null;   /* hit points now, how fast and how far a blow reaches */
+    let rec = null;                                /* my record, as the house last sent it */
+    let mine = rpg ? rpg.stats(rpg.fresh('')) : null;
+    const book = rpg ? rpg.book() : null;          /* the house's book (only the house writes in it) */
+    const raiderDef = (LV.defense && LV.defense.raider && LV.defense.raider.def) || 0;
     let atkReady = 0, swingT = 0, lastHurt = 0;
     let blowNo = Math.floor(Math.random() * 1e9);   /* numbered from a random start: a reload is not mistaken for a repeat */
     const blowsSeen = new Map();                    /* the host: player id -> the numbers of their latest blows */
@@ -545,51 +575,128 @@
       blowsSeen.set(who, seen);
       return true;
     }
-    const sword = new THREE.Group();
-    if (fight) {
-      const steel = new THREE.MeshStandardMaterial({ color: '#cfd5dd', metalness: 0.85, roughness: 0.28 });
-      const brass = new THREE.MeshStandardMaterial({ color: '#b8893a', metalness: 0.7, roughness: 0.4 });
-      const leather = new THREE.MeshStandardMaterial({ color: '#4a2f1c', roughness: 0.9 });
-      const part = (geo, m, y) => { const p = new THREE.Mesh(geo, m); p.position.y = y; sword.add(p); };
-      part(new THREE.BoxGeometry(0.045, 0.6, 0.012), steel, 0.38);
-      part(new THREE.ConeGeometry(0.032, 0.08, 4), steel, 0.72);
-      part(new THREE.BoxGeometry(0.2, 0.035, 0.045), brass, 0.07);
-      part(new THREE.CylinderGeometry(0.02, 0.022, 0.15, 8), leather, -0.02);
-      part(new THREE.SphereGeometry(0.03, 8, 6), brass, -0.11);
-      sword.userData.keep = true;
-      sword.position.set(0.3, -0.32, -0.55);
-      camera.add(sword); scene.add(camera);
+    /* THE HANDS YOU SEE: bare fists, or what is in them (tbuuol: "default we hit with fists; a new weapon should be seen") */
+    const hands = new THREE.Group(), right = new THREE.Group(), left = new THREE.Group();
+    hands.add(right, left); hands.userData.keep = true;
+    let handsKey = '';
+    const M = c => new THREE.MeshStandardMaterial(Object.assign({ roughness: 0.75 }, c));
+    function heldModel(model, look) {
+      const g = new THREE.Group(), add = (geo, m, x, y, z) => { const p = new THREE.Mesh(geo, m); p.position.set(x || 0, y || 0, z || 0); g.add(p); return p; };
+      const steel = M({ color: look || '#cfd5dd', metalness: 0.85, roughness: 0.3 }), wood = M({ color: '#6b4a2e' }), brass = M({ color: '#b8893a', metalness: 0.7, roughness: 0.4 });
+      if (model === 'fist') { add(new THREE.BoxGeometry(0.11, 0.11, 0.14), M({ color: '#d9a882' })); add(new THREE.BoxGeometry(0.1, 0.1, 0.22), M({ color: '#5a3f2a' }), 0, -0.02, 0.17); }
+      else if (model === 'sword') { add(new THREE.BoxGeometry(0.045, 0.6, 0.012), steel, 0, 0.38); add(new THREE.ConeGeometry(0.032, 0.08, 4), steel, 0, 0.72);
+        add(new THREE.BoxGeometry(0.2, 0.035, 0.045), brass, 0, 0.07); add(new THREE.CylinderGeometry(0.02, 0.022, 0.15, 8), wood, 0, -0.02); }
+      else if (model === 'axe') { add(new THREE.CylinderGeometry(0.022, 0.025, 0.62, 8), wood, 0, 0.2); add(new THREE.BoxGeometry(0.16, 0.14, 0.02), steel, 0.07, 0.44); }
+      else if (model === 'mace') { add(new THREE.CylinderGeometry(0.022, 0.025, 0.5, 8), wood, 0, 0.15); add(new THREE.SphereGeometry(0.07, 10, 8), M({ color: '#5a5a5a', metalness: 0.6 }), 0, 0.42); }
+      else if (model === 'shield') { const sh = add(new THREE.CylinderGeometry(0.2, 0.2, 0.04, 16), M({ color: look || '#8a6238' })); sh.rotation.x = Math.PI / 2; add(new THREE.SphereGeometry(0.05, 8, 6), brass, 0, 0, 0.03); }
+      return g;
+    }
+    function dressHands() {
+      if (!fight) return;
+      const main = rec && rec.eq.main && rpg.itemOf(rec, rec.eq.main), off = rec && rec.eq.off && rpg.itemOf(rec, rec.eq.off);
+      const key = (main ? main.id : 'fist') + '|' + (off ? off.id : main ? '' : 'fist');
+      if (key === handsKey) return;
+      handsKey = key;
+      right.clear(); left.clear();
+      right.add(heldModel(main ? main.model : 'fist', main && main.look));
+      if (off) left.add(heldModel(off.model, off.look)); else if (!main) left.add(heldModel('fist'));
+      if (main) right.children[0].rotation.set(-0.35, 0.25, -0.3);
+      if (off && off.model === 'shield') left.children[0].rotation.set(0.1, 0.5, 0);
+    }
+    if (fight) { dressHands(); camera.add(hands); scene.add(camera); }
+    function myRecord(r) {
+      rec = r; mine = rpg.stats(r);
+      P.max = mine.hp; P.hp = Math.min(P.hp, P.max);
+      dressHands(); drawStats();
+      if (menu) menu.update(rec, mine);
+    }
+    /* the host's view of a blow: by the house from the striker's record; a player who keeps the world (no house)
+       hits with fists, and nothing is learnt */
+    /* whose record: a message over the direct link names only the player's id, so the address is the room's (the
+       arcade node stamps it there, so it is the true one) */
+    const addrOf = from => (from && from.address) || (from && remotes.get(from.id) && remotes.get(from.id).from.address) || null;
+    function blowFor(from) {
+      const a = addrOf(from);
+      if (iAmHouse && book && a) {
+        const res = book.strike(a, raiderDef);
+        dirty.add(a);
+        for (const u of res.up) notice(from.id, u + '!');
+        return res.d;
+      }
+      return Math.max(1, 2 + Math.floor(Math.random() * 3) - raiderDef);
     }
     function attack() {
-      if (!fight || !P || P.dead || !playing()) return;
+      if (!fight || !P || P.dead || !playing() || (menu && menu.isOpen())) return;
       const now = performance.now();
       if (now < atkReady) return;
       atkReady = now + P.cd * 1000; swingT = 1;
       const id = fight.pick(me.x, me.z, me.yaw, P.range);
       if (sound) sound.blip(id ? 'hit' : 'swing');
       if (!id) return;
-      const d = P.dmg + Math.floor(Math.random() * 4);
-      if (amHost()) { route(fight.damage(id, d, myId())); return; }
-      /* a blow for the host: over the direct link when there is one (no queue, no node in between), and through the
-         room as well, which always arrives; the host counts each blow once by its number. The number shows here at
-         once; the host's answer then confirms it instead of showing it again. */
-      const msg = { X: id, d, n: ++blowNo };
+      if (amHost()) { route(fight.damage(id, blowFor(room ? room.me : null), myId())); return; }
+      /* a blow for the house: over the direct link when there is one, and through the room as well; the house counts
+         each once by its number, rolls it, and the number shows when it answers (a spark at once, here) */
+      const msg = { X: id, n: ++blowNo };
       if (room.fast && room.peers()[hostId()] === 'direct') room.state(msg);
       room.tell(msg);
-      fight.predict(id, d);
+      fight.predict(id, 0);
     }
-    /* what the host's fight says about players: blows and blessings, and who earned a kill */
+    /* what the host's fight says about players: blows and blessings, and who made a kill */
     function route(events) {
       for (const e of events) {
         if (e.t === 'hit' || e.t === 'heal') {
-          const d = e.t === 'hit' ? e.d : -e.d;
+          let d = e.t === 'hit' ? e.d : -e.d;
+          if (e.t === 'hit' && iAmHouse && book) {   /* less the player's defence, which grows by being hit */
+            const r = remotes.get(e.to);
+            if (r && r.from.address) { d = book.struck(r.from.address, d); dirty.add(r.from.address); }
+          }
           if (e.to === myId()) hurt(d, e.from);
           else if (room) room.tell({ D: e.to, d });
         } else if (e.t === 'kill') {
-          if (e.by === myId()) gainXp(e.xp, e.name);
-          else if (room) room.tell({ K: e.by, x: e.xp });
+          let text = 'You defeated a ' + String(e.name || 'raider').toLowerCase() + '.';
+          const r = remotes.get(e.by);
+          if (iAmHouse && book && r && r.from.address) {
+            const got = book.loot(r.from.address);
+            if (got.length) text += ' Into your bag: ' + got.join(', ') + '.';
+            dirty.add(r.from.address);
+          }
+          notice(e.by, text);
         }
       }
+    }
+    function notice(to, text) { if (to === myId()) log(text); else if (room) room.tell({ N: [to, text] }); }
+    /* the house sends each player its record when it changed (at most every 1.5 s), whole over the direct link,
+       in pieces through the room */
+    const dirty = new Set();
+    let lastRecords = 0;
+    function sendRecords(now) {
+      if (!iAmHouse || !room || !book || !dirty.size || now - lastRecords < 1500) return;
+      lastRecords = now;
+      for (const a of dirty) for (const [id, r] of remotes) if (r.from.address === a) sendBig({ R: book.of(a), to: id }, id);
+      dirty.clear();
+    }
+    function sendBig(obj, to) {
+      if (room.fast && room.peers()[to] === 'direct') room.state(obj);
+      const s = JSON.stringify(obj);
+      if (s.length <= 470) { room.tell(obj); return; }
+      const id = Math.floor(Math.random() * 1e9).toString(36), parts = [];
+      let at = 0;
+      while (at < s.length) {   /* as much as fits one room message, quotes escaped */
+        let n = Math.min(400, s.length - at);
+        while (n > 20 && JSON.stringify({ Z: [id, 0, 0, s.slice(at, at + n)] }).length > 470) n -= 20;
+        parts.push(s.slice(at, at + n)); at += n;
+      }
+      parts.forEach((c, i) => room.tell({ Z: [id, i, parts.length, c] }));
+    }
+    const bigIn = new Map();
+    function bigPiece(from, z) {
+      if (!Array.isArray(z) || z.length < 4) return null;
+      const key = from.id + ':' + z[0], got = bigIn.get(key) || { n: +z[2], parts: [], at: performance.now() };
+      got.parts[+z[1]] = String(z[3]); bigIn.set(key, got);
+      for (const [k, v] of bigIn) if (performance.now() - v.at > 30000) bigIn.delete(k);
+      if (got.parts.filter(x => x != null).length < got.n) return null;
+      bigIn.delete(key);
+      try { return JSON.parse(got.parts.join('')); } catch (e) { return null; }
     }
     function hurt(d, from) {
       if (!P || P.dead || !d) return;
@@ -610,23 +717,17 @@
       }
       drawStats();
     }
-    function gainXp(xp, name) {
-      if (!P || !xp) return;
-      const ups = combat.gain(P, xp);
-      log('You defeated a ' + String(name || 'raider').toLowerCase() + '. +' + xp + ' XP');
-      if (ups) { log('Level ' + P.level + '! More hit points, a harder blow.'); if (sound) sound.blip('pickup'); }
-      if (store) store.set('stats', { level: P.level, xp: P.xp });
-      drawStats();
-    }
     let statsKey = '';
     function drawStats() {
       if (!P || !fight) return;
-      const hp = Math.ceil(P.hp), key = [hp, P.max, P.level, P.xp, P.next, P.dead].join();
+      const hp = Math.ceil(P.hp), skill = mine ? mine.skill : 'unarmed', pts = rec ? (rec.sk[skill] || 0) : 0;
+      const job = rpg && rpg.SKILLS[skill], lvl = mine ? mine.jobs[skill] || 0 : 0;
+      const key = [hp, P.max, P.dead, mine && mine.weapon, pts, lvl].join();
       if (key === statsKey) return;
       statsKey = key;
-      $('.lwq-lv').textContent = 'Level ' + P.level + (P.dead ? ' · down' : '');
+      $('.lwq-lv').textContent = (mine ? mine.weapon : 'Fists') + (job ? ' · ' + job.name + ' ' + lvl : '') + (P.dead ? ' · down' : '');
       $('.lwq-hp i').style.width = (100 * hp / P.max) + '%'; $('.lwq-hp span').textContent = hp + ' / ' + P.max;
-      $('.lwq-xp i').style.width = (100 * P.xp / P.next) + '%';
+      $('.lwq-xp i').style.width = (job ? 100 * (pts % job.per) / job.per : 0) + '%';
     }
 
     /* --- network ------------------------------------------------------------------------------------- */
@@ -761,7 +862,9 @@
     }
     function heard({ from, data }) {
       const d = data && typeof data === 'object' ? data : {};
+      if (Array.isArray(d.Z)) { const whole = bigPiece(from, d.Z); if (whole) heard({ from, data: whole }); return; }   /* a big one, in pieces */
       const r = remote(from); r.heard = performance.now();
+      if (from.address && !r.from.address) r.from = from;   /* the room names the address; the direct link does not */
       /* when they joined is taken once and never changed: nobody becomes host later by claiming an earlier time */
       if (d.j != null && r.j == null && isFinite(+d.j)) r.j = +d.j;
       if (Array.isArray(d.p)) {
@@ -798,9 +901,17 @@
       if (fight) {
         const fromHost = from.id === hostId();
         if (d.C && ((fromHost && !amHost()) || takingOver)) fight.apply(d.C);
-        if (d.X != null && amHost() && freshBlow(from.id, d.n)) route(fight.damage(String(d.X), +d.d || 0, from.id));
+        if (d.X != null && amHost() && freshBlow(from.id, d.n)) route(fight.damage(String(d.X), blowFor(from), from.id));
         if (d.D != null && String(d.D) === myId() && fromHost) hurt(+d.d || 0, 'raider');
-        if (d.K != null && String(d.K) === myId() && fromHost) gainXp(+d.x || 0, 'raider');
+      }
+      /* what is mine: a notice and my record from the house; and, at the house, what a player asks of it */
+      if (Array.isArray(d.N) && String(d.N[0]) === myId() && from.id === hostId()) { log(String(d.N[1])); if (/bag|level/.test(d.N[1]) && sound) sound.blip('pickup'); }
+      if (d.R && typeof d.R === 'object' && String(d.to) === myId() && from.id === hostId() && rpg) myRecord(d.R);
+      if (d.Q && iAmHouse && book && addrOf(from)) {
+        const a = addrOf(from);
+        if (d.Q === 'equip') { const res = book.equip(a, +d.u); if (!res.ok) notice(from.id, 'Cannot wear that: ' + res.why + '.'); }
+        else if (d.Q === 'unequip') book.unequip(a, String(d.s));
+        dirty.add(a); lastRecords = 0;
       }
       if (Array.isArray(d.h)) r.hp = [+d.h[0] || 0, +d.h[1] || 100, !!d.h[2]];
       if (d.S === 'offered') log(label(from, r.name) + ' made an offering at the shrine.');
@@ -917,7 +1028,6 @@
     async function walletUp() {
       store = await wallet.store();
       progress = Object.assign(progress, store.get('progress', {}));
-      if (combat && P) { const saved = store.get('stats', null); if (saved) { P = Object.assign(combat.player(saved), { dead: P.dead }); drawStats(); } }
       who = await wallet.who();
       if (who.ok && who.tag && !me.name) me.name = '@' + who.tag;
       drawWho(); drawInv();
@@ -1022,11 +1132,15 @@
       if (!P.dead && P.hp < P.max && now - lastHurt > 6000) { P.hp = Math.min(P.max, P.hp + dt * 3); drawStats(); }
       swingT = Math.max(0, swingT - dt * 3.2);
       const k = Math.sin(swingT * Math.PI);   /* 0 -> 1 -> 0: up, across, back */
-      sword.rotation.set(-0.35 - k * 1.3, 0.25 + k * 0.9, -0.3 - k * 0.6);
       const sx = 0.3 * Math.min(1, camera.aspect / 1.5);   /* a phone held upright: closer in, or it is off the picture */
-      sword.position.set(sx - k * 0.22, -0.32 + k * 0.08, -0.55);
-      sword.visible = !P.dead;
+      right.position.set(sx - k * 0.22, -0.32 + k * 0.08, -0.55);
+      if (handsKey.startsWith('fist|')) right.position.set(sx - k * 0.12, -0.3 + k * 0.1, -0.5 - k * 0.3);   /* a punch goes forward */
+      else right.rotation.set(-k * 1.3, k * 0.9, -k * 0.6);                                                        /* a weapon swings across */
+      left.position.set(-sx, -0.32, -0.52);
+      hands.visible = !P.dead;
+      sendRecords(now);
     }
+    let askedRec = -1e9;
     let last = performance.now(), worldT = 0, netT = 0, fps = 0, fpsN = 0, fpsT = performance.now(), showFps = false, promptNow = '';
     function frame(now) {
       if (stopped) return;
@@ -1055,7 +1169,11 @@
       sendState(false);
       drawRemotes();
       if (room && amHost() && now - worldT > 3000) { worldT = now; if (now - lastWorldSent > 2500) sendWorld(); }
-      if (now - netT > 1000) { netT = now; drawNet(); }
+      if (now - netT > 1000) {
+        netT = now; drawNet();
+        /* no record yet and the house is here: ask it for mine */
+        if (rpg && room && !iAmHouse && !rec && houseId() && now - askedRec > 5000) { askedRec = now; room.tell({ Q: 'me' }); }
+      }
       const pr = playing() ? promptFor(aimed()) || (fight && !TOUCH && fight.pick(me.x, me.z, me.yaw, P.range) ? 'F / click: strike' : '') : '';
       if (pr !== promptNow) { promptNow = pr; $('.lwq-prompt').textContent = pr; }   /* only when it changes: a DOM write is not free */
       if (drawing) { if (post) post.render(t); else renderer.render(scene, camera); }
@@ -1079,6 +1197,11 @@
       play() { if (TOUCH) startTouch(); else touchPlaying = true; },   /* tests: as if the view had been clicked */
       strike() { attack(); },
       fight: () => fight ? fight.units() : [],
+      /* the house's book of players, for tools/house.py to keep on disk: out as JSON, and back in after a start */
+      houseDump: () => book ? JSON.stringify(book.dump()) : '{}',
+      houseLoad: json => { const n = book ? book.load(json) : 0; for (const [, r] of remotes) if (r.from.address) dirty.add(r.from.address); return n; },
+      record: () => rec,
+      menu: on => { if (menu) { if (on === false) menu.close(); else { menu.open(); } } },
       player: () => P ? Object.assign({}, P) : null,
       stats: () => ({ fps, pixelRatio: pr, frozen, calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures }),
       get state() { return { me: Object.assign({}, me), world: W, host: amHost(), house: iAmHouse ? 'me' : houseId() ? 'there' : null, players: Array.from(remotes.values()).filter(r => !r.house).length + (iAmHouse ? 0 : 1), online: !!room,
@@ -1086,6 +1209,6 @@
     };
   }
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 13, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, levels: 1 } },
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 14, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, levels: 1 } },
     D => ({ start: (el, opts) => start(D, el, opts) }));
 })(typeof globalThis !== 'undefined' ? globalThis : this);

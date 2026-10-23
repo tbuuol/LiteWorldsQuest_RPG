@@ -35,29 +35,40 @@
     },
     "combat": {
       "file": "src/modules/combat.js",
-      "v": 5,
+      "v": 6,
       "api": 1,
       "kind": "js",
-      "id": null,
-      "gz": "5049413c8601ca4d0cf8c4be76f04240b2cceb5dae344e80614546e93ea63c74"
+      "id": null
+    },
+    "rpg": {
+      "file": "src/modules/rpg.js",
+      "v": 1,
+      "api": 1,
+      "kind": "js",
+      "id": null
+    },
+    "menu": {
+      "file": "src/modules/menu.js",
+      "v": 1,
+      "api": 1,
+      "kind": "js",
+      "id": null
     },
     "engine": {
       "file": "src/modules/engine.js",
-      "v": 13,
+      "v": 14,
       "api": 1,
       "kind": "js",
-      "id": null,
-      "gz": "2c2cf2f0c6d4149e08c83c26f237eae76c40b23efa47e3ce36d0bfc6b976e1c6"
+      "id": null
     }
   },
   "levels": {
     "blockshire": {
       "file": "src/levels/blockshire.json",
-      "v": 3,
+      "v": 4,
       "api": 1,
       "kind": "json",
-      "id": null,
-      "gz": "b9cc47e8ae70bc35fd6f963f63c854bad466b850a424e2f10dbf580dab24b404"
+      "id": null
     },
     "test": {
       "file": "src/levels/test.json",

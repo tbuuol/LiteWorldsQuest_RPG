@@ -28,6 +28,7 @@ NODE = "http://127.0.0.1:8420"
 CHECK_EVERY, FRESH_EVERY = 30, 6 * 3600
 #: out of the game this long, and the house writes to its keeper (tools/notify.py), once; and once more when it is back
 ALERT_AFTER, ALERT_TO = 15 * 60, "banana"
+PLAYERS = SECRET / "players.json"          # the house's book of every player, kept here between starts and page versions
 GOOD_FILE = SECRET / "house.last_good"   # kept on disk, so a house that keeps crashing still gets reported
 try:
     LAST_GOOD = float(GOOD_FILE.read_text())   # the last time the house was in the game, keeping it
@@ -60,6 +61,19 @@ def node_pid() -> int | None:
             if b"-m" in args and b"arcade.web" in args:
                 return int(d.name)
     return None
+
+
+async def keep_players(frame) -> None:
+    """The house's book of players onto the disk, when it has changed (written aside first, then put in place)."""
+    try:
+        dump = await frame.evaluate("window.LWQGAME.houseDump ? window.LWQGAME.houseDump() : ''")
+    except Exception:   # noqa: BLE001 -- the next check tries again
+        return
+    if not dump or dump == "{}" or (PLAYERS.exists() and PLAYERS.read_text() == dump):
+        return
+    tmp = PLAYERS.with_suffix(".tmp")
+    tmp.write_text(dump)
+    tmp.replace(PLAYERS)
 
 
 async def find_game(pg):
@@ -190,6 +204,9 @@ async def session(p) -> None:
             await asyncio.sleep(5)
             if await frame.evaluate("window.LWQGAME.state.online"):
                 break
+        if PLAYERS.exists():   # every player's record, back into the house's book
+            n = await frame.evaluate("json => window.LWQGAME.houseLoad ? window.LWQGAME.houseLoad(json) : 0", PLAYERS.read_text())
+            log("players' records loaded:", n)
         log("started:", await frame.evaluate("(() => { const s = window.LWQGAME.state; return {online: s.online, house: s.house, players: s.players, seq: s.world.seq, engine: (window.LWQ.get('$report').find(r => r[0] === 'engine') || [])[1]}; })()"))
         worker = node_pid()
         while time.time() - started < FRESH_EVERY:
@@ -206,6 +223,7 @@ async def session(p) -> None:
                 return
             global LAST_GOOD
             LAST_GOOD = time.time()
+            await keep_players(frame)
             GOOD_FILE.write_text(str(LAST_GOOD))
             if int(time.time()) % 600 < CHECK_EVERY or s["players"]:
                 s.update(await frame.evaluate("""({fps: window.LWQGAME.stats().fps, net: (document.querySelector('.lwq-tr') || {}).innerText,

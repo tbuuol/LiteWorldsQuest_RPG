@@ -128,7 +128,7 @@
       if (u.kind === 'raider' && by) u.aggro = by;
       if (u.hp > 0) return;
       if (u.kind === 'raider') {
-        u.state = 'dead'; u.gone = 3.2;
+        u.state = 'dead'; u.gone = 2.0;
         if (by && by.startsWith('p:')) events.push({ t: 'kill', by: by.slice(2), xp: statOf('raider').xp, name: u.name });
       } else { u.state = 'down'; u.gone = 6; }   /* a guard goes down, and gets up again */
     }
@@ -265,7 +265,7 @@
         if (u.state === 'dead') {
           u.deadSince = u.deadSince || performance.now();
           const lying = (performance.now() - u.deadSince) / 1000;
-          if (lying > 1.6) y = -Math.min(1.4, (lying - 1.6) * 1.2);
+          if (lying > 0.6) y = -Math.min(1.4, (lying - 0.6) * 1.8);   /* down a moment, then quickly into the ground (tbuuol: too slow) */
         } else u.deadSince = 0;
         u.c.group.position.set(u.x, y, u.z);
         let d = u.tyaw - u.yaw; d = Math.atan2(Math.sin(d), Math.cos(d)); u.yaw += d * Math.min(1, dt * 8);
@@ -312,7 +312,8 @@
       /* a client's own blow, shown at once; the host's word on it is then not shown a second time */
       predict(id, d) {
         const u = units.get(String(id)); d = Math.round(+d || 0);
-        if (!u || !alive(u) || d <= 0) return;
+        if (!u || !alive(u)) return;
+        if (d <= 0) { floater(u.x, 2.0, u.z, '✶', '#fff6d0'); return; }   /* the house rolls the number: a spark now, the number when it says */
         floater(u.x, 2.2, u.z, '-' + d, '#ff6b5a');
         (u.predicted = u.predicted || []).push({ d, until: performance.now() + 2500 });
       },
@@ -392,5 +393,5 @@
   }
 
   const combat = { api: 1, player, gain, nextXp, create };
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('combat', { api: 1, v: 5, needs: { three: 160, art: 1 } }, () => combat);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('combat', { api: 1, v: 6, needs: { three: 160, art: 1 } }, () => combat);
 })(typeof globalThis !== 'undefined' ? globalThis : this);
