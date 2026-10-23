@@ -2,7 +2,7 @@
  "lwq": "module",
  "name": "level.blockshire",
  "api": 1,
- "v": 2,
+ "v": 3,
  "data": {
   "id": "blockshire",
   "title": "Blockshire",
@@ -744,6 +744,13 @@
      "pants": "#c9bfa5",
      "hair": "#8a6a4a",
      "hood": "#d8cfb6"
+    },
+    "ae": {
+     "radius": 10,
+     "min": 11,
+     "every": 10,
+     "heal": 40,
+     "dmg": 35
     }
    },
    "spawns": {
@@ -761,9 +768,10 @@
       40
      ]
     ],
-    "every": 11,
-    "max": 4,
-    "first": 5
+    "every": 5,
+    "max": 30,
+    "first": 5,
+    "count": 3
    },
    "raider": {
     "name": "Raider",
@@ -775,7 +783,9 @@
      "pants": "#2a241e",
      "hair": "#1c1c1c",
      "hood": "#2b2622"
-    }
+    },
+    "hp": 68,
+    "xp": 20
    }
   }
  }

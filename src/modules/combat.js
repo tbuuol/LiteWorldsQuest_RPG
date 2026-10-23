@@ -44,6 +44,12 @@
     const T = o.THREE, art = o.art, ctx = o.ctx, def = o.def || {}, scene = ctx.scene;
     const units = new Map();
     let raiderNo = 0, spawnIn = (def.spawns && def.spawns.first) || 6, seq = 0;
+    /* a kind's numbers: the defaults, with what the level says over them (a raider's hp and xp) */
+    const statOf = kind => kind !== 'raider' ? BASE[kind]
+      : Object.assign({}, BASE.raider, def.raider && def.raider.hp ? { max: +def.raider.hp } : {}, def.raider && def.raider.xp ? { xp: +def.raider.xp } : {});
+    /* effects everybody sees (the priest's blessing on the whole gate): kept a moment, sent with the snapshot */
+    const fx = [], fxSeen = new Set();
+    let fxNo = 0;
     /* a client draws the host's fight a little in the past, between two snapshots, by the host's own clock (like
        other players): off maps the host's clock onto ours (the smallest arrival - sent seen), gap is how far apart
        snapshots come, and the delay is what that needs -- smooth whether they come ten times a second or once */
@@ -73,6 +79,14 @@
       s.scale.set(0.8, 0.4, 1); s.position.set(x + (Math.random() - 0.5) * 0.4, y, z); s.renderOrder = 12; scene.add(s);
       floaters.push({ s, life: 1 });
     }
+    /* the blessing as it is seen: a golden ring rising from the priest's feet to its radius, and gone */
+    const rings = [];
+    function ring(x, z, r) {
+      const m = new T.Mesh(new T.RingGeometry(0.85, 1, 64), new T.MeshBasicMaterial({ color: '#ffd76a', transparent: true, opacity: 0.9,
+        side: T.DoubleSide, depthWrite: false, blending: T.AdditiveBlending }));
+      m.rotation.x = -Math.PI / 2; m.position.set(x, 0.15, z); m.renderOrder = 9; scene.add(m);
+      rings.push({ m, r, life: 1 });
+    }
     function look(kind, id) {
       if (kind === 'raider') {
         const r = def.raider || {}, base = r.look || {};
@@ -88,7 +102,7 @@
       return (d && d.name) || kind;
     }
     function make(id, kind, x, z) {
-      const b = BASE[kind], u = { id, kind, name: nameOf(kind, id), x, z, tx: x, tz: z, yaw: 0, tyaw: 0, buf: [], hp: b.max, max: b.max,
+      const b = statOf(kind), u = { id, kind, name: nameOf(kind, id), x, z, tx: x, tz: z, yaw: 0, tyaw: 0, buf: [], hp: b.max, max: b.max,
         state: 'idle', cd: Math.random() * 0.5, atk: 0, shown: { hp: -1, atk: 0, state: '' }, gone: 0, target: null, aggro: null };
       u.c = art.character(ctx, look(kind, id));
       u.c.setName(u.name, kind === 'raider' ? '#ff9a8a' : kind === 'priest' ? '#c9f5c0' : '#cfe1ff');
@@ -115,7 +129,7 @@
       if (u.hp > 0) return;
       if (u.kind === 'raider') {
         u.state = 'dead'; u.gone = 3.2;
-        if (by && by.startsWith('p:')) events.push({ t: 'kill', by: by.slice(2), xp: BASE.raider.xp, name: u.name });
+        if (by && by.startsWith('p:')) events.push({ t: 'kill', by: by.slice(2), xp: statOf('raider').xp, name: u.name });
       } else { u.state = 'down'; u.gone = 6; }   /* a guard goes down, and gets up again */
     }
     function step(u, tx, tz, speed, dt, keep) {
@@ -133,8 +147,10 @@
       spawnIn -= dt;
       if (spawnIn <= 0 && (sp.points || []).length) {
         spawnIn = sp.every || 12;
-        if (raiders.filter(alive).length < (sp.max || 4)) {
-          const pt = sp.points[Math.floor(Math.random() * sp.points.length)];
+        let living = raiders.filter(alive).length;
+        const first = Math.floor(Math.random() * sp.points.length);
+        for (let k = 0; k < (sp.count || 1) && living < (sp.max || 4); k++, living++) {   /* a wave: one at each point in turn */
+          const pt = sp.points[(first + k) % sp.points.length];
           const u = make('r' + (++raiderNo % 1000), 'raider', pt[0] + (Math.random() - 0.5) * 3, pt[1] + (Math.random() - 0.5) * 3);
           u.state = 'walk';
         }
@@ -147,7 +163,7 @@
         if (!tgt) { let best = null; for (const g of guards) if (alive(g) && (!best || dist(u, g) < dist(u, best))) best = g; if (best) tgt = { x: best.x, z: best.z, ref: best.id }; }
         if (!tgt) { let best = null; for (const p of livePlayers) if (dist(u, p) < 12 && (!best || dist(u, p) < dist(u, best))) best = p; if (best) tgt = { x: best.x, z: best.z, ref: 'p:' + best.id }; }
         if (!tgt) tgt = { x: 0, z: 21, ref: null };
-        const b = BASE.raider;
+        const b = statOf('raider');
         u.cd -= dt;
         if (step(u, tgt.x, tgt.z, b.speed, dt, b.range * 0.85)) u.state = 'walk';
         else {
@@ -185,6 +201,23 @@
       for (const u of units.values()) {
         if (u.kind !== 'priest') continue;
         const b = BASE.priest; u.cd -= dt;
+        /* THE BLESSING OF THE GATE (tbuuol 2026-10-23): more than so many raiders near him, and he calls it down on
+           everyone around: friends are healed, raiders burn. Then it needs a while before it comes again. */
+        const ae = def.priest && def.priest.ae;
+        if (ae) {
+          u.aeCd = (u.aeCd || 0) - dt;
+          const near = raiders.filter(r => alive(r) && dist(r, u) <= ae.radius);
+          if (u.aeCd <= 0 && near.length >= (ae.min || 11)) {
+            u.aeCd = ae.every || 10; u.cd = Math.max(u.cd, 1.5); u.atk++; u.state = 'attack';
+            for (const r of near) hurt(r, ae.dmg || 35, 'ae', events);
+            for (const g of guards) if (dist(g, u) <= ae.radius) {
+              if (g.state === 'down') { g.state = 'idle'; g.hp = Math.round(g.max * 0.5); } else g.hp = Math.min(g.max, g.hp + (ae.heal || 40));
+            }
+            for (const p of livePlayers) if (Math.hypot(p.x - u.x, p.z - u.z) <= ae.radius) events.push({ t: 'heal', to: p.id, d: ae.heal || 40 });
+            fx.push({ id: ++fxNo, k: 'ae', x: u.x, z: u.z, r: ae.radius, at: performance.now() });
+            continue;
+          }
+        }
         let best = null, worst = 1;
         for (const g of guards) {
           const share = g.state === 'down' ? -1 : g.hp / g.max;
@@ -248,6 +281,14 @@
         u.bar.s.visible = u.state !== 'dead';
         u.shown.atk = u.atk;
       }
+      for (let i = rings.length - 1; i >= 0; i--) {
+        const g = rings[i]; g.life -= dt * 1.25; const k = 1 - Math.max(0, g.life);
+        g.m.scale.setScalar(0.5 + k * g.r); g.m.material.opacity = Math.max(0, g.life) * 0.9;
+        if (g.life <= 0) { scene.remove(g.m); g.m.geometry.dispose(); g.m.material.dispose(); rings.splice(i, 1); }
+      }
+      /* the host's own effects, the moment they happen (a client's come with the snapshot) */
+      for (const e of fx) if (!fxSeen.has(e.id)) { fxSeen.add(e.id); ring(e.x, e.z, e.r); }
+      while (fx.length && performance.now() - fx[0].at > 2000) fx.shift();
       for (let i = floaters.length - 1; i >= 0; i--) {
         const f = floaters[i]; f.life -= dt * 1.1; f.s.position.y += dt * 1.1; f.s.material.opacity = Math.max(0, Math.min(1, f.life * 1.6));
         if (f.life <= 0) { scene.remove(f.s); f.s.material.map.dispose(); f.s.material.dispose(); floaters.splice(i, 1); }
@@ -288,7 +329,23 @@
       snapshot() {
         const u = [];
         for (const v of units.values()) u.push([v.id, KIND.indexOf(v.kind), Math.round(v.x * 10), Math.round(v.z * 10), Math.round(v.tyaw * 100), v.hp, STATE.indexOf(v.state), v.atk % 100]);
-        return { s: ++seq, t: Math.round(performance.now()), u };
+        const snap = { s: ++seq, t: Math.round(performance.now()), u };
+        if (fx.length) snap.e = fx.map(e => [e.id, Math.round(e.x * 10), Math.round(e.z * 10), e.r]);
+        return snap;
+      },
+      /* a snapshot cut into pieces that each fit a room message (the room takes 500 bytes): with thirty raiders one
+         does not; the fast lane takes it whole */
+      pieces(snap, most) {
+        const out = []; let part = { s: snap.s, t: snap.t, p: 0, u: [] };
+        if (snap.e) part.e = snap.e;
+        for (const row of snap.u) {
+          part.u.push(row);
+          if (JSON.stringify({ C: part }).length > most && part.u.length > 1) {
+            part.u.pop(); out.push(part); part = { s: snap.s, t: snap.t, p: out.length, u: [row] };
+          }
+        }
+        out.push(part);
+        return out;
       },
       apply(snap) {
         if (!snap || !Array.isArray(snap.u)) return;
@@ -300,29 +357,33 @@
           jit += (Math.abs(o - off) - jit) * 0.1;                        /* how unevenly they arrive */
           at = sent + off;
           if (lastT != null && sent > lastT) gap += (Math.min(1500, sent - lastT) - gap) * 0.2;
-          if (lastT != null && sent <= lastT) return;   /* old or doubled: the newer one is here */
+          if (lastT != null && (sent < lastT || (sent === lastT && snap.p == null))) return;   /* old or doubled */
           lastT = sent;
         }
         const want = Math.max(120, Math.min(1500, gap * 1.3 + 2.5 * jit + 50));   /* the same rule as for players */
         delay = want > delay ? want : delay + (want - delay) * 0.05;   /* grows at once, shrinks slowly */
-        const seen = new Set();
+        for (const e of snap.e || []) if (Array.isArray(e) && !fxSeen.has('h' + e[0])) { fxSeen.add('h' + e[0]); ring(e[1] / 10, e[2] / 10, +e[3] || 10); }
         for (const row of snap.u) {
           if (!Array.isArray(row) || row.length < 8) continue;
           const [id, k, x, z, yaw, hp, st, atk] = row, kind = KIND[k];
           if (!kind) continue;
-          seen.add(String(id));
           let u = units.get(String(id));
           if (!u) { u = make(String(id), kind, x / 10, z / 10); u.post = u.post || [x / 10, z / 10]; u.face = u.face || [0, 40]; u.shown.atk = atk; u.atk = atk; }
           u.tx = x / 10; u.tz = z / 10; u.tyaw = yaw / 100; u.hp = +hp || 0; u.state = STATE[st] || 'idle';
-          u.buf.push({ t: at, x: x / 10, z: z / 10 }); if (u.buf.length > 40) u.buf.shift();
+          const last = u.buf[u.buf.length - 1];
+          if (last && last.t === at) { last.x = x / 10; last.z = z / 10; }   /* the same moment twice (a piece and the whole) */
+          else { u.buf.push({ t: at, x: x / 10, z: z / 10 }); if (u.buf.length > 40) u.buf.shift(); }
+          u.seenAt = now;
           if (atk !== u.atk % 100) u.atk = atk;
         }
-        for (const u of Array.from(units.values())) if (u.kind === 'raider' && !seen.has(u.id)) drop(u);
+        /* a raider the host has not mentioned for a while is gone (snapshots may come in pieces, so not being in one
+           piece says nothing) */
+        for (const u of Array.from(units.values())) if (u.kind === 'raider' && now - (u.seenAt || now) > 3000) drop(u);
       },
       units() { return Array.from(units.values()).map(u => ({ id: u.id, kind: u.kind, name: u.name, x: Math.round(u.x * 10) / 10, z: Math.round(u.z * 10) / 10, hp: u.hp, max: u.max, state: u.state })); }
     };
   }
 
   const combat = { api: 1, player, gain, nextXp, create };
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('combat', { api: 1, v: 3, needs: { three: 160, art: 1 } }, () => combat);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('combat', { api: 1, v: 4, needs: { three: 160, art: 1 } }, () => combat);
 })(typeof globalThis !== 'undefined' ? globalThis : this);

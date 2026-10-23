@@ -34,25 +34,23 @@
     },
     "combat": {
       "file": "src/modules/combat.js",
-      "v": 3,
+      "v": 4,
       "api": 1,
       "kind": "js",
-      "id": null,
-      "gz": "3e03a4d762c2e27838fefcacd9342318e592f439501f41f5f9411e73ddb547c1"
+      "id": null
     },
     "engine": {
       "file": "src/modules/engine.js",
-      "v": 12,
+      "v": 13,
       "api": 1,
       "kind": "js",
-      "id": null,
-      "gz": "4207e1177678eb140f33afd7bb0ae003db1bf7a12857b3a66214bb669bdb188d"
+      "id": null
     }
   },
   "levels": {
     "blockshire": {
       "file": "src/levels/blockshire.json",
-      "v": 2,
+      "v": 3,
       "api": 1,
       "kind": "json",
       "id": null

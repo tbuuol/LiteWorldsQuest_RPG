@@ -1015,7 +1015,9 @@
            no position of its own, so the room's allowance is free), once a second from a player who keeps it */
         const snap = { C: fight.snapshot() };
         if (room.fast && now - fightSent > 100) { fightSent = now; room.state(snap); }
-        if (now - fightBeat > (iAmHouse ? 330 : 1000)) { fightBeat = now; room.send(snap); }
+        /* through the room in pieces of a room message each, paced so that every piece fits the room's allowance */
+        const parts = fight.pieces(snap.C, 470);
+        if (now - fightBeat > (iAmHouse ? 330 : 1000) * parts.length) { fightBeat = now; for (const part of parts) room.send({ C: part }); }
       }
       if (!P.dead && P.hp < P.max && now - lastHurt > 6000) { P.hp = Math.min(P.max, P.hp + dt * 3); drawStats(); }
       swingT = Math.max(0, swingT - dt * 3.2);
@@ -1084,6 +1086,6 @@
     };
   }
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 12, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, levels: 1 } },
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 13, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, levels: 1 } },
     D => ({ start: (el, opts) => start(D, el, opts) }));
 })(typeof globalThis !== 'undefined' ? globalThis : this);
