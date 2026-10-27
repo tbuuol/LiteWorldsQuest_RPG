@@ -1052,16 +1052,19 @@
     const tag = new T.Sprite(new T.SpriteMaterial({ map: ntex, depthTest: false, transparent: true })); tag.scale.set(1.15 / s, 0.215 / s, 1); tag.position.y = 2.25; tag.renderOrder = 10; g.add(tag);
     const setName = (text, color) => { nx.clearRect(0, 0, 256, 48); nx.font = '600 24px Georgia,serif'; nx.textAlign = 'center'; const w = Math.min(250, nx.measureText(text).width + 20); nx.fillStyle = 'rgba(0,0,0,.45)'; nx.fillRect(128 - w / 2, 6, w, 36); nx.fillStyle = color || '#fff'; nx.fillText(text, 128, 33); ntex.needsUpdate = true; };
     ctx.scene.add(root);
-    /* WHAT IS IN THE HANDS (tbuuol: a new weapon should be seen -- by the others too): things built in metres, held in
-       the hand, pointing forward on a hanging arm, a little bigger than in your own hands: seen from afar */
+    /* WHAT IS IN THE HANDS (tbuuol: a new weapon should be seen -- by the others too): things built in metres, a
+       little bigger than in your own hands (seen from afar). A weapon, in either hand, is gripped in the fist with its
+       blade or head pointing forward (-z) on a hanging arm; a shield (userData.kind 'shield') is strapped to the
+       outside of the forearm, facing out (tbuuol 2026-10-27: the blade pointed backwards, the shield sat in the arm). */
     let held = null;
     function holdItem(right, left) {
       if (held) for (const o of held) if (o && o.parent) o.parent.remove(o);
       held = [right, left];
-      [[right, hands[1], 0], [left, hands[0], 1]].forEach(([o, hand, isLeft]) => {
+      [[right, hands[1], 1], [left, hands[0], -1]].forEach(([o, hand, side]) => {
         if (!o) return;
-        o.position.set(0, 0, -0.02); o.scale.setScalar(1.25 / s);
-        o.rotation.set(Math.PI / 2, isLeft ? Math.PI / 2 : 0, 0);   /* a shield faces out */
+        o.scale.setScalar(1.25 / s);
+        if (o.userData.kind === 'shield') { o.position.set(side * 0.13, 0.14, 0); o.rotation.set(0, side * Math.PI / 2, 0); }
+        else { o.position.set(0, 0, -0.01); o.rotation.set(-Math.PI / 2 + 0.55, 0, 0); }   /* forward, the tip a little up */
         o.traverse(m => { if (m.isMesh) m.castShadow = true; });
         hand.add(o);
       });

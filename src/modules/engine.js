@@ -615,6 +615,7 @@
       else if (model === 'axe') { add(new THREE.CylinderGeometry(0.022, 0.025, 0.62, 8), wood, 0, 0.2); add(new THREE.BoxGeometry(0.16, 0.14, 0.02), steel, 0.07, 0.44); }
       else if (model === 'mace') { add(new THREE.CylinderGeometry(0.022, 0.025, 0.5, 8), wood, 0, 0.15); add(new THREE.SphereGeometry(0.07, 10, 8), M({ color: '#5a5a5a', metalness: 0.6 }), 0, 0.42); }
       else if (model === 'shield') { const sh = add(new THREE.CylinderGeometry(0.2, 0.2, 0.04, 16), M({ color: look || '#8a6238' })); sh.rotation.x = Math.PI / 2; add(new THREE.SphereGeometry(0.05, 8, 6), brass, 0, 0, 0.03); }
+      g.userData.kind = model;   /* an avatar straps a shield to the forearm and grips everything else */
       return g;
     }
     function dressHands() {
