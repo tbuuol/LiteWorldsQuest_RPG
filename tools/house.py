@@ -20,6 +20,9 @@ import time
 
 from playwright.async_api import async_playwright
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import house_store  # noqa: E402
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SECRET = ROOT / ".publisher"
 PROFILE = SECRET / "house-browser"
@@ -29,6 +32,8 @@ CHECK_EVERY, FRESH_EVERY = 30, 6 * 3600
 #: out of the game this long, and the house writes to its keeper (tools/notify.py), once; and once more when it is back
 ALERT_AFTER, ALERT_TO = 15 * 60, "banana"
 PLAYERS = SECRET / "players.json"          # the house's book of every player, kept here between starts and page versions
+STORE = SECRET / "players.sqlite"          # Etappe 4: the database a house in store mode asks (tools/house_store.py)
+BACKUPS = SECRET / "backups"
 GOOD_FILE = SECRET / "house.last_good"   # kept on disk, so a house that keeps crashing still gets reported
 try:
     LAST_GOOD = float(GOOD_FILE.read_text())   # the last time the house was in the game, keeping it
@@ -149,6 +154,7 @@ async def session(p) -> None:
     cfg = json.loads((ROOT / "config.json").read_text())
     game = cfg["page_id"]
     password = json.loads((SECRET / "arcade-account.json").read_text())["password"]
+    store = frame = None
     if not PROFILE.exists():   # a copy, so the house never fights other tools over the same profile
         shutil.copytree(SECRET / "arcade-browser", PROFILE, ignore=shutil.ignore_patterns("Singleton*"))
     ctx = await p.chromium.launch_persistent_context(
@@ -204,7 +210,14 @@ async def session(p) -> None:
             await asyncio.sleep(5)
             if await frame.evaluate("window.LWQGAME.state.online"):
                 break
-        if PLAYERS.exists():   # every player's record, back into the house's book
+        # A game that can ask for records one player at a time (Etappe 4) gets them from the database as players come;
+        # an older one still gets every record at the start, from players.json.
+        store = None
+        if await frame.evaluate("!!window.LWQGAME.houseStore"):
+            store = house_store.Store(STORE)
+            await frame.evaluate("window.LWQGAME.houseStore(true)")
+            log("store mode:", store.count(), "players in", STORE.name)
+        elif PLAYERS.exists():   # every player's record, back into the house's book
             n = await frame.evaluate("json => window.LWQGAME.houseLoad ? window.LWQGAME.houseLoad(json) : 0", PLAYERS.read_text())
             log("players' records loaded:", n)
         log("started:", await frame.evaluate("(() => { const s = window.LWQGAME.state; return {online: s.online, house: s.house, players: s.players, seq: s.world.seq, engine: (window.LWQ.get('$report').find(r => r[0] === 'engine') || [])[1]}; })()"))
@@ -223,16 +236,36 @@ async def session(p) -> None:
                 return
             global LAST_GOOD
             LAST_GOOD = time.time()
-            await keep_players(frame)
+            if store is None:
+                await keep_players(frame)
+            else:
+                day = store.daily(BACKUPS)
+                if day:
+                    log("the day's backup and fingerprint:", day)
             GOOD_FILE.write_text(str(LAST_GOOD))
             if int(time.time()) % 600 < CHECK_EVERY or s["players"]:
                 s.update(await frame.evaluate("""({fps: window.LWQGAME.stats().fps, net: (document.querySelector('.lwq-tr') || {}).innerText,
-                    fight: window.LWQGAME.fight().map(u => u.id + ':' + u.state + ':' + u.hp).join(' '),
+                    frameMs: window.LWQGAME.stats().frameMs,
+                    fight: window.LWQGAME.fight().filter(u => u.kind !== 'beast').map(u => u.id + ':' + u.state + ':' + u.hp).join(' '),
                     snap: window.LWQGAME.snapBytes ? window.LWQGAME.snapBytes() : null})"""))
                 log("keeping the world:", s)
-            await asyncio.sleep(CHECK_EVERY)
+            # between the checks: the database every second (records asked for, records changed)
+            for _ in range(CHECK_EVERY):
+                if store is not None:
+                    try:
+                        given, taken = await house_store.sync(frame, store)
+                        if given or taken:
+                            log("store: gave", given, "took", taken)
+                    except Exception as e:   # noqa: BLE001 -- the next second tries again
+                        log("store error:", repr(e)[:200])
+                await asyncio.sleep(1)
         log("six hours: a fresh start")
     finally:
+        if store is not None and frame is not None:   # what changed in the last second, before the tab goes
+            try:
+                await house_store.sync(frame, store)
+            except Exception:   # noqa: BLE001 -- the tab may be gone already
+                pass
         await ctx.close()
 
 

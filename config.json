@@ -6,7 +6,7 @@
   "modules": {
     "net": {
       "file": "src/modules/net.js",
-      "v": 4,
+      "v": 5,
       "api": 1,
       "kind": "js",
       "id": "f5197b99aff6b57d4c418035328b98cf17802edb1355115906b2ee395469c2c7",
@@ -36,7 +36,7 @@
     },
     "combat": {
       "file": "src/modules/combat.js",
-      "v": 10,
+      "v": 11,
       "api": 1,
       "kind": "js",
       "id": null,
@@ -44,7 +44,7 @@
     },
     "rpg": {
       "file": "src/modules/rpg.js",
-      "v": 5,
+      "v": 6,
       "api": 1,
       "kind": "js",
       "id": null,
@@ -60,7 +60,7 @@
     },
     "engine": {
       "file": "src/modules/engine.js",
-      "v": 19,
+      "v": 20,
       "api": 1,
       "kind": "js",
       "id": null,

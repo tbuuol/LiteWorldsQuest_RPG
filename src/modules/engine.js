@@ -710,7 +710,7 @@
     const addrOf = from => (from && from.address) || (from && remotes.get(from.id) && remotes.get(from.id).from.address) || null;
     function blowFor(from, unit, mul) {
       const a = addrOf(from);
-      if (iAmHouse && book && a) {
+      if (iAmHouse && book && a && ready(a)) {
         const inf = fight && unit ? fight.info(unit) : null, beast = inf && inf.kind === 'beast';   /* a beast's own level and hide */
         const res = book.strike(a, beast ? inf.def : raiderDef, beast ? inf.lvl : raiderLvl, null, mul);
         dirty.add(a);
@@ -768,7 +768,7 @@
     /* the house does an ability: checked again, then dealt out */
     const houseCd = new Map();
     function houseAbility(from, d) {
-      const a = addrOf(from); if (!a) return;
+      const a = addrOf(from); if (!a || !ready(a)) return;
       const ab = rpg.abilities(book.of(a)).find(x => x.key === String(d.A));
       if (!ab) return;
       if (!ab.ok) { notice(from.id, ab.name + ': ' + ab.why + '.'); return; }
@@ -832,7 +832,7 @@
     const charges = {}, growAt = {};
     function houseGather(from, id) {
       const res = resources[id], a = addrOf(from), r = remotes.get(from.id);
-      if (!res || !a || W.dep[id]) return;
+      if (!res || !a || W.dep[id] || !ready(a)) return;
       if (r && Math.hypot(r.g.position.x - res.def.pos[0], r.g.position.z - res.def.pos[1]) > 4.5) return;   /* from afar: no */
       const kind = res.def.kind, conf = LV.resources || {};
       if (charges[id] == null) charges[id] = (conf.charges && conf.charges[kind]) || 3;
@@ -861,7 +861,7 @@
           let d = e.t === 'hit' ? e.d : -e.d;
           if (e.t === 'hit' && iAmHouse && book) {   /* dodged (the evader profession), or less the player's defence */
             const r = remotes.get(e.to);
-            if (r && r.from.address) {
+            if (r && r.from.address && ready(r.from.address)) {
               const res = book.struck(r.from.address, d, e.lvl || raiderLvl);
               dirty.add(r.from.address);
               for (const u of res.up) notice(e.to, u + '!');
@@ -874,7 +874,7 @@
         } else if (e.t === 'kill') {
           let text = 'You defeated ' + aName(e.name || 'raider') + '.';
           const r = remotes.get(e.by);
-          if (iAmHouse && book && r && r.from.address) {
+          if (iAmHouse && book && r && r.from.address && ready(r.from.address)) {
             const got = book.loot(r.from.address, null, e.species ? e.loot : null);
             if (got.length) text += ' Into your bag: ' + got.join(', ') + '.';
             if (e.species) {   /* the codex counts it */
@@ -905,6 +905,12 @@
       if (!room || !outQ.length || now - outAt < 100) return;
       outAt = now;
       const room2 = !allDirect();
+      if (room.star && iAmHouse) {   /* the star: each player gets a packet of its own, with only its own lines */
+        const by = new Map();
+        for (const it of outQ.splice(0)) { const k = String(it[1]); if (!by.has(k)) by.set(k, []); by.get(k).push(it); }
+        for (const [to, items] of by) { const pk = { B: [++outNo, items] }; room.to([to], pk, true); if (room2 && JSON.stringify(pk).length <= 470) room.tell(pk); }
+        return;
+      }
       while (outQ.length) {   /* packets that fit a room message each, in case the room must carry them */
         const items = [];
         while (outQ.length && (!items.length || JSON.stringify({ B: [0, items.concat([outQ[0]])] }).length <= 470)) items.push(outQ.shift());
@@ -926,16 +932,23 @@
     }
     /* the house sends each player its record when it changed (at most every 1.5 s), whole over the direct link,
        in pieces through the room */
-    const dirty = new Set();
+    /* THE HOUSE'S STORE (Etappe 4): with houseStore(true) the house no longer holds every record from the start. A
+       player's record is asked for when the player is there (houseWants -> the keeper's database -> houseGive), what
+       changed is handed back (houseTake), and a player who left is handed back and forgotten -- the house of another
+       zone may have them next. Until a record has come, the player's blows, gatherings and questions wait. */
+    let storeMode = false;
+    const saveDirty = new Set(), storeGiven = new Set(), leaving = new Set();
+    const ready = a => !storeMode || (book && book.has(a));
+    const dirty = new (class extends Set { add(a) { saveDirty.add(a); return super.add(a); } })();
     let lastRecords = 0;
     function sendRecords(now) {
       if (!iAmHouse || !room || !book || !dirty.size || now - lastRecords < 1500) return;
       lastRecords = now;
-      for (const a of dirty) for (const [id, r] of remotes) if (r.from.address === a) sendBig({ R: book.of(a), to: id }, id);
+      for (const a of dirty) if (!storeMode || book.has(a)) for (const [id, r] of remotes) if (r.from.address === a) sendBig({ R: book.of(a), to: id }, id);
       dirty.clear();
     }
     function sendBig(obj, to) {
-      if (room.fast && room.peers()[to] === 'direct') { room.sure(obj); return; }   /* whole, in one, surely */
+      if (room.fast && room.peers()[to] === 'direct') { if (!room.to || !room.to(to, obj, true)) room.sure(obj); return; }   /* whole, in one, surely; to that player only where the viewer can */
       const s = JSON.stringify(obj);
       if (s.length <= 470) { room.tell(obj); return; }
       const id = Math.floor(Math.random() * 1e9).toString(36), parts = [];
@@ -1128,13 +1141,55 @@
     function dropRemote(id) {
       const r = remotes.get(id); if (!r) return;
       scene.remove(r.g); remotes.delete(id);
+      if (storeMode && r.from.address) leaving.add(r.from.address);
       log(r.house ? 'The house has gone; a player keeps the world now.' : label(r.from, r.name) + ' left.');
       drawNet();
     }
+    /* THE STAR (Etappe 4, arcade PR #36): where the viewer can, each player links with the house only and the house
+       with everybody (up to 60) -- one connection per player instead of one to every other player. Players then hear
+       each other through the house: it passes on to each player what the players within 80 m of them said, as soon
+       as it changed. With no house, or on a viewer that cannot, everybody links with everybody as before. */
+    let starKey = '';
+    function starTick() {
+      if (!room || !room.star) return;
+      const want = iAmHouse ? null : (houseId() ? [houseId()] : null), key = want ? want.join() : 'all';
+      if (key === starKey) return;
+      starKey = key;
+      room.link(want, iAmHouse ? { max: 60 } : undefined);
+    }
+    let relayAt = 0;
+    function relay(now) {
+      if (!iAmHouse || !room || !room.star || now - relayAt < 100) return;
+      relayAt = now;
+      for (const [to, r] of remotes) {
+        if (r.house || !r.g.visible) continue;
+        const rows = []; r.sentFrom = r.sentFrom || {};
+        for (const [id, o] of remotes) {
+          if (id === to || o.house || !o.last || r.sentFrom[id] === o.lastN) continue;
+          if (Math.hypot(o.g.position.x - r.g.position.x, o.g.position.z - r.g.position.z) > 80) continue;
+          r.sentFrom[id] = o.lastN; rows.push([id, o.last]);
+        }
+        if (rows.length) room.to([to], { F: rows }, false);
+      }
+    }
     function heard({ from, data }) {
+      if (data instanceof ArrayBuffer) {   /* bytes: the fight's snapshot (type 1), from the house */
+        const t = data.byteLength ? new Uint8Array(data)[0] : 0;
+        if (t === 1 && fight && combat.decode && (from.id === hostId())) { const snap = combat.decode(data); if (snap) fight.apply(snap); }
+        return;
+      }
       const d = data && typeof data === 'object' ? data : {};
       if (Array.isArray(d.Z)) { const whole = bigPiece(from, d.Z); if (whole) heard({ from, data: whole }); return; }   /* a big one, in pieces */
+      if (Array.isArray(d.F) && from.id === hostId()) {   /* other players, passed on by the house */
+        for (const row of d.F) {
+          if (!Array.isArray(row) || String(row[0]) === myId()) continue;
+          const id = String(row[0]), who = (room && room.members().find(x => x.id === id)) || (remotes.get(id) || {}).from || { id };
+          heard({ from: who, data: row[1] });
+        }
+        return;
+      }
       const r = remote(from); r.heard = performance.now();
+      if (iAmHouse && Array.isArray(d.p)) { r.last = d; r.lastN = (r.lastN || 0) + 1; }   /* what to pass on (the star) */
       if (from.address && !r.from.address) r.from = from;   /* the room names the address; the direct link does not */
       /* when they joined is taken once and never changed: nobody becomes host later by claiming an earlier time */
       if (d.j != null && r.j == null && isFinite(+d.j)) r.j = +d.j;
@@ -1181,7 +1236,7 @@
       if (d.R && typeof d.R === 'object' && String(d.to) === myId() && from.id === hostId() && rpg) myRecord(d.R);
       if (d.G != null && iAmHouse && book && freshBlow(from.id, d.n)) houseGather(from, String(d.G));
       if (d.A != null && iAmHouse && book && fight && freshBlow(from.id, d.n)) houseAbility(from, d);
-      if (d.Q && iAmHouse && book && addrOf(from)) {
+      if (d.Q && iAmHouse && book && addrOf(from) && ready(addrOf(from))) {
         const a = addrOf(from);
         if (d.Q === 'equip') { const res = book.equip(a, +d.u); if (!res.ok) notice(from.id, 'Cannot wear that: ' + res.why + '.'); }
         else if (d.Q === 'unequip') book.unequip(a, String(d.s));
@@ -1229,6 +1284,7 @@
       iAmHouse = isHouse(room.me);
       if (iAmHouse) {   /* the machine that keeps the world: it runs the world and the fight, and draws nothing */
         drawing = false; renderer.setPixelRatio(0.25);
+        if (fight && fight.quiet) fight.quiet(true);
         log('This is the house: it keeps the world.');
       }
       room.on('message', heard);
@@ -1439,7 +1495,9 @@
         if (!iAmHouse) near.push([me.x, me.z]);
         if (room.fast && now - fightSent > 100) {
           const full = now - fightFull > 1000; if (full) fightFull = now;
-          fightSent = now; room.state({ C: fight.snapshot({ near, delta: !full }) });
+          fightSent = now;
+          const snap = fight.snapshot({ near, delta: !full });
+          room.state(room.star && combat.encode ? combat.encode(snap) : { C: snap });   /* bytes where the viewer passes them */
         }
         if (!allDirect() && now - fightBeat > 330) {
           const parts = fight.pieces(fight.snapshot({ near, mark: false }), 470);
@@ -1459,8 +1517,10 @@
     }
     let askedRec = -1e9;
     let last = performance.now(), worldT = 0, netT = 0, fps = 0, fpsN = 0, fpsT = performance.now(), showFps = false, promptNow = '';
+    let frameMs = 0;
     function frame(now) {
       if (stopped) return;
+      const t0 = performance.now();
       const dt = Math.max(0, (now - last) / 1000); last = now;
       renderer.info.reset();
       move(dt);
@@ -1472,11 +1532,11 @@
         else { const want = W.open[id] ? D2.y0 + D2.def.size[1] - 0.05 : D2.y0; D2.mesh.position.y += (want - D2.mesh.position.y) * ease; }
       }
       const t = now / 1000, fdt = Math.min(dt, 0.1);
-      for (const fn of updates) fn(fdt, t);
+      if (!iAmHouse) for (const fn of updates) fn(fdt, t);   /* flames, smoke, water: nothing the house needs */
       npcTick(fdt, t);
-      portalTick(); zoneTick(); drawAbilities();
-      if (env) env.update(fdt, t, camera.position);
-      if (sound) {
+      if (!iAmHouse) { portalTick(); zoneTick(); drawAbilities(); }
+      if (env && !iAmHouse) env.update(fdt, t, camera.position);
+      if (sound && !iAmHouse) {
         sound.listen(camera);
         const sp = Math.hypot(me.vx || 0, me.vz || 0);
         if (me.ground && sp > 0.5) { stepAcc += sp * fdt; if (stepAcc > (sp > 5 ? 1.4 : 0.95)) { stepAcc = 0; sound.step(sp); } } else stepAcc = 0.6;
@@ -1484,18 +1544,22 @@
       for (const id in pickups) pickups[id].mesh.rotation.y += dt * 1.5;
       if (fight) fightTick(iAmHouse ? Math.min(dt, 1) : fdt, now);
       sendState(false);
+      relay(now);
       drawRemotes();
       if (amHost()) growBack(now);
       if (room && amHost() && now - worldT > 3000) { worldT = now; if (now - lastWorldSent > 2500) sendWorld(); }
       if (now - netT > 1000) {
-        netT = now; drawNet();
+        netT = now; drawNet(); starTick();
         /* no record yet and the house is here: ask it for mine */
         if (rpg && room && !iAmHouse && !rec && houseId() && now - askedRec > 5000) { askedRec = now; room.tell({ Q: 'me' }); }
       }
-      const pr = playing() ? promptFor(aimed()) || (fight && !TOUCH && fight.pick(me.x, me.z, me.yaw, P.range) ? 'F / click: strike' : '') : '';
+      const pr = playing() && !iAmHouse ? promptFor(aimed()) || (fight && !TOUCH && fight.pick(me.x, me.z, me.yaw, P.range) ? 'F / click: strike' : '') : '';
       if (pr !== promptNow) { promptNow = pr; $('.lwq-prompt').textContent = pr; }   /* only when it changes: a DOM write is not free */
       if (drawing) { if (post) post.render(t); else renderer.render(scene, camera); }
-      G.requestAnimationFrame(frame);
+      frameMs += (performance.now() - t0 - frameMs) * 0.05;
+      /* THE HOUSE'S TICK: 20 a second on a clock of its own, not the screen's (a headless browser's frames come
+         unevenly, and a house that draws nothing has no use for 60) */
+      if (iAmHouse) setTimeout(() => frame(performance.now()), 50); else G.requestAnimationFrame(frame);
     }
     resize(); drawInv(); drawNet(); drawWho(); drawStats();
     try { renderer.compile(scene, camera); } catch (e) { /* only a head start */ }
@@ -1514,22 +1578,53 @@
       draw(on) { drawing = !!on; },   /* tests: everything runs, nothing is drawn (a machine without a GPU keeps up) */
       play() { if (TOUCH) startTouch(); else touchPlaying = true; },   /* tests: as if the view had been clicked */
       strike() { attack(); },
+      netPeers() { return room ? room.peers() : null; },
       netStats(reset) { if (!room || !room.stats) return null; const st = room.stats(); if (reset) room.resetStats(); return st; },
       ability(i) { ability(i); },
       npcs() { return Object.keys(npcs).map(id => ({ id, x: R2(npcs[id].x), z: R2(npcs[id].z) })); },
       fight: () => fight ? fight.units() : [],
       /* the house's book of players, for tools/house.py to keep on disk: out as JSON, and back in after a start */
       houseDump: () => book ? JSON.stringify(book.dump()) : '{}',
+      houseStore(on) { storeMode = !!on; return storeMode; },
+      /* the records the house waits for: players here whose record has not come */
+      houseWants() {
+        const out = new Set();
+        for (const [, r] of remotes) { const a = r.from.address; if (a && !r.house && book && !book.has(a) && !storeGiven.has(a)) out.add(a); }
+        return Array.from(out);
+      },
+      /* records from the database ({address: record | null}); null, or one of an old kind: a new player */
+      houseGive(json) {
+        const all = typeof json === 'string' ? JSON.parse(json) : json;
+        for (const a in all) {
+          storeGiven.add(a);
+          if (!all[a] || !book.load({ [a]: all[a] })) book.of(a);
+          dirty.add(a);
+        }
+        return Object.keys(all).length;
+      },
+      /* what changed since the last time, and the players who left (handed back, then forgotten) */
+      houseTake() {
+        const out = {};
+        for (const a of saveDirty) if (book && book.has(a)) out[a] = book.of(a);
+        saveDirty.clear();
+        for (const a of leaving) {
+          if (Array.from(remotes.values()).some(r => r.from.address === a)) continue;   /* back already */
+          if (book && book.has(a)) { out[a] = book.of(a); book.forget(a); }
+          storeGiven.delete(a);
+        }
+        leaving.clear();
+        return JSON.stringify(out);
+      },
       houseLoad: json => { const n = book ? book.load(json) : 0; for (const [, r] of remotes) if (r.from.address) dirty.add(r.from.address); return n; },
       record: () => rec,
       menu: on => { if (menu) { if (on === false) menu.close(); else { menu.open(); } } },
       player: () => P ? Object.assign({}, P) : null,
-      stats: () => ({ fps, pixelRatio: pr, frozen, calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures }),
+      stats: () => ({ fps, frameMs: Math.round(frameMs * 100) / 100, pixelRatio: pr, frozen, calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures }),
       get state() { return { me: Object.assign({}, me), world: W, host: amHost(), house: iAmHouse ? 'me' : houseId() ? 'there' : null, players: Array.from(remotes.values()).filter(r => !r.house).length + (iAmHouse ? 0 : 1), online: !!room,
                        others: Array.from(remotes.values()).map(r => ({ id: r.from.id, tag: r.from.tag, j: r.j, visible: r.g.visible, x: R2(r.g.position.x), y: R2(r.g.position.y), z: R2(r.g.position.z) })), fast: !!(room && room.fast), who, progress }; }
     };
   }
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 19, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, levels: 1 } },
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 20, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, levels: 1 } },
     D => ({ start: (el, opts) => start(D, el, opts) }));
 })(typeof globalThis !== 'undefined' ? globalThis : this);

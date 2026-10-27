@@ -52,10 +52,14 @@
      direct link now and then goes quiet for 6-10 s while still saying 'direct'. Room messages always arrive, late. */
   const FLAKY = !!q.get('flaky');
   const link = {};   /* room/id -> {state, stall, last} */
-  function joinRoom(name, game, fast) {
+  /* LINKS, TARGETS, BYTES (the arcade's team/fast-lane-targets, PR #36): R.link null = linked with everybody, else
+     only with those ids; a pair is linked only when both sides list each other (each message says whom its sender
+     links with). A fast send may name whom it is for ({to}); bytes (an ArrayBuffer) go through as they are. */
+  const linksTo = (R, id) => !R.link || R.link.includes(String(id));
+  function joinRoom(name, game, fast, linkList) {
     const key = (game || 'game') + '/' + name;
     const bc = new BroadcastChannel('lwq-dev:' + key);
-    const R = { bc, members: new Map(), fast };
+    const R = { bc, members: new Map(), fast, link: Array.isArray(linkList) ? linkList.map(String) : null, theirs: new Map() };
     rooms[name] = R;
     const add = p => {
       const had = R.members.get(p.id);
@@ -63,6 +67,7 @@
       if (had) return;
       event(name, 'join', p);
       if (!R.fast) return;
+      if (!linksTo(R, p.id)) return;   /* not a link this game wants: the other side never shows up in the fast lane */
       if (!FLAKY) { event(name, 'peer', p, { state: 'direct' }); return; }
       const L = link[name + '/' + p.id] = { state: 'connecting', stall: 0, last: 0 };
       event(name, 'peer', p, { state: 'connecting' });
@@ -83,7 +88,12 @@
       else if (m.k === 'here') add(m.from);
       else if (m.k === 'bye') { if (R.members.delete(m.from.id)) { event(name, 'leave', m.from); if (R.fast) event(name, 'peer', m.from, { state: 'gone' }); } }
       else if (m.k === 'msg') { add(m.from); late(() => event(name, 'message', m.from, { data: m.data })); }
-      else if (m.k === 'fast') { add(m.from); if (fastOk(m.from)) event(name, 'fast', m.from, { data: m.data }); }
+      else if (m.k === 'fast') {
+        add(m.from);
+        if (m.to && !m.to.includes(me.id)) return;                               /* for somebody else */
+        if (!linksTo(R, m.from.id) || (m.link && !m.link.includes(me.id))) return; /* not linked, one side or the other */
+        if (fastOk(m.from)) event(name, 'fast', m.from, { data: m.data });
+      }
     };
     bc.postMessage({ k: 'hello', from: me });
     return R;
@@ -106,13 +116,28 @@
     const name = String(m.room || '');
     if (m.op === 'join') {
       if (!name || name.length > 60) { answer({ ok: false, error: 'a room is a name of 1 to 60 characters' }); return; }
-      const R = rooms[name] || joinRoom(name, m.game, !!m.fast);
+      const R = rooms[name] || joinRoom(name, m.game, !!m.fast, m.link);
       answer({ ok: true, online: true, me, members: [me].concat(Array.from(R.members.values()).map(w => w.p)), fast: R.fast });
       return;
     }
     const R = rooms[name];
-    if (m.op === 'fast') { if (R) R.bc.postMessage({ k: 'fast', from: me, data: String(m.data || '') }); return; }
+    if (m.op === 'fast') {
+      if (!R) return;
+      const data = m.data instanceof ArrayBuffer ? m.data : String(m.data == null ? '' : m.data);
+      R.bc.postMessage({ k: 'fast', from: me, data, to: Array.isArray(m.to) ? m.to.map(String) : null, link: R.link });
+      return;
+    }
     if (!R) { answer({ ok: false, error: 'join the room first' }); return; }
+    if (m.op === 'fastlink') {
+      const was = R.link;
+      R.link = Array.isArray(m.link) ? m.link.map(String) : null;
+      for (const [id, w] of R.members) {
+        const before = !was || was.includes(id), now = linksTo(R, id);
+        if (before && !now) event(name, 'peer', w.p, { state: 'gone' });
+        if (!before && now) event(name, 'peer', w.p, { state: 'direct' });
+      }
+      answer({ ok: true, fast: !!R.fast }); return;
+    }
     if (m.op === 'send') {
       const data = String(m.data || '');
       if (new TextEncoder().encode(data).length > 512) { answer({ ok: false, error: 'a message is at most 512 bytes' }); return; }

@@ -311,7 +311,9 @@
     }
 
     /* --- what everybody draws (the host too) ---------------------------------------------------------- */
+    let quiet = false;   /* the house: it keeps the fight and draws none of it (no animations, bars or numbers) */
     function view(dt, host) {
+      if (quiet && host) return;
       for (const u of units.values()) {
         const ox = u.c.group.position.x, oz = u.c.group.position.z;
         if (!host) {
@@ -393,6 +395,7 @@
         (u.predicted = u.predicted || []).push({ d, until: performance.now() + 2500 });
       },
       /* the house says a blow of mine missed: shown over the raider, where the spark was */
+      quiet(on) { quiet = !!on; },
       missed(id) { const u = units.get(String(id)); if (u && alive(u)) floater(u.x, 2.2, u.z, 'miss', '#d9e2ec'); },
       damage(id, d, byPlayer) {
         const events = [], u = units.get(String(id));
@@ -507,6 +510,48 @@
     };
   }
 
-  const combat = { api: 1, player, gain, nextXp, create };
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('combat', { api: 1, v: 10, needs: { three: 160, art: 1 } }, () => combat);
+  /* THE SNAPSHOT AS BYTES (Etappe 4, where the viewer passes bytes): about half of its JSON. Type 1:
+       u8 1 | u8 flags (1 = delta) | u32 seq | u32 t (ms) | u16 rows | rows | u8 effects | effects
+       row:    u8 id length | id (ASCII) | u8 kind | i16 x*10 | i16 z*10 | i16 yaw*100 | u16 hp | u8 state | u8 atk
+       effect: u32 id | i16 x*10 | i16 z*10 | u8 radius */
+  function encode(snap) {
+    const rows = snap.u || [], fx2 = snap.e || [];
+    let size = 1 + 1 + 4 + 4 + 2 + 1 + fx2.length * 9;
+    for (const r of rows) size += 1 + Math.min(255, String(r[0]).length) + 1 + 2 + 2 + 2 + 2 + 1 + 1;
+    const buf = new ArrayBuffer(size), v = new DataView(buf);
+    let o = 0;
+    v.setUint8(o, 1); o += 1; v.setUint8(o, snap.d ? 1 : 0); o += 1;
+    v.setUint32(o, snap.s >>> 0); o += 4; v.setUint32(o, Math.max(0, Math.round(snap.t)) >>> 0); o += 4;
+    v.setUint16(o, rows.length); o += 2;
+    for (const r of rows) {
+      const id = String(r[0]).slice(0, 255);
+      v.setUint8(o, id.length); o += 1;
+      for (let i = 0; i < id.length; i++) v.setUint8(o++, id.charCodeAt(i) & 127);
+      v.setUint8(o, r[1]); o += 1; v.setInt16(o, r[2]); o += 2; v.setInt16(o, r[3]); o += 2; v.setInt16(o, r[4]); o += 2;
+      v.setUint16(o, Math.max(0, Math.min(65535, r[5]))); o += 2; v.setUint8(o, r[6]); o += 1; v.setUint8(o, r[7] & 255); o += 1;
+    }
+    v.setUint8(o, fx2.length); o += 1;
+    for (const e of fx2) { v.setUint32(o, e[0] >>> 0); o += 4; v.setInt16(o, e[1]); o += 2; v.setInt16(o, e[2]); o += 2; v.setUint8(o, e[3] & 255); o += 1; }
+    return buf;
+  }
+  function decode(buf) {
+    const v = new DataView(buf);
+    let o = 0;
+    if (v.getUint8(o) !== 1) return null; o += 1;
+    const flags = v.getUint8(o); o += 1;
+    const snap = { s: v.getUint32(o), t: v.getUint32(o + 4), u: [] }; o += 8;
+    if (flags & 1) snap.d = 1;
+    const n = v.getUint16(o); o += 2;
+    for (let k = 0; k < n; k++) {
+      const len = v.getUint8(o); o += 1;
+      let id = ''; for (let i = 0; i < len; i++) id += String.fromCharCode(v.getUint8(o++));
+      snap.u.push([id, v.getUint8(o), v.getInt16(o + 1), v.getInt16(o + 3), v.getInt16(o + 5), v.getUint16(o + 7), v.getUint8(o + 9), v.getUint8(o + 10)]);
+      o += 11;
+    }
+    const ne = v.getUint8(o); o += 1;
+    if (ne) { snap.e = []; for (let k = 0; k < ne; k++) { snap.e.push([v.getUint32(o), v.getInt16(o + 4), v.getInt16(o + 6), v.getUint8(o + 8)]); o += 9; } }
+    return snap;
+  }
+  const combat = { api: 1, player, gain, nextXp, create, encode, decode };
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('combat', { api: 1, v: 11, needs: { three: 160, art: 1 } }, () => combat);
 })(typeof globalThis !== 'undefined' ? globalThis : this);

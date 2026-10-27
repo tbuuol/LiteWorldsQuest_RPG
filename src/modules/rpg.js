@@ -266,7 +266,7 @@
     const recs = new Map();
     const of = a => { if (!recs.has(a)) recs.set(a, fresh(a)); return recs.get(a); };
     return {
-      of, has: a => recs.has(a),
+      of, has: a => recs.has(a), forget: a => recs.delete(a),   /* forget: the player went to another zone; its house has it now */
       load(json) { try { const all = typeof json === 'string' ? JSON.parse(json) : json; for (const a in all || {}) if (all[a] && all[a].v === 2) recs.set(a, all[a]); } catch (e) { /* a bad file: begin empty */ } return recs.size; },
       dump() { const o = {}; for (const [a, r] of recs) o[a] = r; return o; },
       /* a blow by this player: the hit profession says whether it lands; a hit is the weapon's roll (made the most of by
@@ -419,5 +419,5 @@
   }
 
   const rpg = { api: 1, SLOTS, SKILLS, PROFS, ATTRS, RANKS, ITEMS, FISTS, LOOT, GATHER, RECIPES, CODEX, ABILITIES, abilities, questState, questProgress, knows, fresh, stats, profs, rank, meets, itemOf, attr, book };
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('rpg', { api: 1, v: 5 }, () => rpg);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('rpg', { api: 1, v: 6 }, () => rpg);
 })(typeof globalThis !== 'undefined' ? globalThis : this);
