@@ -2,7 +2,7 @@
  "lwq": "module",
  "name": "level.blockshire",
  "api": 1,
- "v": 6,
+ "v": 7,
  "data": {
   "id": "blockshire",
   "title": "Blockshire",
@@ -888,7 +888,8 @@
     },
     "hp": 68,
     "xp": 20,
-    "def": 1
+    "def": 1,
+    "level": 3
    }
   },
   "resources": {

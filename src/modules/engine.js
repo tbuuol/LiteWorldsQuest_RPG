@@ -551,8 +551,8 @@
       if (u.kind === 'res') {
         const n = resources[u.id].def, name = RES_NAME[n.kind], g = rpg && rpg.GATHER[n.kind];
         if (W.dep[u.id]) return 'The ' + name + (n.kind === 'herb' ? ' are' : ' is') + ' spent; it grows back';
-        const lv = g && mine ? mine.jobs[g.skill] || 0 : 0;
-        return 'E: ' + (g ? g.verb : 'gather') + ' the ' + name + (g ? ' (' + rpg.SKILLS[g.skill].name + ' ' + lv + ')' : '');
+        const lv = g && mine ? mine.prof[g.prof] || 0 : 0;
+        return 'E: ' + (g ? g.verb : 'gather') + ' the ' + name + (g ? ' (' + rpg.PROFS[g.prof].name + ' ' + lv.toFixed(1) + ')' : '');
       }
       if (u.kind === 'switch') return 'E: pull the ' + switches[u.id].def.label.toLowerCase();
       if (u.kind === 'pickup') return 'E: take the ' + pickups[u.id].def.label.toLowerCase();
@@ -586,6 +586,7 @@
     let mine = rpg ? rpg.stats(rpg.fresh('')) : null;
     const book = rpg ? rpg.book() : null;          /* the house's book (only the house writes in it) */
     const raiderDef = (LV.defense && LV.defense.raider && LV.defense.raider.def) || 0;
+    const raiderLvl = (LV.defense && LV.defense.raider && LV.defense.raider.level) || 2;   /* how hard a raider is: what fighting one teaches */
     let atkReady = 0, swingT = 0, lastHurt = 0;
     let blowNo = Math.floor(Math.random() * 1e9);   /* numbered from a random start: a reload is not mistaken for a repeat */
     const blowsSeen = new Map();                    /* the host: player id -> the numbers of their latest blows */
@@ -637,12 +638,13 @@
     /* whose record: a message over the direct link names only the player's id, so the address is the room's (the
        arcade node stamps it there, so it is the true one) */
     const addrOf = from => (from && from.address) || (from && remotes.get(from.id) && remotes.get(from.id).from.address) || null;
-    function blowFor(from) {
+    function blowFor(from, unit) {
       const a = addrOf(from);
       if (iAmHouse && book && a) {
-        const res = book.strike(a, raiderDef);
+        const res = book.strike(a, raiderDef, raiderLvl);
         dirty.add(a);
         for (const u of res.up) notice(from.id, u + '!');
+        if (res.miss && room) room.tell({ M: [from.id, unit] });   /* the striker sees "miss" over the raider */
         return res.d;
       }
       return Math.max(1, 2 + Math.floor(Math.random() * 3) - raiderDef);
@@ -655,7 +657,7 @@
       const id = fight.pick(me.x, me.z, me.yaw, P.range);
       if (sound) sound.blip(id ? 'hit' : 'swing');
       if (!id) return;
-      if (amHost()) { route(fight.damage(id, blowFor(room ? room.me : null), myId())); return; }
+      if (amHost()) { route(fight.damage(id, blowFor(room ? room.me : null, id), myId())); return; }
       /* a blow for the house: over the direct link when there is one, and through the room as well; the house counts
          each once by its number, rolls it, and the number shows when it answers (a spark at once, here) */
       const msg = { X: id, n: ++blowNo };
@@ -707,9 +709,15 @@
       for (const e of events) {
         if (e.t === 'hit' || e.t === 'heal') {
           let d = e.t === 'hit' ? e.d : -e.d;
-          if (e.t === 'hit' && iAmHouse && book) {   /* less the player's defence, which grows by being hit */
+          if (e.t === 'hit' && iAmHouse && book) {   /* dodged (the evader profession), or less the player's defence */
             const r = remotes.get(e.to);
-            if (r && r.from.address) { d = book.struck(r.from.address, d); dirty.add(r.from.address); }
+            if (r && r.from.address) {
+              const res = book.struck(r.from.address, d, raiderLvl);
+              dirty.add(r.from.address);
+              for (const u of res.up) notice(e.to, u + '!');
+              if (res.dodged) { notice(e.to, 'You dodge the blow.'); continue; }
+              d = res.d;
+            }
           }
           if (e.to === myId()) hurt(d, e.from);
           else if (room) room.tell({ D: e.to, d });
@@ -781,14 +789,14 @@
     let statsKey = '';
     function drawStats() {
       if (!P || !fight) return;
-      const hp = Math.ceil(P.hp), skill = mine ? mine.skill : 'unarmed', pts = rec ? (rec.sk[skill] || 0) : 0;
-      const job = rpg && rpg.SKILLS[skill], lvl = mine ? mine.jobs[skill] || 0 : 0;
-      const key = [hp, P.max, P.dead, mine && mine.weapon, pts, lvl].join();
+      /* the weapon and its hit profession; the thin bar is the way to that profession's next level */
+      const hp = Math.ceil(P.hp), prof = mine && rpg.PROFS[mine.hitProf], lvl = mine ? mine.prof[mine.hitProf] || 0 : 0;
+      const key = [hp, P.max, P.dead, mine && mine.weapon, lvl.toFixed(2)].join();
       if (key === statsKey) return;
       statsKey = key;
-      $('.lwq-lv').textContent = (mine ? mine.weapon : 'Fists') + (job ? ' · ' + job.name + ' ' + lvl : '') + (P.dead ? ' · down' : '');
+      $('.lwq-lv').textContent = (mine ? mine.weapon : 'Fists') + (prof ? ' · ' + prof.name.replace(' (hit)', '') + ' ' + lvl.toFixed(1) : '') + (P.dead ? ' · down' : '');
       $('.lwq-hp i').style.width = (100 * hp / P.max) + '%'; $('.lwq-hp span').textContent = hp + ' / ' + P.max;
-      $('.lwq-xp i').style.width = (job ? 100 * (pts % job.per) / job.per : 0) + '%';
+      $('.lwq-xp i').style.width = (100 * (lvl % 1)) + '%';
     }
 
     /* --- network ------------------------------------------------------------------------------------- */
@@ -972,8 +980,9 @@
       if (fight) {
         const fromHost = from.id === hostId();
         if (d.C && ((fromHost && !amHost()) || takingOver)) fight.apply(d.C);
-        if (d.X != null && amHost() && freshBlow(from.id, d.n)) route(fight.damage(String(d.X), blowFor(from), from.id));
+        if (d.X != null && amHost() && freshBlow(from.id, d.n)) route(fight.damage(String(d.X), blowFor(from, String(d.X)), from.id));
         if (d.D != null && String(d.D) === myId() && fromHost) hurt(+d.d || 0, 'raider');
+        if (Array.isArray(d.M) && String(d.M[0]) === myId() && fromHost) fight.missed(String(d.M[1]));
       }
       /* what is mine: a notice and my record from the house; and, at the house, what a player asks of it */
       if (Array.isArray(d.N) && String(d.N[0]) === myId() && from.id === hostId()) { log(String(d.N[1])); if (/bag|level/.test(d.N[1]) && sound) sound.blip('pickup'); }

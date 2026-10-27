@@ -1,4 +1,4 @@
-/* LiteWorldsQuest menu module: the player's own book -- what is worn, attributes, skills and job levels, the bag.
+/* LiteWorldsQuest menu module: the player's own book -- what is worn, attributes, skills, professions, the bag.
      const m = menu.create({el, rpg, touch, ask(q)})    q: {op: 'equip', uid} | {op: 'unequip', slot}   (to the house)
      m.open() / m.close() / m.isOpen() / m.update(record, stats)
    The bag is in two: raw materials as a list, things to use in a grid, each to wear or take off (tbuuol 2026-10-23).
@@ -38,6 +38,7 @@
     const root = document.createElement('div'); root.className = 'lwq-menu';
     root.innerHTML = '<div class="card"><div class="top">' +
       '<button class="tab on" data-t="char">Character</button><button class="tab" data-t="skills">Skills</button>' +
+      '<button class="tab" data-t="profs">Professions</button>' +
       '<button class="tab" data-t="bag">Bag</button><button class="tab" data-t="craft">Craft</button>' +
       '<button class="tab x" data-t="close" title="Close (I)">×</button></div>' +
       '<div class="body"></div></div>';
@@ -68,6 +69,9 @@
     const statLine = it => [it.dmg ? 'Damage ' + it.dmg[0] + '–' + it.dmg[1] : '', it.def ? 'Defence ' + it.def : '',
       ...Object.keys(it.at || {}).map(k => '+' + it.at[k] + ' ' + rpg.ATTRS[k])].filter(Boolean).join(' · ');
     const slotName = s => (rpg.SLOTS.find(x => x[0] === s) || [s, s, s])[2];
+    const reqName = k => (rpg.PROFS[k] ? rpg.PROFS[k].name + ' level ' : rpg.ATTRS[k] + ' ');
+    const pct = v => Math.round(v * 100) + '%';
+    const groups = table => { const g = {}; for (const k in table) (g[table[k].group] = g[table[k].group] || []).push(k); return g; };
     function draw() {
       root.querySelectorAll('.tab').forEach(b => b.classList.toggle('on', b.dataset.t === tab));
       if (!rec) { body.innerHTML = '<p class="muted">The house keeps what you carry and what you have learnt. It has not sent your record yet ' +
@@ -84,31 +88,57 @@
           '<div class="col"><h4>Attributes</h4>' + attrs + '<h4 style="margin-top:14px">In a fight</h4>' +
           '<div class="row"><span>Hit points</span><b>' + stats.hp + '</b></div>' +
           '<div class="row"><span>Weapon</span><b>' + esc(stats.weapon) + '</b></div>' +
+          '<div class="row"><span>Chance to hit</span><b>' + pct(stats.hit) + '</b></div>' +
           '<div class="row"><span>Damage</span><b>' + stats.dmg[0] + '–' + stats.dmg[1] + (stats.bonus ? ' +' + stats.bonus : '') + '</b></div>' +
-          '<div class="row"><span>Defence</span><b>' + stats.def + '</b></div></div></div>';
+          '<div class="row"><span>Defence</span><b>' + stats.def + '</b></div>' +
+          '<div class="row"><span>Chance to dodge</span><b>' + pct(stats.evade) + '</b></div></div></div>';
       } else if (tab === 'skills') {
-        let h = '<p class="muted">Every blow teaches its weapon and melee; being hit teaches defence. 100 points are a job level; ' +
-          '1000 melee points add a level to every melee weapon.</p>';
-        for (const k in rpg.SKILLS) {
-          const sk = rpg.SKILLS[k], pts = Math.floor(rec.sk[k] || 0), lv = stats.jobs[k] || 0, into = pts % sk.per;
-          h += '<div class="row"><span>' + esc(sk.name) + (k === 'melee' ? ' <span class="muted">(+' + lv + ' on all melee)</span>' : '') +
-            '</span><b>Level ' + lv + '</b></div><div class="bar"><i style="width:' + (100 * into / sk.per) + '%"></i></div>' +
-            '<div class="muted" style="font-size:11px;margin:-6px 0 8px">' + pts + ' points · ' + (sk.per - into) + ' to the next level</div>';
+        /* skills rise only by doing: every blow, miss, dodge and felled tree. A foe or a task at your level teaches the
+           most; the more you know, the slower it goes, but it never stops and never falls back. */
+        let h = '<p class="muted">Skills rise by doing. A foe or task at your own level teaches the most, an easy one little. ' +
+          'Nothing is ever lost.</p><div class="cols">';
+        const g = groups(rpg.SKILLS);
+        for (const name in g) {
+          h += '<div class="col"><h4>' + esc(name) + '</h4>';
+          for (const k of g[name]) {
+            const pts = rec.sk[k] || 0, [rk, from, to] = rpg.rank(pts);
+            h += '<div class="row"><span>' + esc(rpg.SKILLS[k].name) + '</span><b>' + esc(rk) + '</b></div>' +
+              '<div class="bar"><i style="width:' + (to ? 100 * (pts - from) / (to - from) : 100) + '%"></i></div>' +
+              '<div class="muted" style="font-size:11px;margin:-6px 0 8px">' + pts.toFixed(1) + ' points' + (to ? ' · ' + (to - pts).toFixed(1) + ' to the next rank' : '') + '</div>';
+          }
+          h += '</div>';
         }
-        h += '<h4 style="margin-top:12px">Attribute points</h4>';
-        for (const k in rpg.ATTRS) { const pts = rec.at[k] || 0, into = pts % 25; h += '<div class="row"><span>' + rpg.ATTRS[k] + ' ' + rpg.attr(rec, k) + '</span><span class="muted">' + Math.floor(into) + ' / 25</span></div>'; }
-        body.innerHTML = h;
+        h += '<div class="col"><h4>Attributes</h4>';
+        for (const k in rpg.ATTRS) { const pts = rec.at[k] || 0, into = pts % 25; h += '<div class="row"><span>' + rpg.ATTRS[k] + ' ' + rpg.attr(rec, k) + '</span><span class="muted">' + into.toFixed(1) + ' / 25</span></div>'; }
+        body.innerHTML = h + '</div></div>';
+      } else if (tab === 'profs') {
+        /* professions are weighted sums of skills: what each is made of, and how far to its next level */
+        let h = '<p class="muted">A profession is made of several skills; a skill counts in each profession it belongs to. ' +
+          'Professions decide how well you hit, how hard, what you can wear and what you can make.</p><div class="cols">';
+        const g = groups(rpg.PROFS);
+        for (const name in g) {
+          h += '<div class="col"><h4>' + esc(name) + '</h4>';
+          for (const k of g[name]) {
+            const lv = stats.prof[k] || 0, w = rpg.PROFS[k].w;
+            const parts = Object.keys(w).map(x => (rpg.SKILLS[x] ? rpg.SKILLS[x].name : rpg.ATTRS[x]) + ' ' + Math.round(w[x] * 100) + '%').join(', ');
+            h += '<div class="row"><span>' + esc(rpg.PROFS[k].name) + '</span><b>' + lv.toFixed(1) + '</b></div>' +
+              '<div class="bar"><i style="width:' + (100 * (lv % 1)) + '%"></i></div>' +
+              '<div class="muted" style="font-size:11px;margin:-6px 0 8px">' + esc(parts) + '</div>';
+          }
+          h += '</div>';
+        }
+        body.innerHTML = h + '</div>';
       } else if (tab === 'craft') {
         /* the recipes this player knows, by craft: what each needs (have / need), what it makes, and Make -- at the forge */
         const at = o.atForge ? o.atForge() : false;
         let h = at ? '<p class="muted">At the forge. Making teaches the craft; now and then a new recipe turns up while you work.</p>'
                    : '<p class="bad">Walk to the forge in Blockshire (east of the square) to make things. You can look at your recipes here.</p>';
         let hidden = 0;
-        for (const craft of ['smithing', 'woodworking', 'tailoring']) {
-          const sk = rpg.SKILLS[craft], lv = stats.jobs[craft] || 0;
-          h += '<h4 style="margin-top:12px">' + esc(sk.name) + ' · level ' + lv + '</h4>';
+        for (const craft of ['smith', 'carpenter', 'tailor']) {
+          const sk = rpg.PROFS[craft], lv = stats.prof[craft] || 0;
+          h += '<h4 style="margin-top:12px">' + esc(sk.name) + ' · level ' + lv.toFixed(1) + '</h4>';
           for (const rid in rpg.RECIPES) {
-            const rc = rpg.RECIPES[rid]; if (rc.skill !== craft) continue;
+            const rc = rpg.RECIPES[rid]; if (rc.prof !== craft) continue;
             if (!rpg.knows(rec, rid)) { hidden++; continue; }
             const it = rpg.ITEMS[rid], tooLow = lv < rc.level;
             let enough = true;
@@ -134,7 +164,7 @@
         const it = picked != null && rpg.itemOf(rec, picked);
         if (it) {
           const unmet = rpg.meets(rec, it), worn = wornSlot(it.uid);
-          const req = Object.keys(it.req || {}).map(k => (rpg.SKILLS[k] ? rpg.SKILLS[k].name + ' level ' : rpg.ATTRS[k] + ' ') + it.req[k]);
+          const req = Object.keys(it.req || {}).map(k => reqName(k) + it.req[k]);
           detail = '<div class="detail"><b>' + esc(it.name) + '</b><div>' + esc(statLine(it) || 'no numbers') + '</div>' +
             (req.length ? '<div class="' + (unmet.length ? 'bad' : 'good') + '">Needs ' + esc(req.join(', ')) + '</div>' : '<div class="muted">Anybody can use it</div>') +
             (worn ? '<button class="act" data-act="off" data-slot="' + worn + '">Take off</button>'
@@ -153,5 +183,5 @@
   }
 
   const menu = { api: 1, create };
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('menu', { api: 1, v: 2 }, () => menu);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('menu', { api: 1, v: 3 }, () => menu);
 })(typeof globalThis !== 'undefined' ? globalThis : this);

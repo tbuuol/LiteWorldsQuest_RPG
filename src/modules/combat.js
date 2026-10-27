@@ -8,6 +8,7 @@
                                                 draw what the host last sent; events (host only):
                                                 {t: 'hit'|'heal', to: playerId, d}  and  {t: 'kill', by: playerId, xp}
      f.damage(unitId, d, byPlayer) -> events    a player's blow (host only)
+     f.missed(unitId)                           the house says my blow missed: "miss" over that raider
      f.pick(x, z, yaw, range) -> unitId|null    what a swing from here would hit
      f.snapshot() / f.apply(snap)               the fight on the wire (host -> everyone), well inside 500 bytes
      f.units()                                  for tests and the HUD: [{id, kind, name, x, z, hp, max, state}]
@@ -317,6 +318,8 @@
         floater(u.x, 2.2, u.z, '-' + d, '#ff6b5a');
         (u.predicted = u.predicted || []).push({ d, until: performance.now() + 2500 });
       },
+      /* the house says a blow of mine missed: shown over the raider, where the spark was */
+      missed(id) { const u = units.get(String(id)); if (u && alive(u)) floater(u.x, 2.2, u.z, 'miss', '#d9e2ec'); },
       damage(id, d, byPlayer) {
         const events = [], u = units.get(String(id));
         if (u && u.kind === 'raider') hurt(u, Math.max(0, Math.min(60, Math.round(+d || 0))), 'p:' + byPlayer, events);
@@ -393,5 +396,5 @@
   }
 
   const combat = { api: 1, player, gain, nextXp, create };
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('combat', { api: 1, v: 6, needs: { three: 160, art: 1 } }, () => combat);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('combat', { api: 1, v: 7, needs: { three: 160, art: 1 } }, () => combat);
 })(typeof globalThis !== 'undefined' ? globalThis : this);
