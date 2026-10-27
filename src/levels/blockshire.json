@@ -2,7 +2,7 @@
  "lwq": "module",
  "name": "level.blockshire",
  "api": 1,
- "v": 7,
+ "v": 8,
  "data": {
   "id": "blockshire",
   "title": "Blockshire",
@@ -1040,6 +1040,254 @@
    ],
    "rot": 270,
    "label": "Forge"
-  }
+  },
+  "wild": {
+   "zone": "Greenwood",
+   "from": 28,
+   "respawn": 25,
+   "species": {
+    "boar": {
+     "name": "Boar",
+     "lvl": 2,
+     "hp": 55,
+     "dmg": 5,
+     "speed": 2.8,
+     "aggressive": false,
+     "color": "#6b4a32",
+     "loot": [
+      [
+       "boar_hide",
+       0.6
+      ],
+      [
+       "boar_tusk",
+       0.25
+      ],
+      [
+       "leather_scrap",
+       0.3
+      ]
+     ],
+     "codex": [
+      "toughness",
+      "anatomy",
+      "str"
+     ]
+    },
+    "wolf": {
+     "name": "Grey Wolf",
+     "lvl": 4,
+     "hp": 62,
+     "dmg": 7,
+     "speed": 3.8,
+     "aggressive": true,
+     "sight": 7,
+     "color": "#7d7f86",
+     "loot": [
+      [
+       "wolf_pelt",
+       0.55
+      ],
+      [
+       "wolf_fang",
+       0.25
+      ],
+      [
+       "leather_scrap",
+       0.2
+      ]
+     ],
+     "codex": [
+      "evade",
+      "melee",
+      "dex"
+     ]
+    },
+    "spider": {
+     "name": "Forest Spider",
+     "lvl": 6,
+     "hp": 78,
+     "dmg": 9,
+     "speed": 3.2,
+     "aggressive": true,
+     "sight": 6,
+     "def": 1,
+     "color": "#3b2f3a",
+     "loot": [
+      [
+       "spider_silk",
+       0.6
+      ],
+      [
+       "venom_sac",
+       0.2
+      ]
+     ],
+     "codex": [
+      "evade",
+      "toughness",
+      "herbalism"
+     ]
+    }
+   },
+   "areas": [
+    {
+     "species": "boar",
+     "center": [
+      -42,
+      6
+     ],
+     "r": 11,
+     "count": 5
+    },
+    {
+     "species": "boar",
+     "center": [
+      40,
+      -16
+     ],
+     "r": 11,
+     "count": 4
+    },
+    {
+     "species": "wolf",
+     "center": [
+      46,
+      30
+     ],
+     "r": 12,
+     "count": 4
+    },
+    {
+     "species": "wolf",
+     "center": [
+      -38,
+      -40
+     ],
+     "r": 12,
+     "count": 4
+    },
+    {
+     "species": "spider",
+     "center": [
+      4,
+      -60
+     ],
+     "r": 11,
+     "count": 4
+    }
+   ]
+  },
+  "quests": [
+   {
+    "id": "wood",
+    "npc": "tobin",
+    "title": "Wood for the Hearth",
+    "offer": "Winter comes early up here. Bring me three oak logs from the old oaks around the village, and I will lend you my second axe.",
+    "done": "Good, solid oak. Here, take the axe -- and mind your fingers.",
+    "need": {
+     "bring": {
+      "oak_log": 3
+     }
+    },
+    "reward": {
+     "items": [
+      "copper_axe"
+     ],
+     "sk": {
+      "woodcutting": 15
+     }
+    },
+    "giver": "Tobin the Woodcutter"
+   },
+   {
+    "id": "boars",
+    "npc": "mara",
+    "title": "A Boar for the Pot",
+    "offer": "The stew wants meat. Four boars roam the Greenwood west of the fence. Bring them down, and I will stitch you a jerkin from the hides.",
+    "done": "That will feed the whole village! Here is your jerkin, still warm.",
+    "need": {
+     "kill": {
+      "boar": 4
+     }
+    },
+    "reward": {
+     "items": [
+      "hide_jerkin"
+     ],
+     "sk": {
+      "anatomy": 15
+     }
+    },
+    "giver": "Mara the Cook"
+   },
+   {
+    "id": "forge",
+    "npc": "bram",
+    "title": "Steel for the Gate",
+    "after": "wood",
+    "offer": "Raiders test our gate every night. Go to the forge east of the square and make a weapon with your own hands.",
+    "done": "A fine first piece. The village is stronger for it. Take this shield; you will need it.",
+    "need": {
+     "make": "weapon"
+    },
+    "reward": {
+     "items": [
+      "oak_shield"
+     ],
+     "sk": {
+      "smithing": 20
+     }
+    },
+    "giver": "Elder Bram"
+   },
+   {
+    "id": "wolves",
+    "npc": "pip",
+    "title": "Wolves at Night",
+    "after": "boars",
+    "offer": "I heard wolves howling east of the village! Three of them! Can you make them stop? Please?",
+    "done": "It is quiet now! You can have my lucky coin. It is very lucky. Mostly.",
+    "need": {
+     "kill": {
+      "wolf": 3
+     }
+    },
+    "reward": {
+     "items": [
+      "lucky_coin"
+     ],
+     "sk": {
+      "evade": 20
+     }
+    },
+    "giver": "Pip"
+   },
+   {
+    "id": "spiders",
+    "npc": "bram",
+    "title": "The Spider Nest",
+    "after": "wolves",
+    "offer": "North of the village the forest grows dark. Spiders nest there and take our herb gatherers. Kill three and bring peace back.",
+    "done": "You have done Blockshire a great service. These gloves were woven from their own silk -- wear them with pride.",
+    "need": {
+     "kill": {
+      "spider": 3
+     }
+    },
+    "reward": {
+     "items": [
+      "silk_gloves"
+     ],
+     "mats": {
+      "wild_herb": 3
+     },
+     "sk": {
+      "toughness": 30
+     }
+    },
+    "giver": "Elder Bram"
+   }
+  ]
  }
 }

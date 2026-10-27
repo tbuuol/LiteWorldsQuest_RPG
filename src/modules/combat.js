@@ -9,6 +9,8 @@
                                                 {t: 'hit'|'heal', to: playerId, d}  and  {t: 'kill', by: playerId, xp}
      f.damage(unitId, d, byPlayer) -> events    a player's blow (host only)
      f.missed(unitId)                           the house says my blow missed: "miss" over that raider
+     f.info(unitId) -> {kind, lvl, def, species}  a beast's level and defence (for what a blow teaches)
+   o.wild: the level's Greenwood {species, areas, respawn}; o.height(x, z): the ground under a unit
      f.pick(x, z, yaw, range) -> unitId|null    what a swing from here would hit
      f.snapshot() / f.apply(snap)               the fight on the wire (host -> everyone), well inside 500 bytes
      f.units()                                  for tests and the HUD: [{id, kind, name, x, z, hp, max, state}]
@@ -17,7 +19,11 @@
    again a few seconds later -- the guards always win, which is the point of the scene. */
 (function (G) {
   'use strict';
-  const KIND = ['guard', 'priest', 'raider'];
+  const KIND = ['guard', 'priest', 'raider', 'beast'];
+  /* THE BEASTS OF THE GREENWOOD (Etappe 3), like Entropia's creatures: one kind comes in maturities, the same beast,
+     only stronger. [name, hit points, damage, size, levels above the kind's] */
+  const MAT = [['Young', 0.7, 0.75, 0.85, -1], ['Mature', 1, 1, 1, 0], ['Old', 1.35, 1.2, 1.12, 1], ['Elder', 1.8, 1.45, 1.25, 2]];
+  const MAT_ODDS = [0.4, 0.35, 0.18, 0.07];
   const STATE = ['idle', 'walk', 'attack', 'down', 'dead'];
   /* what each kind can do: hit points, damage, reach, seconds between blows, speed (m/s) */
   const BASE = {
@@ -42,7 +48,8 @@
   }
 
   function create(o) {
-    const T = o.THREE, art = o.art, ctx = o.ctx, def = o.def || {}, scene = ctx.scene;
+    const T = o.THREE, art = o.art, ctx = o.ctx, def = o.def || {}, scene = ctx.scene, wild = o.wild || null;
+    const height = o.height || (() => 0);   /* the ground under a unit (the hills outside the village) */
     const units = new Map();
     let raiderNo = 0, spawnIn = (def.spawns && def.spawns.first) || 6, seq = 0;
     /* a kind's numbers: the defaults, with what the level says over them (a raider's hp and xp) */
@@ -62,7 +69,7 @@
       const c = document.createElement('canvas'); c.width = 64; c.height = 10;
       const tex = new T.CanvasTexture(c); tex.colorSpace = T.SRGBColorSpace;
       const s = new T.Sprite(new T.SpriteMaterial({ map: tex, depthTest: false, transparent: true }));
-      s.scale.set(0.9, 0.14, 1); s.position.y = 2.42; s.renderOrder = 11; u.c.group.add(s);
+      s.scale.set(0.9, 0.14, 1); s.position.y = u.c.barY ? u.c.barY + 0.2 : 2.42; s.renderOrder = 11; u.c.group.add(s);
       return { s, draw(hp, max, colour) {
         const x = c.getContext('2d'); x.clearRect(0, 0, 64, 10);
         x.fillStyle = 'rgba(0,0,0,.6)'; x.fillRect(0, 0, 64, 10);
@@ -102,11 +109,20 @@
       const d = kind === 'priest' ? def.priest : (def.guards || []).find(g => g.id === id);
       return (d && d.name) || kind;
     }
+    /* a beast's id says what it is: b.<species>.<maturity>.<n> -- so a client that has never seen it can draw it */
+    function beastOf(id) {
+      const [, sp, m] = String(id).split('.'), spec = wild && wild.species && wild.species[sp], mt = MAT[+m] || MAT[1];
+      if (!spec) return null;
+      return { sp, spec, m: +m || 0, name: mt[0] + ' ' + spec.name, max: Math.round(spec.hp * mt[1]), dmg: Math.round(spec.dmg * mt[2]),
+               scale: mt[3], lvl: Math.max(0, (spec.lvl || 1) + mt[4]), speed: spec.speed || 2.6, range: spec.range || 1.5 };
+    }
     function make(id, kind, x, z) {
-      const b = statOf(kind), u = { id, kind, name: nameOf(kind, id), x, z, tx: x, tz: z, yaw: 0, tyaw: 0, buf: [], hp: b.max, max: b.max,
-        state: 'idle', cd: Math.random() * 0.5, atk: 0, shown: { hp: -1, atk: 0, state: '' }, gone: 0, target: null, aggro: null };
-      u.c = art.character(ctx, look(kind, id));
-      u.c.setName(u.name, kind === 'raider' ? '#ff9a8a' : kind === 'priest' ? '#c9f5c0' : '#cfe1ff');
+      const bs = kind === 'beast' ? beastOf(id) : null;
+      if (kind === 'beast' && !bs) return null;
+      const b = bs || statOf(kind), u = { id, kind, name: bs ? bs.name : nameOf(kind, id), x, z, tx: x, tz: z, yaw: 0, tyaw: 0, buf: [], hp: b.max, max: b.max,
+        state: 'idle', cd: Math.random() * 0.5, atk: 0, shown: { hp: -1, atk: 0, state: '' }, gone: 0, target: null, aggro: null, beast: bs };
+      u.c = bs ? art.creature(ctx, { kind: bs.spec.model || bs.sp, color: bs.spec.color, scale: bs.scale }) : art.character(ctx, look(kind, id));
+      u.c.setName(u.name, kind === 'raider' ? '#ff9a8a' : kind === 'priest' ? '#c9f5c0' : kind === 'beast' ? ['#c8d0c0', '#ffe9a8', '#ffb46a', '#ff7a5a'][bs.m] : '#cfe1ff');
       u.bar = bar(u);
       u.c.group.position.set(x, 0, z);
       units.set(id, u);
@@ -126,9 +142,13 @@
     function hurt(u, d, by, events) {
       if (!alive(u)) return;
       u.hp = Math.max(0, u.hp - d);
-      if (u.kind === 'raider' && by) u.aggro = by;
+      if ((u.kind === 'raider' || u.kind === 'beast') && by && by.startsWith('p:')) { u.aggro = by; u.evade = false; }
+      else if (u.kind === 'raider' && by) u.aggro = by;
       if (u.hp > 0) return;
-      if (u.kind === 'raider') {
+      if (u.kind === 'beast') {
+        u.state = 'dead'; u.gone = 2.0;
+        if (by && by.startsWith('p:')) events.push({ t: 'kill', by: by.slice(2), name: u.name, species: u.beast.sp, mat: u.beast.m, lvl: u.beast.lvl, loot: u.beast.spec.loot || [] });
+      } else if (u.kind === 'raider') {
         u.state = 'dead'; u.gone = 2.0;
         if (by && by.startsWith('p:')) events.push({ t: 'kill', by: by.slice(2), xp: statOf('raider').xp, name: u.name });
       } else { u.state = 'down'; u.gone = 6; }   /* a guard goes down, and gets up again */
@@ -158,6 +178,7 @@
       }
       for (const u of raiders) {
         if (!alive(u)) continue;
+        if (u.stun > 0) { u.stun -= dt; u.state = 'idle'; continue; }   /* stunned: does nothing */
         /* who to fight: whoever struck it last (a player), else the nearest guard standing, else a player nearby */
         let tgt = null;
         if (u.aggro) { const p = livePlayers.find(q => 'p:' + q.id === u.aggro); if (p && dist(u, p) < 18) tgt = { x: p.x, z: p.z, ref: u.aggro }; else u.aggro = null; }
@@ -234,6 +255,59 @@
         } else if (u.cd < b.every - 0.6) u.state = 'idle';
       }
       for (const u of raiders) if (u.state === 'dead') { u.gone -= dt; if (u.gone <= 0) drop(u); }
+      if (wild) beasts(dt, livePlayers, events);
+    }
+    /* THE GREENWOOD: each area keeps its number of beasts (a dead one comes back after a while, of a maturity drawn by
+       chance). A beast wanders in its area; an aggressive one goes for a player who comes close, any one for whoever
+       hit it; too far from home it gives up, goes back and is whole again (the leash). */
+    let beastNo = 0;
+    const areaState = (wild && wild.areas || []).map(() => ({ due: [] }));
+    function spawnBeast(ai) {
+      const a = wild.areas[ai], r = Math.random(); let m = 0, acc = 0;
+      for (let i = 0; i < MAT_ODDS.length; i++) { acc += MAT_ODDS[i]; if (r < acc) { m = i; break; } }
+      const ang = Math.random() * Math.PI * 2, d = Math.sqrt(Math.random()) * a.r;
+      const u = make('b.' + a.species + '.' + m + '.' + (++beastNo % 10000), 'beast', a.center[0] + Math.cos(ang) * d, a.center[1] + Math.sin(ang) * d);
+      if (u) { u.area = ai; u.wt = Math.random() * 4; }
+    }
+    function beasts(dt, livePlayers, events) {
+      const now = performance.now(), count = areaState.map(() => 0);
+      for (const u of units.values()) if (u.kind === 'beast' && u.area != null) count[u.area]++;
+      wild.areas.forEach((a, i) => {
+        const st = areaState[i];
+        while (count[i] + st.due.length < (a.count || 3)) st.due.push(st.started ? now + (wild.respawn || 25) * 1000 : now);
+        st.started = true;
+        st.due = st.due.filter(t => { if (t <= now) { spawnBeast(i); return false; } return true; });
+      });
+      for (const u of Array.from(units.values())) {
+        if (u.kind !== 'beast') continue;
+        if (u.state === 'dead') { u.gone -= dt; if (u.gone <= 0) drop(u); continue; }
+        if (u.stun > 0) { u.stun -= dt; u.state = 'idle'; continue; }
+        const a = wild.areas[u.area] || { center: [u.x, u.z], r: 10 }, b = u.beast, home = Math.hypot(u.x - a.center[0], u.z - a.center[1]);
+        let tgt = null;
+        if (u.aggro) {
+          const p = livePlayers.find(q => 'p:' + q.id === u.aggro);
+          if (!p || dist(u, p) > 25 || home > a.r + 20) { u.aggro = null; u.evade = true; } else tgt = p;
+        }
+        if (!tgt && !u.evade && b.spec.aggressive) {
+          let best = null; for (const p of livePlayers) if (dist(u, p) < (b.spec.sight || 7) && Math.hypot(p.x - a.center[0], p.z - a.center[1]) < a.r + 10 && (!best || dist(u, p) < dist(u, best))) best = p;
+          if (best) { u.aggro = 'p:' + best.id; tgt = best; }
+        }
+        u.cd -= dt;
+        if (u.evade) {   /* home, and whole again */
+          u.hp = u.max;
+          if (step(u, a.center[0], a.center[1], b.speed * 1.4, dt, 2)) u.state = 'walk'; else { u.evade = false; u.state = 'idle'; }
+        } else if (tgt) {
+          if (step(u, tgt.x, tgt.z, b.speed, dt, b.range * 0.85)) u.state = 'walk';
+          else {
+            u.tyaw = yawTo(tgt.x - u.x, tgt.z - u.z); u.state = 'idle';
+            if (u.cd <= 0) { u.cd = b.spec.cd || 1.6; u.atk++; u.state = 'attack'; events.push({ t: 'hit', to: tgt.id, d: b.dmg + Math.floor(Math.random() * 3), from: u.name, lvl: b.lvl }); }
+          }
+        } else {   /* wandering */
+          u.wt -= dt;
+          if (u.wt <= 0) { u.wt = 3 + Math.random() * 6; const ang = Math.random() * Math.PI * 2, d = Math.sqrt(Math.random()) * a.r; u.goal = [a.center[0] + Math.cos(ang) * d, a.center[1] + Math.sin(ang) * d]; }
+          if (u.goal && step(u, u.goal[0], u.goal[1], b.speed * 0.35, dt, 0.3)) u.state = 'walk'; else u.state = 'idle';
+        }
+      }
     }
 
     /* --- what everybody draws (the host too) ---------------------------------------------------------- */
@@ -268,7 +342,7 @@
           const lying = (performance.now() - u.deadSince) / 1000;
           if (lying > 0.6) y = -Math.min(1.4, (lying - 0.6) * 1.8);   /* down a moment, then quickly into the ground (tbuuol: too slow) */
         } else u.deadSince = 0;
-        u.c.group.position.set(u.x, y, u.z);
+        u.c.group.position.set(u.x, y + height(u.x, u.z), u.z);
         let d = u.tyaw - u.yaw; d = Math.atan2(Math.sin(d), Math.cos(d)); u.yaw += d * Math.min(1, dt * 8);
         u.c.group.rotation.y = u.yaw;
         const speed = dt > 0 ? Math.hypot(u.x - ox, u.z - oz) / dt : 0;
@@ -322,14 +396,14 @@
       missed(id) { const u = units.get(String(id)); if (u && alive(u)) floater(u.x, 2.2, u.z, 'miss', '#d9e2ec'); },
       damage(id, d, byPlayer) {
         const events = [], u = units.get(String(id));
-        if (u && u.kind === 'raider') hurt(u, Math.max(0, Math.min(60, Math.round(+d || 0))), 'p:' + byPlayer, events);
+        if (u && (u.kind === 'raider' || u.kind === 'beast')) hurt(u, Math.max(0, Math.min(60, Math.round(+d || 0))), 'p:' + byPlayer, events);
         return events;
       },
       pick(x, z, yaw, range) {
         const fx = -Math.sin(yaw), fz = -Math.cos(yaw);
         let best = null, bestD = range;
         for (const u of units.values()) {
-          if (u.kind !== 'raider' || !alive(u)) continue;
+          if ((u.kind !== 'raider' && u.kind !== 'beast') || !alive(u)) continue;
           const dx = u.x - x, dz = u.z - z, d = Math.hypot(dx, dz);
           if (d > range) continue;
           if (d > 0.6 && (dx * fx + dz * fz) / d < 0.55) continue;   /* in front of you, roughly */
@@ -379,7 +453,7 @@
           const [id, k, x, z, yaw, hp, st, atk] = row, kind = KIND[k];
           if (!kind) continue;
           let u = units.get(String(id));
-          if (!u) { u = make(String(id), kind, x / 10, z / 10); u.post = u.post || [x / 10, z / 10]; u.face = u.face || [0, 40]; u.shown.atk = atk; u.atk = atk; }
+          if (!u) { u = make(String(id), kind, x / 10, z / 10); if (!u) continue; u.post = u.post || [x / 10, z / 10]; u.face = u.face || [0, 40]; u.shown.atk = atk; u.atk = atk; }
           u.tx = x / 10; u.tz = z / 10; u.tyaw = yaw / 100; u.hp = +hp || 0; u.state = STATE[st] || 'idle';
           const last = u.buf[u.buf.length - 1];
           if (last && last.t === at) { last.x = x / 10; last.z = z / 10; }   /* the same moment twice (a piece and the whole) */
@@ -389,12 +463,36 @@
         }
         /* a raider the host has not mentioned for a while is gone (snapshots may come in pieces, so not being in one
            piece says nothing) */
-        for (const u of Array.from(units.values())) if (u.kind === 'raider' && now - (u.seenAt || now) > 3000) drop(u);
+        for (const u of Array.from(units.values())) if ((u.kind === 'raider' || u.kind === 'beast') && now - (u.seenAt || now) > 3000) drop(u);
       },
+      /* foes in front of you, nearest first (Cleave) */
+      pickAll(x, z, yaw, range, most) {
+        const fx = -Math.sin(yaw), fz = -Math.cos(yaw), out = [];
+        for (const u of units.values()) {
+          if ((u.kind !== 'raider' && u.kind !== 'beast') || !alive(u)) continue;
+          const dx = u.x - x, dz = u.z - z, d = Math.hypot(dx, dz);
+          if (d > range || (d > 0.6 && (dx * fx + dz * fz) / d < 0.3)) continue;
+          out.push([d, u.id]);
+        }
+        return out.sort((a, b) => a[0] - b[0]).slice(0, most || 4).map(e => e[1]);
+      },
+      posOf(id) { const u = units.get(String(id)); return u ? [u.x, u.z] : null; },
+      /* host: a foe stunned for so long; every foe near a point made to come for a player (Taunt) */
+      stun(id, secs) { const u = units.get(String(id)); if (u && alive(u) && u.kind !== 'guard') { u.stun = Math.max(u.stun || 0, secs); } },
+      taunt(x, z, radius, playerId) {
+        let n = 0;
+        for (const u of units.values()) if ((u.kind === 'raider' || u.kind === 'beast') && alive(u) && Math.hypot(u.x - x, u.z - z) <= radius) { u.aggro = 'p:' + playerId; u.evade = false; n++; }
+        fx.push({ id: ++fxNo, k: 'taunt', x, z, r: radius, at: performance.now() });
+        return n;
+      },
+      /* a word over a foe (a stun, as the one who did it sees it) */
+      say(id, text, colour) { const u = units.get(String(id)); if (u) floater(u.x, 2.4, u.z, text, colour || '#ffe08a'); },
+      /* what a blow is against: how hard the foe is (what striking it teaches) and its defence */
+      info(id) { const u = units.get(String(id)); if (!u) return null; return u.beast ? { kind: 'beast', lvl: u.beast.lvl, def: u.beast.spec.def || 0, species: u.beast.sp } : { kind: u.kind }; },
       units() { return Array.from(units.values()).map(u => ({ id: u.id, kind: u.kind, name: u.name, x: Math.round(u.x * 10) / 10, z: Math.round(u.z * 10) / 10, y: Math.round(u.c.group.position.y * 100) / 100, hp: u.hp, max: u.max, state: u.state })); }
     };
   }
 
   const combat = { api: 1, player, gain, nextXp, create };
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('combat', { api: 1, v: 7, needs: { three: 160, art: 1 } }, () => combat);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('combat', { api: 1, v: 9, needs: { three: 160, art: 1 } }, () => combat);
 })(typeof globalThis !== 'undefined' ? globalThis : this);

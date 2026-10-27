@@ -6,6 +6,7 @@
      art.campfire(ctx, def), art.forest(ctx, def), art.fence(ctx, def), art.paths(ctx, def), art.prop(ctx, def),
      art.well(ctx, def) -> {use: mesh}, art.grass(ctx, def)
      art.character(ctx, look) -> {group, animate(dt, speed), emote(name), hold(name), setName(text), holdItem(right, left)}   our own figure
+     art.creature(ctx, {kind: 'boar'|'wolf'|'spider', color, scale}) -> the same, for a beast (and barY)
    ctx = {THREE, scene, rng, solid(min, max, on), usable(mesh, data), every(fn(dt, t))}
    Units are metres; y is up; a thing whose "rot" is 0 faces -z (towards the camp's north). */
 (function (G) {
@@ -254,6 +255,12 @@
   }
 
   /* --- sky, light, ground ------------------------------------------------------------------------------ */
+  /* THE HILLS: flat where the village is, rolling beyond. One function for the ground mesh, the forest, the creatures
+     and walking (Etappe 3: the land outside the fence can be walked) */
+  art.heightAt = function (flat) {
+    flat = flat || 30;
+    return (x, z) => { const d = Math.hypot(x, z), k = Math.max(0, Math.min(1, (d - flat) / 40)); return k * k * (Math.sin(x * 0.05) * 4 + Math.cos(z * 0.043) * 5 + Math.sin((x + z) * 0.11) * 1.5 + 3); };
+  };
   art.setup = function (THREE, renderer, scene, env) {
     T = THREE; env = env || {};
     renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFShadowMap;
@@ -281,12 +288,8 @@
     const size = env.ground === 0 ? 0 : env.ground || 260, seg = 96, rnd = art.rng(7);
     if (size) {
     const g = new THREE.PlaneGeometry(size, size, seg, seg); g.rotateX(-Math.PI / 2);
-    const pos = g.attributes.position, flat = env.flat || 30;
-    for (let i = 0; i < pos.count; i++) {
-      const x = pos.getX(i), z = pos.getZ(i), d = Math.hypot(x, z);
-      const k = Math.max(0, Math.min(1, (d - flat) / 40));
-      pos.setY(i, k * k * (Math.sin(x * 0.05) * 4 + Math.cos(z * 0.043) * 5 + Math.sin((x + z) * 0.11) * 1.5 + 3) - 0.001);
-    }
+    const pos = g.attributes.position, hill = art.heightAt(env.flat || 30);
+    for (let i = 0; i < pos.count; i++) pos.setY(i, hill(pos.getX(i), pos.getZ(i)) - 0.001);
     g.computeVertexNormals();
     const ground = mesh(g, mat('grass', { repeat: [size / 6, size / 6], m: { bumpScale: 1.2 } }), false); ground.receiveShadow = true; scene.add(ground);
     }
@@ -535,9 +538,10 @@
       const t = [Math.cos(a) * r, Math.sin(a) * r, rnd.range(0.8, 1.5), rnd() < 0.62 ? 'pine' : 'oak'];
       if (!clear.some(b => t[0] > b[0] && t[0] < b[2] && t[1] > b[1] && t[1] < b[3])) list.push(t);
     }
-    const height = (x, z) => { const d = Math.hypot(x, z), k = Math.max(0, Math.min(1, (d - (def.flat || 30)) / 40)); return k * k * (Math.sin(x * 0.05) * 4 + Math.cos(z * 0.043) * 5 + Math.sin((x + z) * 0.11) * 1.5 + 3); };
+    const height = art.heightAt(def.flat || 30);
     art.trees(ctx, list, height);
-    for (const t of list) if (Math.hypot(t[0], t[1]) < inner + 6) ctx.solid([t[0] - 0.3, 0, t[1] - 0.3], [t[0] + 0.3, 3, t[1] + 0.3]);
+    /* every trunk stands in the way: the forest can be walked now (Etappe 3) */
+    for (const t of list) { const y = height(t[0], t[1]); ctx.solid([t[0] - 0.35, y - 1, t[1] - 0.35], [t[0] + 0.35, y + 3, t[1] + 0.35]); }
     /* the horizon: two ridges all the way round, the far one paler, higher and snowy; each fades into the haze at its
        foot (vertex colours), crags from a seeded wobble, no lighting: at that distance a mountain is a silhouette */
     const haze = new T.Color(def.haze || '#c9c3b6');
@@ -567,7 +571,7 @@
     }
     const im = new T.InstancedMesh(rg, mat('stone', { m: { color: '#a29c92' } }), rocks.length), M = new T.Matrix4(), Q = new T.Quaternion(), V = new T.Vector3(), S = new T.Vector3();
     rocks.forEach((rk, i) => { V.set(rk[0], height(rk[0], rk[1]) + rk[2] * 0.15, rk[1]); Q.setFromEuler(new T.Euler(rnd() * 0.4, rnd() * 6.3, rnd() * 0.4)); S.set(rk[2], rk[2], rk[2]); M.compose(V, Q, S); im.setMatrixAt(i, M);
-      if (Math.hypot(rk[0], rk[1]) < 30) ctx.solid([rk[0] - rk[2] * 0.8, 0, rk[1] - rk[2] * 0.8], [rk[0] + rk[2] * 0.8, rk[2] * 0.8, rk[1] + rk[2] * 0.8]); });
+      const ry = height(rk[0], rk[1]); ctx.solid([rk[0] - rk[2] * 0.8, ry - 1, rk[1] - rk[2] * 0.8], [rk[0] + rk[2] * 0.8, ry + rk[2] * 0.8, rk[1] + rk[2] * 0.8]); });
     im.castShadow = im.receiveShadow = true; ctx.scene.add(im);
   };
 
@@ -1130,6 +1134,108 @@
     };
   };
 
+  /* --- creatures ---------------------------------------------------------------------------------------- */
+  /* THE BEASTS OF THE GREENWOOD (Etappe 3), made by code in the same round, painted style as the people: a boar, a wolf
+     and a forest spider. The same interface as a person (group, setName, tag, animate, emote, hold), so the fight
+     draws them alike; barY is where the health bar sits. look: {kind, color, scale}. */
+  art.creature = function (ctx, look) {
+    look = look || {};
+    const cap = (r, len) => new T.CapsuleGeometry(r, len, 3, 8);
+    const kind = look.kind || 'boar', s = look.scale || 1, g = new T.Group();
+    const M = col => bodyMat(col, look.tint);
+    const part = (geo, col, parent, x, y, z) => { const m = mesh(litFromAbove(geo), M(col)); m.position.set(x || 0, y || 0, z || 0); parent.add(m); return m; };
+    const joint = (parent, x, y, z) => { const j = new T.Group(); j.position.set(x, y, z); parent.add(j); return j; };
+    const body = joint(g, 0, 0, 0), legs = [];   /* legs: [joint, phase offset] */
+    let head = null, tail = null, barY = 1.3;
+    if (kind === 'boar') {
+      const hide = look.color || '#6b4a32', dark = shade(hide, 0.6);
+      body.position.y = 0.52;
+      part(new T.SphereGeometry(0.42, 12, 9), hide, body, 0, 0, 0.05).scale.set(0.95, 0.9, 1.55);
+      part(new T.ConeGeometry(0.12, 0.9, 6), dark, body, 0, 0.36, 0.1).rotation.x = Math.PI / 2;   /* the bristly ridge */
+      head = joint(body, 0, 0.05, -0.58);
+      part(new T.SphereGeometry(0.27, 10, 8), hide, head, 0, 0, 0).scale.set(1, 0.95, 1.1);
+      const snout = part(new T.CylinderGeometry(0.11, 0.15, 0.24, 8), '#a7786a', head, 0, -0.06, -0.28); snout.rotation.x = Math.PI / 2;
+      part(new T.CylinderGeometry(0.11, 0.11, 0.02, 8), '#5a3a34', head, 0, -0.06, -0.405).rotation.x = Math.PI / 2;
+      for (const sx of [-1, 1]) {
+        const tusk = part(new T.ConeGeometry(0.03, 0.17, 5), '#f2ead6', head, sx * 0.12, -0.08, -0.3); tusk.rotation.set(-0.6, 0, sx * -0.5);
+        part(new T.ConeGeometry(0.07, 0.15, 5), dark, head, sx * 0.16, 0.22, 0.02).rotation.z = sx * -0.4;
+        part(new T.SphereGeometry(0.035, 6, 5), '#1a0f0a', head, sx * 0.12, 0.08, -0.2);
+      }
+      for (const [x, z, ph] of [[-0.2, -0.35, 0], [0.2, -0.35, Math.PI], [-0.2, 0.45, Math.PI], [0.2, 0.45, 0]]) {
+        const l = joint(body, x, -0.18, z); part(cap(0.075, 0.2), dark, l, 0, -0.18, 0); part(new T.CylinderGeometry(0.07, 0.08, 0.08, 6), '#2a1a12', l, 0, -0.33, 0); legs.push([l, ph]);
+      }
+      tail = joint(body, 0, 0.12, 0.66); part(new T.ConeGeometry(0.04, 0.2, 5), dark, tail, 0, -0.08, 0.02).rotation.x = 2.6;
+      barY = 1.3;
+    } else if (kind === 'wolf') {
+      const fur = look.color || '#7d7f86', light = shade(fur, 1.3), dark = shade(fur, 0.7);
+      body.position.y = 0.68;
+      part(new T.SphereGeometry(0.3, 12, 9), fur, body, 0, 0, 0).scale.set(0.85, 0.9, 1.75);
+      part(new T.SphereGeometry(0.28, 10, 8), light, body, 0, -0.02, -0.32).scale.set(0.95, 1, 0.9);   /* the ruff */
+      head = joint(body, 0, 0.18, -0.62);
+      part(new T.SphereGeometry(0.2, 10, 8), fur, head, 0, 0, 0).scale.set(0.95, 0.9, 1.05);
+      const muzzle = part(new T.ConeGeometry(0.11, 0.32, 8), light, head, 0, -0.05, -0.26); muzzle.rotation.x = -Math.PI / 2;
+      part(new T.SphereGeometry(0.035, 6, 5), '#111', head, 0, -0.03, -0.42);
+      for (const sx of [-1, 1]) {
+        part(new T.ConeGeometry(0.065, 0.2, 4), dark, head, sx * 0.11, 0.2, 0.02).rotation.z = sx * -0.25;
+        part(new T.SphereGeometry(0.028, 6, 5), '#e8c34a', head, sx * 0.1, 0.06, -0.15);
+      }
+      for (const [x, z, ph] of [[-0.14, -0.38, 0], [0.14, -0.38, Math.PI], [-0.14, 0.38, Math.PI], [0.14, 0.38, 0]]) {
+        const l = joint(body, x, -0.1, z), knee = joint(l, 0, -0.27, 0);
+        part(cap(0.06, 0.2), fur, l, 0, -0.13, 0); part(cap(0.045, 0.2), dark, knee, 0, -0.14, 0); legs.push([l, ph, knee]);
+      }
+      tail = joint(body, 0, 0.12, 0.5); part(cap(0.07, 0.35), fur, tail, 0, -0.1, 0.18).rotation.x = 1.0;
+      barY = 1.45;
+    } else {   /* a forest spider */
+      const shell = look.color || '#3b2f3a', mark = '#b85a2a';
+      body.position.y = 0.55;
+      part(new T.SphereGeometry(0.4, 12, 9), shell, body, 0, 0.12, 0.42).scale.set(1, 0.85, 1.15);   /* the abdomen */
+      part(new T.SphereGeometry(0.12, 8, 6), mark, body, 0, 0.42, 0.42).scale.set(1.4, 0.4, 1.8);
+      head = joint(body, 0, 0, -0.12);
+      part(new T.SphereGeometry(0.24, 10, 8), shell, head, 0, 0, 0).scale.set(1, 0.75, 1.1);
+      for (const [x, y] of [[-0.07, 0.08], [0.07, 0.08], [-0.12, 0.04], [0.12, 0.04]]) part(new T.SphereGeometry(0.035, 6, 5), '#ff3a2a', head, x, y, -0.24);
+      for (const sx of [-1, 1]) part(new T.ConeGeometry(0.04, 0.16, 5), '#20181f', head, sx * 0.06, -0.12, -0.24).rotation.x = -2.6;   /* fangs */
+      for (let i = 0; i < 4; i++) for (const sx of [-1, 1]) {
+        const l = joint(body, sx * 0.18, 0.02, -0.25 + i * 0.17);
+        l.rotation.y = sx * (0.5 - i * 0.35); const up = part(cap(0.035, 0.42), shell, l, sx * 0.24, 0.16, 0); up.rotation.z = sx * -1.0;
+        const down = part(cap(0.03, 0.5), shell, l, sx * 0.52, -0.2, 0); down.rotation.z = sx * 0.45;
+        legs.push([l, (i % 2 ? Math.PI : 0) + (sx > 0 ? Math.PI : 0), null, sx]);
+      }
+      barY = 1.2;
+    }
+    g.scale.setScalar(s);
+    const root = new T.Group(); root.add(g); root.userData.keep = true;
+    const [nc, nx] = canvas(256); nc.height = 48; const ntex = new T.CanvasTexture(nc); ntex.colorSpace = T.SRGBColorSpace;
+    const tag = new T.Sprite(new T.SpriteMaterial({ map: ntex, depthTest: false, transparent: true })); tag.scale.set(1.15 / s, 0.215 / s, 1); tag.position.y = (barY + 0.25) / s; tag.renderOrder = 10; g.add(tag);
+    const setName = (text, color) => { nx.clearRect(0, 0, 256, 48); nx.font = '600 24px Georgia,serif'; nx.textAlign = 'center'; const w = Math.min(250, nx.measureText(text).width + 20); nx.fillStyle = 'rgba(0,0,0,.45)'; nx.fillRect(128 - w / 2, 6, w, 36); nx.fillStyle = color || '#fff'; nx.fillText(text, 128, 33); ntex.needsUpdate = true; };
+    ctx.scene.add(root);
+    let phase = Math.random() * 6, breathe = Math.random() * 6, lunge = 0, hold = null, holdT = 0;
+    const baseY = body.position.y;
+    return {
+      group: root, head, setName, tag, barY: barY * s, holdItem() {},
+      emote(name) { if (!hold && name === 'attack-melee-right') lunge = 0.45; },
+      hold(name) { if (hold === name) return; hold = name; holdT = 0; if (!name) { g.rotation.z = 0; g.position.y = 0; } },
+      animate(dt, speed) {
+        if (hold === 'die') {   /* rolls onto its side and stays */
+          holdT = Math.min(1, holdT + dt / 0.5); g.rotation.z = holdT * Math.PI / 2 * 0.95; g.position.y = holdT * 0.15;
+          for (const [l] of legs) l.rotation.x = 0.4 * holdT;
+          return;
+        }
+        const sp = Math.min(1.8, (speed || 0) / 2.2);
+        phase += dt * (4 + speed * 3.2); breathe += dt * 2;
+        for (const [l, ph, knee, sx] of legs) {
+          const a = Math.sin(phase + ph);
+          if (sx) { l.rotation.x = 0; l.rotation.z = sx * a * 0.25 * sp; l.position.y = 0.02 + Math.max(0, a) * 0.05 * sp; }
+          else { l.rotation.x = a * 0.6 * sp; if (knee) knee.rotation.x = Math.max(0, -a) * 0.8 * sp; }
+        }
+        body.position.y = baseY + Math.abs(Math.sin(phase)) * 0.03 * sp + Math.sin(breathe) * 0.008;
+        if (tail) tail.rotation.y = Math.sin(phase * 0.7) * 0.4;
+        lunge = Math.max(0, lunge - dt);
+        const k = Math.sin((lunge / 0.45) * Math.PI);
+        body.position.z = -k * 0.25; if (head) head.rotation.x = k * 0.35 + Math.sin(breathe * 0.5) * 0.04;
+      }
+    };
+  };
+
   /* --- a piece of the real Earth --------------------------------------------------------------------------- */
   /* The level's "real" block (tools/realworld.py: OpenStreetMap + terrain tiles, in decimetres) drawn in the game's
      own style: the ground is the real heights with a painted map on it (land use, streets by class, water), every
@@ -1344,5 +1450,5 @@
     return { groundAt, polys, segs, half, spawn, inside, stats: { buildings: buildings.length, trees: trees.length } };
   };
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('art', { api: 1, v: 7 }, () => art);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('art', { api: 1, v: 8 }, () => art);
 })(typeof globalThis !== 'undefined' ? globalThis : this);

@@ -11,8 +11,8 @@
     'font:14px/1.4 system-ui,sans-serif;color:#f1e7d3}' +
     '.lwq-menu .card{width:min(940px,96%);height:min(600px,92%);display:flex;flex-direction:column;background:rgba(32,24,16,.96);' +
     'border:2px solid #9a7a48;border-radius:10px;box-shadow:0 8px 40px rgba(0,0,0,.6);overflow:hidden}' +
-    '.lwq-menu .top{display:flex;align-items:center;gap:6px;padding:8px 10px;border-bottom:1px solid #5a4630}' +
-    '.lwq-menu .tab{background:none;border:1px solid #6d5636;color:#e9dcc0;border-radius:6px;padding:6px 12px;font:600 14px system-ui;cursor:pointer}' +
+    '.lwq-menu .top{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:8px 10px;border-bottom:1px solid #5a4630}' +
+    '.lwq-menu .tab{background:none;border:1px solid #6d5636;color:#e9dcc0;border-radius:6px;padding:5px 9px;font:600 13px system-ui;cursor:pointer}' +
     '.lwq-menu .tab.on{background:#7a5a2c;border-color:#c9a25e}.lwq-menu .x{margin-left:auto;font-size:20px;padding:2px 10px}' +
     '.lwq-menu .body{flex:1;overflow:auto;padding:12px 14px}' +
     '.lwq-menu h4{margin:6px 0 8px;font:700 13px system-ui;letter-spacing:.06em;text-transform:uppercase;color:#d8b878}' +
@@ -40,6 +40,7 @@
       '<button class="tab on" data-t="char">Character</button><button class="tab" data-t="skills">Skills</button>' +
       '<button class="tab" data-t="profs">Professions</button>' +
       '<button class="tab" data-t="bag">Bag</button><button class="tab" data-t="craft">Craft</button>' +
+      '<button class="tab" data-t="quests">Quests</button>' + (o.wild ? '<button class="tab" data-t="codex">Codex</button>' : '') +
       '<button class="tab x" data-t="close" title="Close (I)">×</button></div>' +
       '<div class="body"></div></div>';
     el.appendChild(root);
@@ -56,6 +57,7 @@
         if (a.disabled) return;
         if (a.dataset.act === 'wear') o.ask({ op: 'equip', uid: +a.dataset.uid });
         else if (a.dataset.act === 'make') o.ask({ op: 'craft', recipe: a.dataset.recipe });
+        else if (a.dataset.act === 'codex') o.ask({ op: 'codex', species: a.dataset.sp, skill: a.dataset.k });
         else o.ask({ op: 'unequip', slot: a.dataset.slot });
         a.disabled = true; a.textContent = 'Asking the house…';
         return;
@@ -128,6 +130,39 @@
           h += '</div>';
         }
         body.innerHTML = h + '</div>';
+      } else if (tab === 'quests') {
+        /* the quest log: what is under way (and how far), what waits to be handed in, what is done */
+        const qs = o.quests || [], names = { offer: 'Open', active: 'Under way', ready: 'Hand it in', done: 'Done' };
+        const label = p => p[0] === 'make' ? 'Made' : (o.wild && o.wild.species[p[0]] ? o.wild.species[p[0]].name + 's killed' : (rpg.ITEMS[p[0]] || {}).name || p[0]);
+        let h = '<p class="muted">People in Blockshire have work for you. Talk to them (E) to take a quest and to hand it in.</p>';
+        for (const st of ['ready', 'active', 'offer', 'done']) {
+          const list = qs.filter(q => rpg.questState(rec, q) === st);
+          if (!list.length) continue;
+          h += '<h4 style="margin-top:12px">' + names[st] + '</h4>';
+          for (const q of list) {
+            const pr = rpg.questProgress(rec, q).parts.map(p => '<span class="' + (p[1] >= p[2] ? 'good' : 'bad') + '">' + esc(label(p)) + ' ' + p[1] + '/' + p[2] + '</span>').join(' · ');
+            h += '<div class="detail" style="margin-top:6px"><b>' + esc(q.title) + '</b> <span class="muted">· ' + esc(q.giver || q.npc) + '</span>' +
+              (st === 'done' ? '' : '<div class="muted" style="margin-top:4px">' + esc(q.offer) + '</div>') + (st === 'active' || st === 'ready' ? '<div>' + pr + '</div>' : '') + '</div>';
+          }
+        }
+        body.innerHTML = h;
+      } else if (tab === 'codex') {
+        /* Entropia's codex: kills of each kind count; at each rank a reward of skill points, put where you choose */
+        const C = rpg.CODEX, cx = rec.cx || {}, done = rec.cxc || {};
+        let h = '<p class="muted">Every beast you kill counts. At each rank the codex gives skill points: you choose which of the skills that beast teaches gets them.</p>';
+        for (const sp in o.wild.species) {
+          const def = o.wild.species[sp], n = cx[sp] || 0, reached = C.ranks.filter(k => n >= k).length, claimed = done[sp] || 0;
+          const next = C.ranks[reached], prev = reached ? C.ranks[reached - 1] : 0;
+          h += '<div class="detail" style="margin-top:8px"><b>' + esc(def.name) + '</b> <span class="muted">· rank ' + reached + ' · ' + n + ' killed</span>' +
+            '<div class="bar"><i style="width:' + (next ? 100 * (n - prev) / (next - prev) : 100) + '%"></i></div>' +
+            '<div class="muted" style="font-size:11px">' + (next ? (next - n) + ' more to rank ' + (reached + 1) : 'every rank reached') + '</div>';
+          if (claimed < reached) {
+            h += '<div class="good" style="margin-top:6px">Reward waiting: +' + C.reward[claimed] + ' skill points. Put them into:</div>';
+            for (const k of def.codex || []) h += '<button class="act" style="margin-right:6px" data-act="codex" data-sp="' + sp + '" data-k="' + k + '">' + esc((rpg.SKILLS[k] || {}).name || rpg.ATTRS[k]) + '</button>';
+          }
+          h += '</div>';
+        }
+        body.innerHTML = h;
       } else if (tab === 'craft') {
         /* the recipes this player knows, by craft: what each needs (have / need), what it makes, and Make -- at the forge */
         const at = o.atForge ? o.atForge() : false;
@@ -183,5 +218,5 @@
   }
 
   const menu = { api: 1, create };
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('menu', { api: 1, v: 3 }, () => menu);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('menu', { api: 1, v: 4 }, () => menu);
 })(typeof globalThis !== 'undefined' ? globalThis : this);

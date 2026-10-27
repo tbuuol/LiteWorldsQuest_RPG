@@ -186,6 +186,19 @@
       if (!n.walk) ctx.solid([n.pos[0] - 0.3, 0, n.pos[1] - 0.3], [n.pos[0] + 0.3, 1.8, n.pos[1] + 0.3]);
       npcs[n.id] = { def: n, c, hit, home, x: n.pos[0], z: n.pos[1], wp: 0, wait: 1 + Math.random() * 2, line: -1 };
     }
+    /* THE ZONE'S NAME, as the old WoW showed it: big, golden, in the middle, when you come into it (Etappe 3) */
+    let zoneNow = null, zoneEl = null;
+    function zoneTick() {
+      if (!LV.wild || !LV.wild.zone || iAmHouse) return;
+      const z = Math.hypot(me.x, me.z) > (LV.wild.from || 28) ? LV.wild.zone : (LV.title || 'Blockshire');
+      if (z === zoneNow) return;
+      const first = zoneNow == null; zoneNow = z;
+      if (first) return;
+      if (!zoneEl) { zoneEl = document.createElement('div'); zoneEl.style.cssText = 'position:absolute;left:0;right:0;top:22%;text-align:center;pointer-events:none;' +
+        'font:700 42px Georgia,serif;color:#ffd96a;text-shadow:0 2px 0 #3a2208,0 0 12px rgba(0,0,0,.7);opacity:0;transition:opacity 1.2s;letter-spacing:.04em'; el.appendChild(zoneEl); }
+      zoneEl.textContent = z; zoneEl.style.opacity = '1';
+      clearTimeout(zoneEl.t); zoneEl.t = setTimeout(() => { zoneEl.style.opacity = '0'; }, 3000);
+    }
     let travelling = false;
     const armed = new Set();
     function portalTick() {
@@ -231,8 +244,39 @@
       }
     }
     let talk = null;   /* {id, line} while somebody is being spoken to */
+    /* a quest this person has for me: one to hand in first, then one under way, then one to offer */
+    function questOf(id) {
+      if (!rpg || !rec || !LV.quests) return null;
+      let best = null, rank = 0;
+      for (const q of LV.quests) {
+        if (q.npc !== id) continue;
+        const st = rpg.questState(rec, q), r = { ready: 3, active: 2, offer: 1 }[st] || 0;
+        if (r > rank) { rank = r; best = { q, st }; }
+      }
+      return best;
+    }
     function speak(id) {
       const N = npcs[id], lines = N.def.lines || ['…'];
+      /* QUESTS (Etappe 3): E shows the quest, E again takes it or hands it in (the house decides) */
+      if (talk && talk.id === id && talk.quest) {
+        const { q, st } = talk.quest;
+        if (st === 'offer' || st === 'ready') askHouse({ Q: 'quest', q: q.id, x: st === 'offer' ? 'take' : 'turn' });
+        closeTalk(); return;
+      }
+      const qq = (!talk || talk.id !== id) && questOf(id);
+      if (qq) {
+        talk = { id, line: 0, quest: qq };
+        if (N.c.emote) N.c.emote('emote-yes');
+        if (sound) sound.blip('talk');
+        const prog = rpg.questProgress(rec, qq.q).parts.map(p => (p[0] === 'make' ? 'made' : (LV.wild && LV.wild.species[p[0]] ? LV.wild.species[p[0]].name : (rpg.ITEMS[p[0]] || {}).name || p[0])) + ' ' + p[1] + '/' + p[2]).join(' · ');
+        const box = $('.lwq-talk');
+        box.innerHTML = '<b>' + esc(N.def.name) + '</b> · <i style="color:#ffe9a8">' + esc(qq.q.title) + '</i><br>' +
+          esc(qq.st === 'ready' ? qq.q.done : qq.q.offer) +
+          (qq.st === 'active' ? '<br><span style="color:#cfe6a0">' + esc(prog) + '</span>' : '') +
+          '<small>' + (qq.st === 'offer' ? 'E: accept the quest' : qq.st === 'ready' ? 'E: hand it in' : 'E: goodbye') + '</small>';
+        box.style.display = 'block';
+        return;
+      }
       if (talk && talk.id === id) talk.line++; else talk = { id, line: 0 };
       if (N.c.emote) N.c.emote(talk.line % 2 ? 'emote-no' : 'emote-yes');
       if (sound) sound.blip('talk');
@@ -246,7 +290,8 @@
 
     /* --- the fight at the gate (combat module): guards, a priest, raiders out of the forest ------------------ */
     const combat = D.combat || null;
-    const fight = LV.defense && combat ? combat.create({ THREE, art, ctx, def: LV.defense }) : null;
+    const fight = LV.defense && combat ? combat.create({ THREE, art, ctx, def: LV.defense, wild: LV.wild || null,
+      height: !realW && LV.env && art.heightAt ? art.heightAt(LV.env.flat || 30) : null }) : null;
 
     /* everything that never moves, merged by material: hundreds of parts become a few dozen draw calls */
     for (const id in doors) if (!doors[id].pivots) doors[id].mesh.userData.keep = true;
@@ -267,7 +312,7 @@
       '<div class="lwq-hurt"></div>' +
       '<div class="lwq-tl"></div><div class="lwq-tr"></div><div class="lwq-x">+</div><div class="lwq-prompt"></div>' +
       '<div class="lwq-inv"></div><div class="lwq-log"></div><div class="lwq-talk"></div>' +
-      (fight ? '<div class="lwq-stats"><span class="lwq-lv"></span><div class="lwq-bar lwq-hp"><i></i><span></span></div>' +
+      (fight ? '<div class="lwq-abil"></div><div class="lwq-stats"><span class="lwq-lv"></span><div class="lwq-bar lwq-hp"><i></i><span></span></div>' +
                '<div class="lwq-bar lwq-xp"><i></i><span></span></div></div>' : '') +
       (LV.credits ? '<div class="lwq-credit">' + esc(LV.credits) + '</div>' : '') +
       (TOUCH ? '<div class="lwq-touch"><div class="lwq-stick"><div class="lwq-knob"></div></div>' +
@@ -278,6 +323,12 @@
       (TOUCH ? '<small>Left thumb: walk · right thumb: look · ⚔ strike · E use · ▲ jump</small></div>'
              : '<small>WASD move · Shift run · Space jump · Mouse look · E use · F / click strike · M sound · F3 fps · Esc release mouse</small></div>');
     el.appendChild(hud);
+    /* the ability bar takes taps and clicks itself (not the look or the joystick) */
+    const abilBar = hud.querySelector('.lwq-abil');
+    if (abilBar) {
+      for (const t of ['touchstart', 'touchmove', 'touchend', 'mousedown']) abilBar.addEventListener(t, e => e.stopPropagation(), { passive: true });
+      abilBar.addEventListener('click', e => { const b = e.target.closest('[data-ab]'); if (!b) return; const i = +b.dataset.ab; if (i < 0) attack(); else ability(i); });
+    }
     const st = document.createElement('style');
     st.textContent =
       '.lwq-tl,.lwq-tr,.lwq-inv,.lwq-log,.lwq-prompt{position:absolute;font:13px/1.4 system-ui,sans-serif;color:#fff;' +
@@ -290,7 +341,7 @@
       '.lwq-start{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;' +
       'background:rgba(0,0,0,.45);color:#fff;font:20px/1.6 system-ui,sans-serif;text-align:center;cursor:pointer}' +
       '.lwq-start small{font-size:13px;opacity:.85}' +
-      '.lwq-talk{display:none;position:absolute;left:50%;bottom:64px;transform:translateX(-50%);width:min(560px,80%);' +
+      '.lwq-talk{display:none;position:absolute;left:50%;bottom:118px;transform:translateX(-50%);width:min(560px,80%);' +
       'background:rgba(28,20,12,.82);border:2px solid #b08a50;border-radius:8px;padding:12px 16px;color:#f3e6cc;' +
       'font:15px/1.45 Georgia,serif;pointer-events:none}.lwq-talk b{color:#ffd88a}' +
       '.lwq-talk small{display:block;margin-top:6px;font:12px system-ui,sans-serif;opacity:.7}' +
@@ -303,6 +354,11 @@
       '.lwq-bar i{position:absolute;left:0;top:0;bottom:0;transition:width .2s}.lwq-hp i{background:linear-gradient(#e5574a,#a4241b)}' +
       '.lwq-xp{height:8px}.lwq-xp i{background:linear-gradient(#6fb6ff,#2f6fc9)}' +
       '.lwq-bar span{position:relative;font-size:10px;line-height:13px}.lwq-xp span{display:none}' +
+      '.lwq-abil{position:absolute;left:50%;bottom:62px;transform:translateX(-50%);display:flex;gap:6px;z-index:5}' +
+      '.lwq-abil button{position:relative;width:44px;height:44px;border-radius:8px;border:2px solid #c9a25e;background:rgba(40,28,14,.82);' +
+      'color:#ffe7b0;font:700 20px Georgia,serif;padding:0;overflow:hidden;cursor:pointer;touch-action:none;box-shadow:inset 0 0 8px rgba(0,0,0,.6)}' +
+      '.lwq-abil button.off{filter:grayscale(1);opacity:.45}.lwq-abil small{position:absolute;right:3px;bottom:1px;font:600 10px system-ui;color:#fff}' +
+      '.lwq-abil b{position:relative;z-index:1}.lwq-abil i{position:absolute;left:0;right:0;bottom:0;height:0;background:rgba(0,0,0,.6)}' +
       '.lwq-touch{display:none;position:absolute;inset:0;touch-action:none;user-select:none;-webkit-user-select:none}' +
       '.lwq-stick{display:none;position:absolute;width:120px;height:120px;margin:-60px 0 0 -60px;border-radius:50%;' +
       'background:rgba(255,255,255,.12);border:2px solid rgba(255,255,255,.35);pointer-events:none}' +
@@ -326,13 +382,16 @@
        the house, which keeps the record; I or Tab, or the ☰ button on a phone. */
     let menu = null;
     if (D.menu && D.rpg && LV.defense) {
-      menu = D.menu.create({ el, rpg: D.rpg, touch: TOUCH, atForge: () => nearForge(me.x, me.z),
+      menu = D.menu.create({ el, rpg: D.rpg, touch: TOUCH, wild: LV.wild || null, quests: LV.quests || [], atForge: () => nearForge(me.x, me.z),
         ask(q) {
           if (!room || !houseId()) { log('The house is away: what you carry is kept by the house, so nothing can change now.'); return; }
-          const msg = Object.assign({ Q: q.op }, q.op === 'equip' ? { u: q.uid } : q.op === 'craft' ? { r: q.recipe } : { s: q.slot });
-          if (room.fast && room.peers()[hostId()] === 'direct') room.state(msg);
-          else room.tell(msg);
+          /* a question must arrive: always the room's reliable way (the fast lane drops all but the newest) */
+          room.tell(Object.assign({ Q: q.op }, q.op === 'equip' ? { u: q.uid } : q.op === 'craft' ? { r: q.recipe } : q.op === 'codex' ? { sp: q.species, k: q.skill } : { s: q.slot }));
         } });
+    }
+    function askHouse(msg) {
+      if (!room || !houseId()) { log('The house is away: it keeps your quests, so nothing can change now.'); return; }
+      room.tell(msg);   /* must arrive: the room's reliable way */
     }
     function toggleMenu() {
       if (!menu) return;
@@ -440,6 +499,7 @@
       keys[e.code] = down;
       if (down && e.code === 'KeyE') useAim();
       if (down && e.code === 'KeyF' && !e.repeat) attack();
+      if (down && !e.repeat && /^Digit[1-6]$/.test(e.code)) { const k = +e.code.slice(5); if (k === 1) attack(); else ability(k - 2); }
       if (down && (e.code === 'KeyI' || e.code === 'Tab') && !e.repeat && menu) { e.preventDefault(); toggleMenu(); }
       if (down && e.code === 'F3') { showFps = !showFps; drawNet(); e.preventDefault(); }
       if (down && e.code === 'KeyM' && sound) log(sound.mute() ? 'Sound off (M).' : 'Sound on (M).');
@@ -492,6 +552,8 @@
         }
       }
     }
+    /* the ground to walk on: the real world's, or the level's hills (flat where the village is) */
+    const groundAt = realW ? realW.groundAt : (LV.env && art.heightAt ? art.heightAt(LV.env.flat || 30) : null);
     function physics(dt) {
       let f = (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0);
       let s = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0);
@@ -515,9 +577,13 @@
         if (me.vy <= 0) { me.y = B.max[1]; me.ground = true; } else me.y = B.min[1] - HEIGHT - 1e-4;
         me.vy = 0;
       }
-      if (realW) {
-        const g = realW.groundAt(me.x, me.z);
+      if (groundAt) {
+        const g = groundAt(me.x, me.z);
         if (me.y <= g || (wasGround && me.vy <= 0 && me.y - g < 0.45)) { me.y = g; me.vy = 0; me.ground = true; }   /* down a slope too, not in hops */
+      }
+      if (!realW && LV.env) {   /* the edge of the world: the far side of the forest, before the mountains */
+        const r = Math.hypot(me.x, me.z), most = LV.edge || 100;
+        if (r > most) { me.x *= most / r; me.z *= most / r; }
       }
       if (me.y < (realW ? -100 : -20)) { me.x = prev.x = SPAWN[0]; me.y = prev.y = SPAWN[1] + 1; me.z = prev.z = SPAWN[2]; me.vy = 0; log('You fell out of the world.'); }
     }
@@ -642,10 +708,11 @@
     /* whose record: a message over the direct link names only the player's id, so the address is the room's (the
        arcade node stamps it there, so it is the true one) */
     const addrOf = from => (from && from.address) || (from && remotes.get(from.id) && remotes.get(from.id).from.address) || null;
-    function blowFor(from, unit) {
+    function blowFor(from, unit, mul) {
       const a = addrOf(from);
       if (iAmHouse && book && a) {
-        const res = book.strike(a, raiderDef, raiderLvl);
+        const inf = fight && unit ? fight.info(unit) : null, beast = inf && inf.kind === 'beast';   /* a beast's own level and hide */
+        const res = book.strike(a, beast ? inf.def : raiderDef, beast ? inf.lvl : raiderLvl, null, mul);
         dirty.add(a);
         for (const u of res.up) notice(from.id, u + '!');
         if (res.miss && room) room.tell({ M: [from.id, unit] });   /* the striker sees "miss" over the raider */
@@ -668,6 +735,88 @@
       if (room.fast && room.peers()[hostId()] === 'direct') room.state(msg);
       room.tell(msg);
       fight.predict(id, 0);
+    }
+    /* THE ABILITY BAR (Etappe 3): keys 1-6 (1 is the plain strike). What a slot holds comes from the weapon, the shield
+       and the professions (rpg.abilities); the house checks it all again -- reach, cooldown, what is needed -- and does it. */
+    const abilCd = {}, abilSaid = {};
+    function abilityList() { return rpg && rec ? rpg.abilities(rec) : []; }
+    function ability(i) {
+      if (!fight || !P || P.dead || !playing() || (menu && menu.isOpen())) return;
+      const ab = abilityList()[i];
+      if (!ab) return;
+      const now = performance.now();
+      if (!ab.ok) { if (now - (abilSaid[ab.key] || 0) > 3000) { abilSaid[ab.key] = now; log(ab.name + ': ' + ab.why + '.'); } return; }
+      if ((abilCd[ab.key] || 0) > now) return;
+      if (!room || !houseId() || iAmHouse) { log(ab.name + ' needs the house: it decides what an ability does.'); return; }
+      const msg = { A: ab.key, n: ++blowNo };
+      if (ab.key === 'cleave') { msg.u = fight.pickAll(me.x, me.z, me.yaw, ab.range, ab.most); if (!msg.u.length) { log('No foe in reach.'); return; } }
+      else if (ab.mul) { const id = fight.pick(me.x, me.z, me.yaw, ab.range); if (!id) { log('No foe in reach.'); return; } msg.u = [id]; }
+      else if (ab.key === 'salve') {   /* the player in front of you, else yourself */
+        const fx = -Math.sin(me.yaw), fz = -Math.cos(me.yaw); let best = null, bd = ab.range;
+        for (const [id, r] of remotes) {
+          if (r.house || !r.g.visible) continue;
+          const dx = r.g.position.x - me.x, dz = r.g.position.z - me.z, dd = Math.hypot(dx, dz);
+          if (dd < bd && (dx * fx + dz * fz) / Math.max(dd, 0.01) > 0.6) { best = id; bd = dd; }
+        }
+        msg.p = best || myId();
+      }
+      abilCd[ab.key] = now + ab.cd * 1000;
+      if (ab.mul) { swingT = 1; if (sound) sound.blip('hit'); for (const id of msg.u) { fight.predict(id, 0); if (ab.stun) fight.say(id, 'stun'); } }
+      else if (sound) sound.blip('pickup');
+      if (room.fast && room.peers()[hostId()] === 'direct') room.state(msg);
+      room.tell(msg);
+      drawAbilities(true);
+    }
+    /* the house does an ability: checked again, then dealt out */
+    const houseCd = new Map();
+    function houseAbility(from, d) {
+      const a = addrOf(from); if (!a) return;
+      const ab = rpg.abilities(book.of(a)).find(x => x.key === String(d.A));
+      if (!ab) return;
+      if (!ab.ok) { notice(from.id, ab.name + ': ' + ab.why + '.'); return; }
+      const now = performance.now(), cds = houseCd.get(a) || {};
+      if ((cds[ab.key] || 0) > now + 400) return;   /* too soon (a little slack for the trip) */
+      cds[ab.key] = now + ab.cd * 1000; houseCd.set(a, cds);
+      const r = remotes.get(from.id), pos = r ? [r.g.position.x, r.g.position.z] : null;
+      const near = id => { const q = fight.posOf(id); return !!(q && pos && Math.hypot(q[0] - pos[0], q[1] - pos[1]) <= (ab.range || 3) + 2.5); };
+      if (ab.mul) {
+        for (const id of (Array.isArray(d.u) ? d.u : []).slice(0, ab.most || 1).map(String)) {
+          if (!near(id)) continue;
+          route(fight.damage(id, blowFor(from, id, ab.mul), from.id));
+          if (ab.stun) fight.stun(id, ab.stun);
+        }
+      } else if (ab.key === 'taunt' && pos) {
+        const n = fight.taunt(pos[0], pos[1], ab.radius, from.id);
+        notice(from.id, n ? 'Taunt: ' + n + (n > 1 ? ' foes come' : ' foe comes') + ' for you.' : 'Taunt: nobody near enough.');
+      } else if (ab.key === 'salve') {
+        const to = String(d.p || from.id), tr = to === from.id ? r : remotes.get(to);
+        if (!tr || !pos || Math.hypot(tr.g.position.x - pos[0], tr.g.position.z - pos[1]) > ab.range + 2.5) { notice(from.id, 'Herbal Salve: too far away.'); return; }
+        const res = book.salve(a);
+        if (!res.ok) { notice(from.id, 'Herbal Salve: ' + res.why + '.'); return; }
+        route([{ t: 'heal', to, d: res.heal }]);
+        notice(from.id, 'Herbal Salve: +' + res.heal + (to !== from.id ? ' for ' + nameOf(to) : '') + '.');
+        if (to !== from.id) notice(to, nameOf(from.id) + ' heals you: +' + res.heal + '.');
+        for (const u of res.up) notice(from.id, u + '!');
+      }
+      dirty.add(a);
+    }
+    /* the bar: six slots over the health bar, each greyed when it cannot be used, its cooldown running down */
+    let abilKey = '', abilAt = 0;
+    function drawAbilities(force) {
+      const bar = $('.lwq-abil'); if (!bar) return;
+      const now = performance.now();
+      if (!force && now - abilAt < 100) return;
+      abilAt = now;
+      const list = abilityList(), key = list.map(a => a.key + a.ok).join();
+      if (key !== abilKey) {
+        abilKey = key;
+        bar.innerHTML = '<button data-ab="-1" title="Strike (1)"><b>⚔</b><small>1</small><i></i></button>' +
+          list.map((a, i) => '<button data-ab="' + i + '" class="' + (a.ok ? '' : 'off') + '" title="' + esc(a.name + ' (' + (i + 2) + '): ' + a.text + (a.ok ? '' : ' ' + a.why)) + '">' +
+            '<b>' + a.icon + '</b><small>' + (i + 2) + '</small><i></i></button>').join('');
+      }
+      const btns = bar.querySelectorAll('button');
+      list.forEach((a, i) => { const left = Math.max(0, (abilCd[a.key] || 0) - now) / (a.cd * 1000), b = btns[i + 1]; if (b) b.querySelector('i').style.height = (100 * left) + '%'; });
+      if (btns[0]) btns[0].querySelector('i').style.height = (100 * Math.max(0, atkReady - now) / ((P && P.cd) || 0.6) / 1000) + '%';
     }
     /* GATHERING: E on an oak, a boulder or herbs. The house decides: near enough, not spent; it rolls what it gives
        (better with the skill), teaches the skill, and after so many a thing is spent for everyone until it grows back */
@@ -716,7 +865,7 @@
           if (e.t === 'hit' && iAmHouse && book) {   /* dodged (the evader profession), or less the player's defence */
             const r = remotes.get(e.to);
             if (r && r.from.address) {
-              const res = book.struck(r.from.address, d, raiderLvl);
+              const res = book.struck(r.from.address, d, e.lvl || raiderLvl);
               dirty.add(r.from.address);
               for (const u of res.up) notice(e.to, u + '!');
               if (res.dodged) { notice(e.to, 'You dodge the blow.'); continue; }
@@ -724,13 +873,18 @@
             }
           }
           if (e.to === myId()) hurt(d, e.from);
-          else if (room) room.tell({ D: e.to, d });
+          else if (room) room.tell({ D: e.to, d, f: e.from });
         } else if (e.t === 'kill') {
-          let text = 'You defeated a ' + String(e.name || 'raider').toLowerCase() + '.';
+          let text = 'You defeated ' + aName(e.name || 'raider') + '.';
           const r = remotes.get(e.by);
           if (iAmHouse && book && r && r.from.address) {
-            const got = book.loot(r.from.address);
+            const got = book.loot(r.from.address, null, e.species ? e.loot : null);
             if (got.length) text += ' Into your bag: ' + got.join(', ') + '.';
+            if (e.species) {   /* the codex counts it */
+              const k = book.kill(r.from.address, e.species), sp = LV.wild && LV.wild.species[e.species];
+              if (k.rank) notice(e.by, 'Codex: ' + (sp ? sp.name : e.species) + ' rank ' + k.rank + '! Open the Codex in your book to choose a skill for the reward.');
+              for (const line of book.questKill(r.from.address, e.species, LV.quests)) notice(e.by, line);
+            }
             dirty.add(r.from.address);
           }
           notice(e.by, text);
@@ -771,6 +925,8 @@
       bigIn.delete(key);
       try { return JSON.parse(got.parts.join('')); } catch (e) { return null; }
     }
+    /* "a raider", "an old boar" */
+    const aName = (name, cap) => { const n = String(name).toLowerCase(), a = /^[aeiou]/.test(n) ? 'an ' : 'a '; return (cap ? a[0].toUpperCase() + a.slice(1) : a) + n; };
     function hurt(d, from) {
       if (!P || P.dead || !d) return;
       P.hp = Math.max(0, Math.min(P.max, P.hp - d));
@@ -781,7 +937,7 @@
       }
       if (P.hp <= 0) {
         P.dead = true;
-        log((from ? 'A ' + String(from).toLowerCase() + ' strikes you down.' : 'You fall.') + ' Brother Anselm carries you back inside.');
+        log((from ? aName(from, true) + ' strikes you down.' : 'You fall.') + ' Brother Anselm carries you back inside.');
         setTimeout(() => {
           P.dead = false; P.hp = P.max;
           me.x = prev.x = SPAWN[0]; me.y = prev.y = SPAWN[1]; me.z = prev.z = SPAWN[2]; me.vy = 0; me.yaw = LV.spawnYaw || 0;
@@ -985,17 +1141,30 @@
         const fromHost = from.id === hostId();
         if (d.C && ((fromHost && !amHost()) || takingOver)) fight.apply(d.C);
         if (d.X != null && amHost() && freshBlow(from.id, d.n)) route(fight.damage(String(d.X), blowFor(from, String(d.X)), from.id));
-        if (d.D != null && String(d.D) === myId() && fromHost) hurt(+d.d || 0, 'raider');
+        if (d.D != null && String(d.D) === myId() && fromHost) hurt(+d.d || 0, String(d.f || 'raider').slice(0, 30));
         if (Array.isArray(d.M) && String(d.M[0]) === myId() && fromHost) fight.missed(String(d.M[1]));
       }
       /* what is mine: a notice and my record from the house; and, at the house, what a player asks of it */
       if (Array.isArray(d.N) && String(d.N[0]) === myId() && from.id === hostId()) { log(String(d.N[1])); if (/bag|level/.test(d.N[1]) && sound) sound.blip('pickup'); }
       if (d.R && typeof d.R === 'object' && String(d.to) === myId() && from.id === hostId() && rpg) myRecord(d.R);
       if (d.G != null && iAmHouse && book && freshBlow(from.id, d.n)) houseGather(from, String(d.G));
+      if (d.A != null && iAmHouse && book && fight && freshBlow(from.id, d.n)) houseAbility(from, d);
       if (d.Q && iAmHouse && book && addrOf(from)) {
         const a = addrOf(from);
         if (d.Q === 'equip') { const res = book.equip(a, +d.u); if (!res.ok) notice(from.id, 'Cannot wear that: ' + res.why + '.'); }
         else if (d.Q === 'unequip') book.unequip(a, String(d.s));
+        else if (d.Q === 'quest') {
+          const q = (LV.quests || []).find(x => x.id === String(d.q)), r = remotes.get(from.id), N = q && npcs[q.npc];
+          if (!q) return;
+          if (!r || !N || Math.hypot(r.g.position.x - N.x, r.g.position.z - N.z) > 6) notice(from.id, 'You are too far away to talk.');
+          else if (d.x === 'take') { const res = book.questTake(a, q); notice(from.id, res.ok ? 'Quest accepted: ' + q.title + '.' : 'Quest: ' + res.why + '.'); }
+          else { const res = book.questTurn(a, q); if (!res.ok) notice(from.id, 'Quest: ' + res.why + '.'); else { notice(from.id, 'Quest done: ' + q.title + '! You get ' + res.got.join(', ') + '.'); for (const u of res.up) notice(from.id, u + '!'); } }
+        }
+        else if (d.Q === 'codex') {
+          const sp = LV.wild && LV.wild.species[String(d.sp)], res = book.claim(a, String(d.sp), String(d.k), sp ? sp.codex : []);
+          if (!res.ok) notice(from.id, 'Codex: ' + res.why + '.');
+          else { notice(from.id, 'Codex reward: +' + res.pts + ' ' + ((rpg.SKILLS[d.k] || {}).name || rpg.ATTRS[d.k]) + '.'); for (const u of res.up) notice(from.id, u + '!'); }
+        }
         else if (d.Q === 'craft') {
           const r = remotes.get(from.id);
           if (r && !nearForge(r.g.position.x, r.g.position.z)) notice(from.id, 'You are not at the forge.');
@@ -1004,6 +1173,7 @@
             if (!res.ok) notice(from.id, 'Cannot make that: ' + res.why + '.');
             else {
               notice(from.id, 'You made: ' + res.made + '. It is in your bag.');
+              for (const line of book.questMade(a, String(d.r), LV.quests)) notice(from.id, line);
               if (res.learnt) notice(from.id, 'While you worked, you worked out a new recipe: ' + res.learnt + '!');
               for (const u of res.up) notice(from.id, u + '!');
             }
@@ -1265,7 +1435,7 @@
       const t = now / 1000, fdt = Math.min(dt, 0.1);
       for (const fn of updates) fn(fdt, t);
       npcTick(fdt, t);
-      portalTick();
+      portalTick(); zoneTick(); drawAbilities();
       if (env) env.update(fdt, t, camera.position);
       if (sound) {
         sound.listen(camera);
@@ -1305,6 +1475,8 @@
       draw(on) { drawing = !!on; },   /* tests: everything runs, nothing is drawn (a machine without a GPU keeps up) */
       play() { if (TOUCH) startTouch(); else touchPlaying = true; },   /* tests: as if the view had been clicked */
       strike() { attack(); },
+      ability(i) { ability(i); },
+      npcs() { return Object.keys(npcs).map(id => ({ id, x: R2(npcs[id].x), z: R2(npcs[id].z) })); },
       fight: () => fight ? fight.units() : [],
       /* the house's book of players, for tools/house.py to keep on disk: out as JSON, and back in after a start */
       houseDump: () => book ? JSON.stringify(book.dump()) : '{}',
@@ -1318,6 +1490,6 @@
     };
   }
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 16, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, levels: 1 } },
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 19, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, levels: 1 } },
     D => ({ start: (el, opts) => start(D, el, opts) }));
 })(typeof globalThis !== 'undefined' ? globalThis : this);

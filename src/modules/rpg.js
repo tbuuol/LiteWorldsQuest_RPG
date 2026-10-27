@@ -98,7 +98,16 @@
     leather_belt: { name: 'Leather Belt', slot: 'belt', def: 1, at: { sta: 1 } },
     herb_amulet: { name: 'Herb Amulet', slot: 'amulet', at: { int: 2, sta: 1 }, req: { int: 11 } },
     oak_log: { name: 'Oak Log', material: true }, copper_ore: { name: 'Copper Ore', material: true },
-    iron_ore: { name: 'Iron Ore', material: true }, wild_herb: { name: 'Wild Herb', material: true }, flax: { name: 'Flax', material: true }
+    iron_ore: { name: 'Iron Ore', material: true }, wild_herb: { name: 'Wild Herb', material: true }, flax: { name: 'Flax', material: true },
+    /* from the beasts of the Greenwood (Etappe 3) */
+    boar_hide: { name: 'Boar Hide', material: true }, boar_tusk: { name: 'Boar Tusk', material: true },
+    wolf_pelt: { name: 'Wolf Pelt', material: true }, wolf_fang: { name: 'Wolf Fang', material: true },
+    spider_silk: { name: 'Spider Silk', material: true }, venom_sac: { name: 'Venom Sac', material: true },
+    hide_jerkin: { name: 'Hide Jerkin', slot: 'chest', def: 3, at: { sta: 1 } },
+    wolfskin_mantle: { name: 'Wolfskin Mantle', slot: 'shoulders', def: 3, at: { dex: 1 }, req: { defender: 1 } },
+    tusk_amulet: { name: 'Tusk Amulet', slot: 'amulet', at: { str: 2 } },
+    fang_ring: { name: 'Fang Ring', slot: 'ring', at: { dex: 1, str: 1 }, req: { evader: 1 } },
+    silk_gloves: { name: 'Silk Gloves', slot: 'hands', def: 1, at: { dex: 2 }, req: { tailor: 1 } }
   };
   /* what gathering a kind of thing gives: [material, chance, more per level of the profession], the skill it teaches,
      its profession, how hard it is (for the effort), and the attributes it trains */
@@ -122,8 +131,27 @@
     iron_helm: { skill: 'smithing', prof: 'smith', level: 1, needs: { iron_ore: 3, torn_cloth: 1 } },
     iron_ring: { skill: 'smithing', prof: 'smith', level: 2, needs: { iron_ore: 1, copper_ore: 1 } },
     leather_boots: { skill: 'tailoring', prof: 'tailor', level: 1, needs: { leather_scrap: 3, torn_cloth: 1 } },
-    herb_amulet: { skill: 'tailoring', prof: 'tailor', level: 1, needs: { wild_herb: 3, flax: 1, copper_ore: 1 } }
+    herb_amulet: { skill: 'tailoring', prof: 'tailor', level: 1, needs: { wild_herb: 3, flax: 1, copper_ore: 1 } },
+    hide_jerkin: { skill: 'tailoring', prof: 'tailor', level: 0, needs: { boar_hide: 3, flax: 1 }, known: true },
+    tusk_amulet: { skill: 'woodworking', prof: 'carpenter', level: 0, needs: { boar_tusk: 2, leather_scrap: 1 }, known: true },
+    wolfskin_mantle: { skill: 'tailoring', prof: 'tailor', level: 1, needs: { wolf_pelt: 3, leather_scrap: 2 } },
+    fang_ring: { skill: 'smithing', prof: 'smith', level: 1, needs: { wolf_fang: 2, copper_ore: 1 } },
+    silk_gloves: { skill: 'tailoring', prof: 'tailor', level: 1, needs: { spider_silk: 4 } }
   };
+  /* THE CODEX (Entropia's, tbuuol 2026-10-27): every beast of a kind killed counts; at each rank the player may put a
+     reward of skill points into one of the skills that kind teaches (the level says which) */
+  const CODEX = { ranks: [5, 15, 40, 100, 250, 600, 1500], reward: [8, 15, 30, 60, 120, 240, 480] };
+  /* THE ABILITY BAR (Etappe 3, like the old WoW's, but without classes): what you can do comes from what you hold and
+     what you have learnt. Slot 1 is the plain strike; these are slots 2 to 6. A sword and a shield make a tank, a
+     herbalist heals, an axe cleaves. req: the level of the weapon's hit or damage profession, or of a named one. */
+  const ABILITIES = [
+    { key: 'heavy', name: 'Heavy Blow', icon: '✸', cd: 6, mul: 1.7, range: 2.6, text: 'One hard blow: 170% damage.' },
+    { key: 'cleave', name: 'Cleave', icon: '✦', cd: 9, mul: 0.8, range: 2.8, most: 4, weapons: ['sword', 'axe'], req: { dmg: 1 }, text: 'Hits up to four foes in front of you: 80% damage each.' },
+    { key: 'crush', name: 'Crush', icon: '✪', cd: 10, mul: 1.0, range: 2.6, stun: 1.5, weapons: ['mace', 'unarmed'], req: { hit: 1 }, text: 'A blow that stuns for 1.5 s.' },
+    { key: 'bash', name: 'Shield Bash', icon: '❖', cd: 10, mul: 0.6, range: 2.4, stun: 2, shield: true, text: 'Stuns the foe for 2 s: 60% damage.' },
+    { key: 'taunt', name: 'Taunt', icon: '!', cd: 12, radius: 8, last: 6, shield: true, text: 'Every foe within 8 m comes for you for 6 s.' },
+    { key: 'salve', name: 'Herbal Salve', icon: '✚', cd: 8, range: 7, cost: { wild_herb: 1 }, req: { herbalist: 0.5 }, text: 'Heals the player you look at, or yourself. Uses a Wild Herb.' }
+  ];
   const CRAFT_AT = { smithing: { str: 0.5, int: 0.3 }, woodworking: { dex: 0.3, str: 0.2 }, tailoring: { dex: 0.4, int: 0.2 } };
   const RECIPE_DROP = 0.04;   /* very low: a recipe of the craft being done, up to a level above the crafter's */
   const knows = (r, rid) => !!RECIPES[rid] && (RECIPES[rid].known || (r.rk || []).includes(rid));
@@ -197,6 +225,42 @@
     return out;
   }
 
+  /* the five abilities on slots 2 to 6 as they stand for this record: what is ready to use and why not.
+     Slot 3 is Cleave with a sword or an axe, Crush otherwise. */
+  function abilities(r) {
+    const st = stats(r), off = r.eq.off ? itemOf(r, r.eq.off) : null, shield = !!(off && off.model === 'shield');
+    const pick = ABILITIES.filter(a => a.key !== (['sword', 'axe'].includes(st.skill) ? 'crush' : 'cleave'));
+    return pick.map(a => {
+      let why = '';
+      if (a.weapons && !a.weapons.includes(st.skill)) why = 'needs ' + a.weapons.join(' or ');
+      else if (a.shield && !shield) why = 'needs a shield in the left hand';
+      else for (const k in a.req || {}) {
+        const pk = k === 'hit' ? st.hitProf : k === 'dmg' ? st.dmgProf : k;
+        if ((st.prof[pk] || 0) < a.req[k]) { why = 'needs ' + PROFS[pk].name + ' level ' + a.req[k]; break; }
+      }
+      if (!why) for (const m in a.cost || {}) if ((r.mat[m] || 0) < a.cost[m]) { why = 'needs a ' + ITEMS[m].name; break; }
+      return Object.assign({}, a, { ok: !why, why });
+    });
+  }
+
+  /* QUESTS (Etappe 3: a short chain that leads through fighting, gathering and the forge). A quest is the level's:
+     {id, npc, title, offer, done, need: {kill: {species: n}} | {bring: {material: n}} | {make: itemId | 'weapon'},
+      reward: {items, mats, sk}, after: questId}. A record keeps r.qs {id: 'active'|'done'} and r.qk {id: progress}. */
+  function questProgress(r, q) {
+    const n = q.need || {}, got = (r.qk || {})[q.id] || {}, parts = [];
+    for (const sp in n.kill || {}) parts.push([sp, Math.min(n.kill[sp], got[sp] || 0), n.kill[sp]]);
+    for (const m in n.bring || {}) parts.push([m, Math.min(n.bring[m], r.mat[m] || 0), n.bring[m]]);
+    if (n.make) parts.push(['make', got.made ? 1 : 0, 1]);
+    return { parts, ready: parts.every(p => p[1] >= p[2]) };
+  }
+  function questState(r, q) {
+    const st = (r.qs || {})[q.id];
+    if (st === 'done') return 'done';
+    if (st === 'active') return questProgress(r, q).ready ? 'ready' : 'active';
+    if (q.after && (r.qs || {})[q.after] !== 'done') return 'locked';
+    return 'offer';
+  }
+
   /* --- the house's book ---------------------------------------------------------------------------------- */
   function book() {
     const recs = new Map();
@@ -207,7 +271,7 @@
       dump() { const o = {}; for (const [a, r] of recs) o[a] = r; return o; },
       /* a blow by this player: the hit profession says whether it lands; a hit is the weapon's roll (made the most of by
          the damage profession) plus strength, less the target's defence. A miss teaches too, a little. */
-      strike(a, targetDef, targetLvl, rnd) {
+      strike(a, targetDef, targetLvl, rnd, mul) {
         rnd = rnd || Math.random;
         const r = of(a), s = stats(r), before = profs(r), effort = effortOf(targetLvl, s.prof[s.hitProf]);
         const g = {};
@@ -216,7 +280,7 @@
           learn(r, g, effort);
           return { d: 0, miss: true, up: ups(r, before) };
         }
-        const roll = s.dmg[0] + Math.floor(rnd() * (s.dmg[1] - s.dmg[0] + 1)), d = Math.max(1, roll + s.bonus - (targetDef || 0));
+        const roll = s.dmg[0] + Math.floor(rnd() * (s.dmg[1] - s.dmg[0] + 1)), d = Math.max(1, Math.round((roll + s.bonus) * (mul || 1)) - (targetDef || 0));
         g[s.skill] = 1; g.melee = 0.5; g.anatomy = 0.3 + d / 40; g.str = 0.2; g.dex = 0.1;
         learn(r, g, effort);
         return { d, miss: false, up: ups(r, before) };
@@ -229,9 +293,10 @@
         learn(r, { toughness: 0.6, sta: 0.25 }, effortOf(foeLvl, s.prof.defender));
         return { d: Math.max(1, Math.round(d - s.def)), dodged: false, up: ups(r, before) };
       },
-      loot(a, rnd) {
+      loot(a, rnd, table) {   /* a raider's drop, or a beast's (its own table) */
         const r = of(a), got = []; rnd = rnd || Math.random;
-        for (const [id, p] of LOOT) {
+        for (const [id, p] of table || LOOT) {
+          if (!ITEMS[id]) continue;
           if (rnd() >= p) continue;
           if (ITEMS[id].material) r.mat[id] = (r.mat[id] || 0) + 1; else r.bag.push([r.n++, id]);
           got.push(ITEMS[id].name);
@@ -285,10 +350,74 @@
         }
         return { ok: true, made: ITEMS[rid].name, up: ups(r, before), learnt: learnt && ITEMS[learnt].name };
       },
-      unequip(a, slot) { const r = of(a); if (!r.eq[slot]) return { ok: false, why: 'nothing there' }; delete r.eq[slot]; return { ok: true }; }
+      unequip(a, slot) { const r = of(a); if (!r.eq[slot]) return { ok: false, why: 'nothing there' }; delete r.eq[slot]; return { ok: true }; },
+      /* the herbal salve: a Wild Herb used up; heals by the herbalist's skill and intelligence; teaches herbalism */
+      salve(a) {
+        const r = of(a), before = profs(r), s = stats(r);
+        if ((r.mat.wild_herb || 0) < 1) return { ok: false, why: 'you have no Wild Herb' };
+        if (!--r.mat.wild_herb) delete r.mat.wild_herb;
+        learn(r, { herbalism: 0.6, int: 0.2 }, 1);
+        return { ok: true, heal: Math.round(20 + 4 * s.prof.herbalist + (s.attrs.int - 10) * 1.5), up: ups(r, before) };
+      },
+      questTake(a, q) {
+        const r = of(a);
+        if (questState(r, q) !== 'offer') return { ok: false, why: 'that quest is not open to you' };
+        (r.qs = r.qs || {})[q.id] = 'active'; (r.qk = r.qk || {})[q.id] = {};
+        return { ok: true };
+      },
+      questTurn(a, q) {
+        const r = of(a);
+        if (questState(r, q) !== 'ready') return { ok: false, why: 'it is not done yet' };
+        for (const m in (q.need || {}).bring || {}) { r.mat[m] -= q.need.bring[m]; if (r.mat[m] <= 0) delete r.mat[m]; }
+        const before = profs(r), rw = q.reward || {}, got = [];
+        for (const id of rw.items || []) if (ITEMS[id]) { r.bag.push([r.n++, id]); got.push(ITEMS[id].name); }
+        for (const m in rw.mats || {}) if (ITEMS[m]) { r.mat[m] = (r.mat[m] || 0) + rw.mats[m]; got.push(ITEMS[m].name + ' ×' + rw.mats[m]); }
+        for (const k in rw.sk || {}) { const box = ATTRS[k] ? r.at : r.sk; box[k] = Math.round(((box[k] || 0) + rw.sk[k]) * 1000) / 1000; got.push('+' + rw.sk[k] + ' ' + (SKILLS[k] || {}).name); }
+        r.qs[q.id] = 'done'; delete r.qk[q.id];
+        return { ok: true, got, up: ups(r, before) };
+      },
+      /* what a kill or a made thing does for the active quests: the lines to tell the player */
+      questKill(a, species, quests) {
+        const r = of(a), out = [];
+        for (const q of quests || []) {
+          const n = ((q.need || {}).kill || {})[species];
+          if (!n || (r.qs || {})[q.id] !== 'active') continue;
+          const got = r.qk[q.id] = r.qk[q.id] || {};
+          if ((got[species] || 0) >= n) continue;
+          got[species] = (got[species] || 0) + 1;
+          out.push(q.title + ': ' + got[species] + '/' + n + (got[species] >= n ? ' -- done, go back.' : ''));
+        }
+        return out;
+      },
+      questMade(a, itemId, quests) {
+        const r = of(a), out = [];
+        for (const q of quests || []) {
+          const m = (q.need || {}).make;
+          if (!m || (r.qs || {})[q.id] !== 'active' || (m !== itemId && !(m === 'weapon' && ITEMS[itemId] && ITEMS[itemId].dmg))) continue;
+          (r.qk[q.id] = r.qk[q.id] || {}).made = 1; out.push(q.title + ': done, go back.');
+        }
+        return out;
+      },
+      /* a beast of this kind killed: counted; says when a new codex rank is reached */
+      kill(a, species) {
+        const r = of(a); r.cx = r.cx || {}; const n = r.cx[species] = (r.cx[species] || 0) + 1;
+        const rank = CODEX.ranks.indexOf(n);
+        return { n, rank: rank >= 0 ? rank + 1 : 0 };
+      },
+      /* the next codex reward of a kind, put into one of the skills it may go to */
+      claim(a, species, skill, allowed) {
+        const r = of(a); r.cx = r.cx || {}; r.cxc = r.cxc || {};
+        const done = r.cxc[species] || 0, reached = CODEX.ranks.filter(k => (r.cx[species] || 0) >= k).length;
+        if (done >= reached) return { ok: false, why: 'no codex reward is waiting there' };
+        if (!(allowed || []).includes(skill) || !(SKILLS[skill] || ATTRS[skill])) return { ok: false, why: 'that skill is not taught by this beast' };
+        const before = profs(r), pts = CODEX.reward[done], box = ATTRS[skill] ? r.at : r.sk;
+        box[skill] = Math.round(((box[skill] || 0) + pts) * 1000) / 1000;
+        r.cxc[species] = done + 1;
+        return { ok: true, pts, up: ups(r, before) };
+      }
     };
   }
 
-  const rpg = { api: 1, SLOTS, SKILLS, PROFS, ATTRS, RANKS, ITEMS, FISTS, LOOT, GATHER, RECIPES, knows, fresh, stats, profs, rank, meets, itemOf, attr, book };
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('rpg', { api: 1, v: 4 }, () => rpg);
+  const rpg = { api: 1, SLOTS, SKILLS, PROFS, ATTRS, RANKS, ITEMS, FISTS, LOOT, GATHER, RECIPES, CODEX, ABILITIES, abilities, questState, questProgress, knows, fresh, stats, profs, rank, meets, itemOf, attr, book };
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('rpg', { api: 1, v: 5 }, () => rpg);
 })(typeof globalThis !== 'undefined' ? globalThis : this);
