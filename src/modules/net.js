@@ -28,6 +28,13 @@
 
   function arcadeRoom(r, roomId) {
     const me = norm(r.me), F = r.fast || null;
+    /* what goes out and comes in, by way and by kind (the first key of a message), for tuning (LWQGAME.netStats) */
+    const stats = { since: Date.now(), out: {}, in: {} };
+    const count = (dir, way, s) => {
+      let kind = '?'; const m = /^\{"([^"]+)"/.exec(s); if (m) kind = m[1];
+      const k = way + ':' + kind, b = stats[dir][k] || (stats[dir][k] = [0, 0]); b[0]++; b[1] += bytes(s);
+    };
+    const fastSend = (obj, opt) => { const s = typeof obj === 'string' ? obj : JSON.stringify(obj); count('out', opt && opt.reliable ? 'fastR' : 'fast', s); F.send(s, opt); };
     /* our own room budget: 4 in any second, 7 in any two. The node allows ~5/s (burst 10) for everything this page
        sends, and the viewer's fast lane uses the same allowance for its signalling and its room fallback. */
     const sent = [];
@@ -35,7 +42,7 @@
     function roomSend(obj) {
       const s = typeof obj === 'string' ? obj : JSON.stringify(obj), now = Date.now();
       if (bytes(s) > MAX || !free(now)) return Promise.resolve(false);
-      sent.push(now);
+      sent.push(now); count('out', 'room', s);
       try { return Promise.resolve(r.send(s)).then(() => true, () => false); } catch (e) { return Promise.resolve(false); }
     }
     /* what must arrive waits its turn, one in flight at a time: it leaves the queue only once the node took it, so a
@@ -60,7 +67,12 @@
     const room = {
       id: roomId, me, fast: !!F,
       send: roomSend,
-      state(obj) { if (F) { F.send(obj); return Promise.resolve(true); } return roomSend(obj); },
+      state(obj) { if (F) { fastSend(obj); return Promise.resolve(true); } return roomSend(obj); },
+      /* must arrive, and fast: the fast lane's reliable sends (in order, never lost; through the room at ~3/s for a
+         pair that cannot connect directly, the viewer does that); the room's queue where there is no fast lane */
+      sure(obj) { if (F) { fastSend(obj, { reliable: true }); return Promise.resolve(true); } return room.tell(obj); },
+      stats() { const secs = Math.max(1, (Date.now() - stats.since) / 1000); return { secs, out: stats.out, in: stats.in }; },
+      resetStats() { stats.since = Date.now(); stats.out = {}; stats.in = {}; },
       beat(obj) { return roomSend(obj); },
       tell(obj) {
         const s = JSON.stringify(obj);
@@ -71,8 +83,8 @@
       peers() { return F ? F.peers() : {}; },
       on(t, fn) {
         if (t === 'message') {
-          r.on('message', (data, p) => { const from = norm(p); if (from.id !== me.id) fn({ from, data }); });
-          if (F) F.on('message', (data, p) => { const from = norm(p); if (from.id !== me.id) fn({ from, data }); });
+          r.on('message', (data, p) => { const from = norm(p); count('in', 'room', typeof data === 'string' ? data : JSON.stringify(data)); if (from.id !== me.id) fn({ from, data }); });
+          if (F) F.on('message', (data, p) => { const from = norm(p); count('in', 'fast', typeof data === 'string' ? data : JSON.stringify(data)); if (from.id !== me.id) fn({ from, data }); });
         }
         else if (t === 'join' || t === 'leave') r.on(t, p => { const from = norm(p); if (from.id !== me.id) fn({ from }); });
         else if (t === 'peer') { if (F) F.on('peer', (p, state) => fn({ from: norm(p), state })); }
@@ -99,5 +111,5 @@
       return { online: true, room: arcadeRoom(r, roomId), backend: 'arcade' };
     }
   };
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('net', { api: 1, v: 3 }, () => net);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('net', { api: 1, v: 4 }, () => net);
 })(typeof globalThis !== 'undefined' ? globalThis : this);

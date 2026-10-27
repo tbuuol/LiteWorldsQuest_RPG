@@ -715,7 +715,7 @@
         const res = book.strike(a, beast ? inf.def : raiderDef, beast ? inf.lvl : raiderLvl, null, mul);
         dirty.add(a);
         for (const u of res.up) notice(from.id, u + '!');
-        if (res.miss && room) room.tell({ M: [from.id, unit] });   /* the striker sees "miss" over the raider */
+        if (res.miss) toPlayer(['M', from.id, unit]);   /* the striker sees "miss" over the raider */
         return res.d;
       }
       return Math.max(1, 2 + Math.floor(Math.random() * 3) - raiderDef);
@@ -732,8 +732,7 @@
       /* a blow for the house: over the direct link when there is one, and through the room as well; the house counts
          each once by its number, rolls it, and the number shows when it answers (a spark at once, here) */
       const msg = { X: id, n: ++blowNo };
-      if (room.fast && room.peers()[hostId()] === 'direct') room.state(msg);
-      room.tell(msg);
+      sendIntent(msg);
       fight.predict(id, 0);
     }
     /* THE ABILITY BAR (Etappe 3): keys 1-6 (1 is the plain strike). What a slot holds comes from the weapon, the shield
@@ -763,8 +762,7 @@
       abilCd[ab.key] = now + ab.cd * 1000;
       if (ab.mul) { swingT = 1; if (sound) sound.blip('hit'); for (const id of msg.u) { fight.predict(id, 0); if (ab.stun) fight.say(id, 'stun'); } }
       else if (sound) sound.blip('pickup');
-      if (room.fast && room.peers()[hostId()] === 'direct') room.state(msg);
-      room.tell(msg);
+      sendIntent(msg);
       drawAbilities(true);
     }
     /* the house does an ability: checked again, then dealt out */
@@ -829,8 +827,7 @@
       if (W.dep[id]) return;
       if (!room || !houseId() || iAmHouse) { log('Gathering needs the house: it keeps what you carry.'); return; }
       const msg = { G: id, n: ++blowNo };
-      if (room.fast && room.peers()[hostId()] === 'direct') room.state(msg);
-      room.tell(msg);
+      sendIntent(msg);
     }
     const charges = {}, growAt = {};
     function houseGather(from, id) {
@@ -873,7 +870,7 @@
             }
           }
           if (e.to === myId()) hurt(d, e.from);
-          else if (room) room.tell({ D: e.to, d, f: e.from });
+          else toPlayer(['D', e.to, d, e.from]);
         } else if (e.t === 'kill') {
           let text = 'You defeated ' + aName(e.name || 'raider') + '.';
           const r = remotes.get(e.by);
@@ -891,7 +888,42 @@
         }
       }
     }
-    function notice(to, text) { if (to === myId()) log(text); else if (room) room.tell({ N: [to, text] }); }
+    function notice(to, text) { if (to === myId()) heardNotice(text); else toPlayer(['N', to, text]); }
+    function heardNotice(text) { log(text); if (/bag|level/.test(text) && sound) sound.blip('pickup'); }
+    /* NETWORK, tuned (tbuuol 2026-10-27): the fast lane's reliable sends where the link is direct (in order, never lost,
+       and not the room's 4-a-second allowance); the room only where somebody is not directly linked yet, or there is
+       no fast lane. Every message reaches everybody either way (neither the room nor the fast lane can send to one
+       player), so what the house says to players goes out together: one packet a tenth of a second, {B: [n, items]}. */
+    const allDirect = () => { if (!room || !room.fast) return false; const st = Object.values(room.peers()); return st.length > 0 && st.every(x => x === 'direct'); };
+    function sendIntent(msg) {   /* a blow, a gathering, an ability, a question: to the house, surely */
+      if (!room) return;
+      if (room.fast && room.peers()[hostId()] === 'direct') room.sure(msg); else room.tell(msg);
+    }
+    const outQ = []; let outNo = 0, outAt = 0;
+    function toPlayer(item) { if (room) outQ.push(item); }
+    function flushOut(now) {
+      if (!room || !outQ.length || now - outAt < 100) return;
+      outAt = now;
+      const room2 = !allDirect();
+      while (outQ.length) {   /* packets that fit a room message each, in case the room must carry them */
+        const items = [];
+        while (outQ.length && (!items.length || JSON.stringify({ B: [0, items.concat([outQ[0]])] }).length <= 470)) items.push(outQ.shift());
+        const pk = { B: [++outNo, items] };
+        if (room.fast) room.sure(pk);
+        if (room2) room.tell(pk);
+      }
+    }
+    const packetsSeen = [];
+    function heardPacket(b) {
+      if (packetsSeen.includes(b[0])) return;   /* the same packet by both ways */
+      packetsSeen.push(b[0]); if (packetsSeen.length > 60) packetsSeen.shift();
+      for (const it of Array.isArray(b[1]) ? b[1] : []) {
+        if (!Array.isArray(it) || String(it[1]) !== myId()) continue;
+        if (it[0] === 'N') heardNotice(String(it[2]));
+        else if (it[0] === 'D') hurt(+it[2] || 0, String(it[3] || 'raider').slice(0, 30));
+        else if (it[0] === 'M' && fight) fight.missed(String(it[2]));
+      }
+    }
     /* the house sends each player its record when it changed (at most every 1.5 s), whole over the direct link,
        in pieces through the room */
     const dirty = new Set();
@@ -903,7 +935,7 @@
       dirty.clear();
     }
     function sendBig(obj, to) {
-      if (room.fast && room.peers()[to] === 'direct') room.state(obj);
+      if (room.fast && room.peers()[to] === 'direct') { room.sure(obj); return; }   /* whole, in one, surely */
       const s = JSON.stringify(obj);
       if (s.length <= 470) { room.tell(obj); return; }
       const id = Math.floor(Math.random() * 1e9).toString(36), parts = [];
@@ -1145,7 +1177,7 @@
         if (Array.isArray(d.M) && String(d.M[0]) === myId() && fromHost) fight.missed(String(d.M[1]));
       }
       /* what is mine: a notice and my record from the house; and, at the house, what a player asks of it */
-      if (Array.isArray(d.N) && String(d.N[0]) === myId() && from.id === hostId()) { log(String(d.N[1])); if (/bag|level/.test(d.N[1]) && sound) sound.blip('pickup'); }
+      if (Array.isArray(d.B) && from.id === hostId()) heardPacket(d.B);
       if (d.R && typeof d.R === 'object' && String(d.to) === myId() && from.id === hostId() && rpg) myRecord(d.R);
       if (d.G != null && iAmHouse && book && freshBlow(from.id, d.n)) houseGather(from, String(d.G));
       if (d.A != null && iAmHouse && book && fight && freshBlow(from.id, d.n)) houseAbility(from, d);
@@ -1243,7 +1275,7 @@
       /* once a second the same through the room: whatever the fast lane is doing, everyone keeps seeing you */
       if (room.fast) {
         const st = Object.values(room.peers()), waiting = st.some(x => x !== 'direct');   /* 'connecting' carries nothing yet */
-        if (force || now - lastBeat > (waiting ? 330 : 1000)) { lastBeat = now; room.beat(m); }
+        if (force || now - lastBeat > (waiting ? 330 : 3000)) { lastBeat = now; room.beat(m); }   /* all direct: presence only */
       }
     }
     let remotesT = performance.now();
@@ -1387,7 +1419,7 @@
     }
     /* the fight each frame: the host runs it and says how it stands (5 a second over the fast lane, once a second
        through the room), everybody draws it; the sword swings; out of the fight, hit points come back slowly */
-    let fightSent = 0, fightBeat = 0;
+    let fightSent = 0, fightBeat = 0, fightFull = 0;
     function fightTick(dt, now) {
       const host = amHost(), players = [];
       if (host) {
@@ -1401,11 +1433,18 @@
       if (host && room) {
         /* how the fight stands: 10 a second over the fast lane; through the room 3 a second from the house (it sends
            no position of its own, so the room's allowance is free), once a second from a player who keeps it */
-        const snap = { C: fight.snapshot() };
-        if (room.fast && now - fightSent > 100) { fightSent = now; room.state(snap); }
-        /* through the room in pieces of a room message each, paced so that every piece fits the room's allowance */
-        const parts = fight.pieces(snap.C, 470);
-        if (now - fightBeat > (iAmHouse ? 330 : 1000) * parts.length) { fightBeat = now; for (const part of parts) room.send({ C: part }); }
+        /* TUNED (2026-10-27): over the fast lane only what changed (a whole picture once a second), and only the beasts
+           near somebody; through the room (whole, in pieces) only while somebody is not directly linked */
+        const near = players.map(q => [q.x, q.z]);
+        if (!iAmHouse) near.push([me.x, me.z]);
+        if (room.fast && now - fightSent > 100) {
+          const full = now - fightFull > 1000; if (full) fightFull = now;
+          fightSent = now; room.state({ C: fight.snapshot({ near, delta: !full }) });
+        }
+        if (!allDirect() && now - fightBeat > 330) {
+          const parts = fight.pieces(fight.snapshot({ near, mark: false }), 470);
+          if (now - fightBeat > (iAmHouse ? 330 : 1000) * parts.length) { fightBeat = now; for (const part of parts) room.send({ C: part }); }
+        }
       }
       if (!P.dead && P.hp < P.max && now - lastHurt > 6000) { P.hp = Math.min(P.max, P.hp + dt * 3); drawStats(); }
       swingT = Math.max(0, swingT - dt * 3.2);
@@ -1416,7 +1455,7 @@
       else right.rotation.set(-k * 1.3, k * 0.9, -k * 0.6);                                                        /* a weapon swings across */
       left.position.set(-sx, -0.32, -0.52);
       hands.visible = !P.dead;
-      sendRecords(now);
+      sendRecords(now); flushOut(now);
     }
     let askedRec = -1e9;
     let last = performance.now(), worldT = 0, netT = 0, fps = 0, fpsN = 0, fpsT = performance.now(), showFps = false, promptNow = '';
@@ -1475,6 +1514,7 @@
       draw(on) { drawing = !!on; },   /* tests: everything runs, nothing is drawn (a machine without a GPU keeps up) */
       play() { if (TOUCH) startTouch(); else touchPlaying = true; },   /* tests: as if the view had been clicked */
       strike() { attack(); },
+      netStats(reset) { if (!room || !room.stats) return null; const st = room.stats(); if (reset) room.resetStats(); return st; },
       ability(i) { ability(i); },
       npcs() { return Object.keys(npcs).map(id => ({ id, x: R2(npcs[id].x), z: R2(npcs[id].z) })); },
       fight: () => fight ? fight.units() : [],

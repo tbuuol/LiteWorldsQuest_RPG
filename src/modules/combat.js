@@ -411,10 +411,24 @@
         }
         return best;
       },
-      snapshot() {
-        const u = [];
-        for (const v of units.values()) u.push([v.id, KIND.indexOf(v.kind), Math.round(v.x * 10), Math.round(v.z * 10), Math.round(v.tyaw * 100), v.hp, STATE.indexOf(v.state), v.atk % 100]);
+      /* the fight on the wire. o.near: where the players are (a beast farther than 70 m from all of them is left out:
+         nobody sees it); o.delta: only the units that changed since the last picture, and each one once more after it
+         came to rest (so a client does not carry it on past where it stopped) */
+      snapshot(o) {
+        o = o || {};
+        const u = [], near = o.near;
+        for (const v of units.values()) {
+          if (near && v.kind === 'beast' && !near.some(q => Math.abs(q[0] - v.x) + Math.abs(q[1] - v.z) < 90 && Math.hypot(q[0] - v.x, q[1] - v.z) < 70)) continue;
+          const row = [v.id, KIND.indexOf(v.kind), Math.round(v.x * 10), Math.round(v.z * 10), Math.round(v.tyaw * 100), v.hp, STATE.indexOf(v.state), v.atk % 100];
+          const key = row.slice(2).join();
+          if (o.mark !== false) {   /* the room's pictures (whole) do not count as sent on the fast lane */
+            if (o.delta && key === v.sentKey) { if ((v.rest = (v.rest || 0) + 1) > 1) continue; } else v.rest = 0;
+            v.sentKey = key;
+          }
+          u.push(row);
+        }
         const snap = { s: ++seq, t: Math.round(performance.now()), u };
+        if (o.delta) snap.d = 1;
         if (fx.length) snap.e = fx.map(e => [e.id, Math.round(e.x * 10), Math.round(e.z * 10), e.r]);
         return snap;
       },
@@ -494,5 +508,5 @@
   }
 
   const combat = { api: 1, player, gain, nextXp, create };
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('combat', { api: 1, v: 9, needs: { three: 160, art: 1 } }, () => combat);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('combat', { api: 1, v: 10, needs: { three: 160, art: 1 } }, () => combat);
 })(typeof globalThis !== 'undefined' ? globalThis : this);

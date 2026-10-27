@@ -6,10 +6,11 @@
   "modules": {
     "net": {
       "file": "src/modules/net.js",
-      "v": 3,
+      "v": 4,
       "api": 1,
       "kind": "js",
-      "id": "f5197b99aff6b57d4c418035328b98cf17802edb1355115906b2ee395469c2c7"
+      "id": "f5197b99aff6b57d4c418035328b98cf17802edb1355115906b2ee395469c2c7",
+      "gz": null
     },
     "wallet": {
       "file": "src/modules/wallet.js",
@@ -35,7 +36,7 @@
     },
     "combat": {
       "file": "src/modules/combat.js",
-      "v": 9,
+      "v": 10,
       "api": 1,
       "kind": "js",
       "id": null,
