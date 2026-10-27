@@ -5,7 +5,7 @@
      art.hut(ctx, def)    -> {door}                     a log hut with a thatched roof, a door that swings, a room inside
      art.campfire(ctx, def), art.forest(ctx, def), art.fence(ctx, def), art.paths(ctx, def), art.prop(ctx, def),
      art.well(ctx, def) -> {use: mesh}, art.grass(ctx, def)
-     art.character(ctx, look) -> {group, animate(dt, speed), face(yaw), setName(text), holdItem(right, left)}   a blocky person
+     art.character(ctx, look) -> {group, animate(dt, speed), emote(name), hold(name), setName(text), holdItem(right, left)}   our own figure
    ctx = {THREE, scene, rng, solid(min, max, on), usable(mesh, data), every(fn(dt, t))}
    Units are metres; y is up; a thing whose "rot" is 0 faces -z (towards the camp's north). */
 (function (G) {
@@ -36,76 +36,173 @@
     for (let i = 0; i < n; i++) { x.globalAlpha = alpha * (0.4 + rnd() * 0.6); x.fillStyle = rnd.pick(colors); x.fillRect(rnd() * size, rnd() * size, 1 + rnd() * 2, 1 + rnd() * 2); }
     x.globalAlpha = 1;
   }
+  /* HAND-PAINTED, like the old WoW (tbuuol 2026-10-27: an own style, a bit round, the 2004 look): big soft blots of
+     colour instead of fine noise, the light painted in from above (a bright upper edge, a dark seam below), strong
+     saturated mid tones. Everything is drawn so it tiles: a blot near an edge is drawn again on the far side. */
+  function wrap(size, x0, y0, r, draw) {
+    for (const dx of [-size, 0, size]) for (const dy of [-size, 0, size]) {
+      const x = x0 + dx, y = y0 + dy;
+      if (x + r < 0 || y + r < 0 || x - r > size || y - r > size) continue;
+      draw(x, y);
+    }
+  }
+  function blots(x, size, rnd, n, colors, r0, r1, alpha) {   /* soft round patches: the painter's broad strokes */
+    for (let i = 0; i < n; i++) {
+      const r = rnd.range(r0, r1), col = rnd.pick(colors), a = alpha * rnd.range(0.6, 1);
+      wrap(size, rnd() * size, rnd() * size, r, (px, py) => {
+        const g = x.createRadialGradient(px, py, 0, px, py, r);
+        g.addColorStop(0, col); g.addColorStop(1, 'rgba(0,0,0,0)');
+        x.globalAlpha = a; x.fillStyle = g; x.fillRect(px - r, py - r, r * 2, r * 2);
+      });
+    }
+    x.globalAlpha = 1;
+  }
+  function strokes(x, size, rnd, n, colors, len0, len1, w0, w1, alpha, angle, jitter) {   /* short brush strokes */
+    x.lineCap = 'round';
+    for (let i = 0; i < n; i++) {
+      const L = rnd.range(len0, len1), a = (angle || 0) + rnd.range(-(jitter || 0), jitter || 0), col = rnd.pick(colors), w = rnd.range(w0, w1), al = alpha * rnd.range(0.5, 1);
+      wrap(size, rnd() * size, rnd() * size, L, (px, py) => {
+        x.globalAlpha = al; x.strokeStyle = col; x.lineWidth = w;
+        x.beginPath(); x.moveTo(px, py); x.lineTo(px + Math.sin(a) * L, py - Math.cos(a) * L); x.stroke();
+      });
+    }
+    x.globalAlpha = 1;
+  }
+  function poly(x, cx, cy, r, sides, rnd, squash) {
+    x.beginPath();
+    for (let k = 0; k < sides; k++) { const an = k / sides * Math.PI * 2, rr = r * rnd.range(0.78, 1.08); x.lineTo(cx + Math.cos(an) * rr, cy + Math.sin(an) * rr * (squash || 1)); }
+    x.closePath();
+  }
   const painters = {
     grass(rnd) {
-      const [c, x] = canvas(256); x.fillStyle = '#4f7a32'; x.fillRect(0, 0, 256, 256);
-      speckle(x, 5000, 256, rnd, ['#5f8f3a', '#41692a', '#6d9b45', '#3a5e25', '#7aa64f'], 0.8);
-      for (let i = 0; i < 400; i++) { x.strokeStyle = rnd.pick(['#6fa04a', '#3e6428', '#86b35a']); x.globalAlpha = 0.5; x.beginPath(); const px = rnd() * 256, py = rnd() * 256; x.moveTo(px, py); x.lineTo(px + rnd.range(-2, 2), py - rnd.range(3, 7)); x.stroke(); }
-      x.globalAlpha = 1; return c;
-    },
-    dirt(rnd) {
-      const [c, x] = canvas(256); x.fillStyle = '#7a5c3c'; x.fillRect(0, 0, 256, 256);
-      speckle(x, 6000, 256, rnd, ['#8a6a46', '#6b4f33', '#94754f', '#5d442c'], 0.8);
-      for (let i = 0; i < 90; i++) { x.fillStyle = rnd.pick(['#9a8a78', '#7d7368', '#a89a88']); x.beginPath(); x.ellipse(rnd() * 256, rnd() * 256, rnd.range(1.5, 4), rnd.range(1, 3), rnd() * 3, 0, 7); x.fill(); }
+      const [c, x] = canvas(256); x.fillStyle = '#5b8c2c'; x.fillRect(0, 0, 256, 256);
+      blots(x, 256, rnd, 70, ['#6fa335', '#4c7e24', '#80b343', '#5f9030', '#93bd4c', '#467520'], 22, 64, 0.38);
+      blots(x, 256, rnd, 220, ['#78ab3c', '#4a7a23', '#8cbc4a', '#a3c95a'], 5, 13, 0.32);
+      strokes(x, 256, rnd, 420, ['#9fcb5b', '#86b847', '#b2d76a'], 3, 7, 1.2, 2.2, 0.55, 0, 0.5);   /* painted blades, lit */
+      strokes(x, 256, rnd, 160, ['#3d6b1c', '#4a7a23'], 3, 6, 1.2, 2, 0.45, 0, 0.5);
       return c;
     },
-    logs(rnd) {   /* horizontal logs, as a log cabin's wall */
+    dirt(rnd) {
+      const [c, x] = canvas(256); x.fillStyle = '#8c6741'; x.fillRect(0, 0, 256, 256);
+      blots(x, 256, rnd, 60, ['#9d7650', '#7a5534', '#a6805a', '#86603b', '#6c4b2d'], 18, 55, 0.4);
+      strokes(x, 256, rnd, 140, ['#6a4a2c', '#b08a62'], 6, 16, 1, 2, 0.3, Math.PI / 2, 0.25);
+      for (let i = 0; i < 70; i++) {   /* pebbles: a shadow below, the stone, a lit top */
+        const px = rnd() * 256, py = rnd() * 256, r = rnd.range(2, 5.5);
+        wrap(256, px, py, r + 3, (qx, qy) => {
+          x.fillStyle = 'rgba(60,40,22,.55)'; x.beginPath(); x.ellipse(qx + 1, qy + 1.6, r * 1.1, r * 0.8, 0, 0, 7); x.fill();
+          x.fillStyle = rnd.pick(['#a8957a', '#9a8a74', '#b5a184']); x.beginPath(); x.ellipse(qx, qy, r, r * 0.75, 0, 0, 7); x.fill();
+          x.fillStyle = 'rgba(235,222,195,.6)'; x.beginPath(); x.ellipse(qx - r * 0.2, qy - r * 0.3, r * 0.55, r * 0.3, 0, 0, 7); x.fill();
+        });
+      }
+      return c;
+    },
+    logs(rnd) {   /* horizontal logs, as a log cabin's wall: each one round, lit on top, dark in the seam below */
       const [c, x] = canvas(256), band = 32;
       for (let y = 0; y < 256; y += band) {
-        const g = x.createLinearGradient(0, y, 0, y + band);
-        g.addColorStop(0, '#5a3d22'); g.addColorStop(0.15, '#8b6239'); g.addColorStop(0.55, '#7a5431'); g.addColorStop(0.9, '#4e331c'); g.addColorStop(1, '#2e1d10');
+        const k = rnd.range(0.85, 1.1), g = x.createLinearGradient(0, y, 0, y + band);
+        g.addColorStop(0, '#2a170b'); g.addColorStop(0.1, shade('#b07a43', k)); g.addColorStop(0.3, shade('#9a6a3a', k));
+        g.addColorStop(0.7, shade('#74492a', k)); g.addColorStop(0.92, '#3a2212'); g.addColorStop(1, '#1e1006');
         x.fillStyle = g; x.fillRect(0, y, 256, band);
-        for (let i = 0; i < 26; i++) { x.strokeStyle = 'rgba(40,25,12,' + rnd.range(0.15, 0.4) + ')'; x.beginPath(); const yy = y + rnd.range(5, band - 5); x.moveTo(rnd() * 256, yy); x.lineTo(rnd() * 256, yy + rnd.range(-1, 1)); x.stroke(); }
+        x.lineCap = 'round';
+        for (let i = 0; i < 18; i++) {   /* bark lines along the log, a lighter line above each dark one */
+          const yy = y + rnd.range(6, band - 7), x0 = rnd() * 256, L = rnd.range(30, 110), w = rnd.range(1, 2.2);
+          x.strokeStyle = 'rgba(45,25,10,.45)'; x.lineWidth = w; x.beginPath(); x.moveTo(x0, yy); x.lineTo(x0 + L, yy + rnd.range(-1.5, 1.5)); x.stroke();
+          x.strokeStyle = 'rgba(210,160,100,.25)'; x.lineWidth = 1; x.beginPath(); x.moveTo(x0, yy - 1.5); x.lineTo(x0 + L * 0.8, yy - 1.5); x.stroke();
+        }
+        x.fillStyle = 'rgba(255,215,150,.18)'; x.fillRect(0, y + 4, 256, 2);   /* the lit ridge */
       }
       return c;
     },
     planks(rnd) {
       const [c, x] = canvas(256), w = 32;
       for (let i = 0; i < 8; i++) {
-        x.fillStyle = shade('#9a7148', rnd.range(0.82, 1.08)); x.fillRect(i * w, 0, w, 256);
-        for (let k = 0; k < 14; k++) { x.strokeStyle = 'rgba(60,38,20,' + rnd.range(0.12, 0.35) + ')'; x.beginPath(); const xx = i * w + rnd.range(3, w - 3); x.moveTo(xx, 0); x.bezierCurveTo(xx + rnd.range(-3, 3), 90, xx + rnd.range(-3, 3), 170, xx, 256); x.stroke(); }
-        x.fillStyle = 'rgba(30,18,8,.7)'; x.fillRect(i * w, 0, 2, 256);
-        const cut = rnd.range(40, 220); x.fillRect(i * w, cut, w, 2);
-        x.fillStyle = 'rgba(30,18,8,.5)'; x.beginPath(); x.arc(i * w + 6, cut + 8, 1.5, 0, 7); x.arc(i * w + w - 6, cut + 8, 1.5, 0, 7); x.fill();
+        const base = shade('#a8784a', rnd.range(0.8, 1.1));
+        x.fillStyle = base; x.fillRect(i * w, 0, w, 256);
+        const g = x.createLinearGradient(i * w, 0, i * w + w, 0);
+        g.addColorStop(0, 'rgba(255,220,160,.28)'); g.addColorStop(0.18, 'rgba(255,220,160,0)'); g.addColorStop(0.8, 'rgba(40,20,5,0)'); g.addColorStop(1, 'rgba(40,20,5,.4)');
+        x.fillStyle = g; x.fillRect(i * w, 0, w, 256);
+        x.lineCap = 'round';
+        for (let k = 0; k < 8; k++) {   /* long grain, painted */
+          x.strokeStyle = 'rgba(70,40,18,' + rnd.range(0.18, 0.4) + ')'; x.lineWidth = rnd.range(1, 2); x.beginPath();
+          const xx = i * w + rnd.range(5, w - 5); x.moveTo(xx, 0); x.bezierCurveTo(xx + rnd.range(-4, 4), 85, xx + rnd.range(-4, 4), 170, xx, 256); x.stroke();
+        }
+        x.fillStyle = '#2b170a'; x.fillRect(i * w + w - 2, 0, 2, 256);   /* the gap */
+        const cut = rnd.range(30, 220); x.fillStyle = '#2b170a'; x.fillRect(i * w, cut, w, 2); x.fillStyle = 'rgba(255,220,160,.3)'; x.fillRect(i * w, cut + 2, w - 2, 1);
+        if (rnd() < 0.6) {   /* a knot */
+          const ky = rnd.range(20, 236), kx = i * w + rnd.range(9, w - 9);
+          x.fillStyle = 'rgba(60,32,12,.7)'; x.beginPath(); x.ellipse(kx, ky, 3.5, 5, 0, 0, 7); x.fill();
+          x.fillStyle = shade('#a8784a', 1.15); x.beginPath(); x.ellipse(kx - 0.6, ky - 1, 1.6, 2.4, 0, 0, 7); x.fill();
+        }
+        x.fillStyle = 'rgba(30,15,5,.6)'; x.beginPath(); x.arc(i * w + 6, cut + 9, 1.6, 0, 7); x.arc(i * w + w - 8, cut + 9, 1.6, 0, 7); x.fill();
       }
       return c;
     },
     thatch(rnd) {
-      const [c, x] = canvas(256); x.fillStyle = '#8a7340'; x.fillRect(0, 0, 256, 256);
-      for (let row = 0; row < 256; row += 16) {
-        for (let i = 0; i < 260; i++) {
-          x.strokeStyle = rnd.pick(['#c9a55a', '#a8873f', '#d8b86a', '#8d6f33', '#b8964c']); x.globalAlpha = rnd.range(0.5, 1); x.lineWidth = rnd.range(0.8, 1.8);
-          const px = rnd() * 256, py = row + rnd() * 6; x.beginPath(); x.moveTo(px, py); x.lineTo(px + rnd.range(-2, 2), py + rnd.range(12, 22)); x.stroke();
+      const [c, x] = canvas(256); x.fillStyle = '#9c7838'; x.fillRect(0, 0, 256, 256);
+      for (let row = 0; row < 256; row += 32) {
+        const g = x.createLinearGradient(0, row, 0, row + 32);
+        g.addColorStop(0, '#e6c374'); g.addColorStop(0.35, '#c39a4f'); g.addColorStop(0.8, '#8f6a30'); g.addColorStop(1, '#4a3313');
+        x.fillStyle = g; x.fillRect(0, row, 256, 32);
+        x.lineCap = 'round';
+        for (let i = 0; i < 150; i++) {   /* straw, combed downwards */
+          const px = rnd() * 256, py = row + rnd.range(-2, 8), L = rnd.range(14, 28);
+          x.strokeStyle = rnd.pick(['#f2d488', '#d8b265', '#b8913f', '#8a6528']); x.globalAlpha = rnd.range(0.45, 0.9); x.lineWidth = rnd.range(1, 2.2);
+          x.beginPath(); x.moveTo(px, py); x.lineTo(px + rnd.range(-2.5, 2.5), py + L); x.stroke();
         }
-        x.globalAlpha = 0.35; x.fillStyle = '#4a3a1a'; x.fillRect(0, row + 14, 256, 2);
+        x.globalAlpha = 1;
+        x.fillStyle = 'rgba(50,32,10,.55)'; x.fillRect(0, row + 29, 256, 3);   /* the shadow under each row's lip */
       }
-      x.globalAlpha = 1; return c;
+      return c;
     },
-    stone(rnd) {
-      const [c, x] = canvas(256); x.fillStyle = '#5c5a55'; x.fillRect(0, 0, 256, 256);
-      for (let i = 0; i < 70; i++) {
-        const px = rnd() * 256, py = rnd() * 256, r = rnd.range(10, 26);
-        x.fillStyle = shade('#8d8a82', rnd.range(0.75, 1.1)); x.beginPath();
-        for (let a = 0; a < 7; a++) { const ang = a / 7 * Math.PI * 2, rr = r * rnd.range(0.75, 1.1); x.lineTo(px + Math.cos(ang) * rr, py + Math.sin(ang) * rr); }
-        x.closePath(); x.fill(); x.strokeStyle = 'rgba(30,30,28,.6)'; x.stroke();
+    stone(rnd) {   /* fieldstones in dark mortar: each stone lit from the top left, shaded bottom right */
+      const [c, x] = canvas(256); x.fillStyle = '#433f39'; x.fillRect(0, 0, 256, 256);
+      const cell = 64;
+      for (let gy = 0; gy < 256; gy += cell) for (let gx = 0; gx < 256; gx += cell) {
+        const cx0 = gx + cell / 2 + rnd.range(-5, 5) + ((gy / cell) % 2) * cell / 2, cy0 = gy + cell / 2 + rnd.range(-4, 4), r = rnd.range(27, 33);
+        const base = rnd.pick(['#9c968b', '#a39a8a', '#8f8d88', '#a8a092', '#948a7c']), sq = rnd.range(0.7, 0.95), seed = rnd() * 1e6;
+        wrap(256, cx0, cy0, r + 4, (px, py) => {
+          const rr = art.rng(seed);
+          x.fillStyle = 'rgba(20,18,15,.7)'; poly(x, px + 2, py + 2.5, r, 8, rr, sq); x.fill();
+          const r2 = art.rng(seed); poly(x, px, py, r, 8, r2, sq); x.fillStyle = base; x.fill();
+          x.save(); const r3 = art.rng(seed); poly(x, px, py, r, 8, r3, sq); x.clip();
+          const g = x.createLinearGradient(px - r, py - r, px + r, py + r);
+          g.addColorStop(0, 'rgba(255,248,230,.55)'); g.addColorStop(0.45, 'rgba(255,248,230,0)'); g.addColorStop(0.7, 'rgba(30,25,20,0)'); g.addColorStop(1, 'rgba(30,25,20,.5)');
+          x.fillStyle = g; x.fillRect(px - r, py - r, r * 2, r * 2);
+          x.restore();
+        });
       }
-      speckle(x, 3000, 256, rnd, ['#a9a69e', '#4a4844'], 0.4); return c;
+      blots(x, 256, rnd, 40, ['#7d8a5a', '#6a6f4a'], 4, 10, 0.25);   /* a little moss */
+      return c;
     },
     cloth(rnd) {
       const [c, x] = canvas(64); x.fillStyle = '#fff'; x.fillRect(0, 0, 64, 64);
       for (let i = 0; i < 64; i += 4) { x.fillStyle = 'rgba(0,0,0,.06)'; x.fillRect(i, 0, 2, 64); x.fillRect(0, i, 64, 2); }
       return c;
     },
-    leaves(rnd) {
-      const [c, x] = canvas(128); x.fillStyle = '#2f5a24'; x.fillRect(0, 0, 128, 128);
-      speckle(x, 2500, 128, rnd, ['#3d7a2d', '#25481c', '#4f8f38', '#1d3a16'], 0.9); return c;
+    leaves(rnd) {   /* a canopy: dark depths, mid clumps, lit clumps on top, a few bright leaves */
+      const [c, x] = canvas(128); x.fillStyle = '#2e5a1c'; x.fillRect(0, 0, 128, 128);
+      blots(x, 128, rnd, 40, ['#22461a', '#2a5320'], 10, 22, 0.7);
+      for (const [n, cols, r0, r1, a] of [[90, ['#3f7a28', '#4a8a2e', '#3a7024'], 5, 10, 0.85], [70, ['#64a23c', '#73b246', '#5c9a36'], 3, 7, 0.85], [40, ['#9ccf5e', '#b2dc70'], 1.5, 3.5, 0.8]]) {
+        for (let i = 0; i < n; i++) {
+          const r = rnd.range(r0, r1), col = rnd.pick(cols);
+          wrap(128, rnd() * 128, rnd() * 128, r, (px, py) => { x.globalAlpha = a; x.fillStyle = col; x.beginPath(); x.ellipse(px, py, r, r * 0.8, rnd() * 3, 0, 7); x.fill(); });
+        }
+      }
+      x.globalAlpha = 1; return c;
     },
     bark(rnd) {
-      const [c, x] = canvas(64); x.fillStyle = '#4a3423'; x.fillRect(0, 0, 64, 64);
-      for (let i = 0; i < 40; i++) { x.strokeStyle = rnd.pick(['#2f2015', '#5e4430', '#3b2a1c']); x.beginPath(); const px = rnd() * 64; x.moveTo(px, 0); x.lineTo(px + rnd.range(-3, 3), 64); x.stroke(); }
+      const [c, x] = canvas(64); x.fillStyle = '#5c3f27'; x.fillRect(0, 0, 64, 64);
+      blots(x, 64, rnd, 12, ['#6d4b30', '#4a3120'], 6, 14, 0.5);
+      x.lineCap = 'round';
+      for (let i = 0; i < 26; i++) {
+        const px = rnd() * 64;
+        x.strokeStyle = 'rgba(35,22,12,.75)'; x.lineWidth = rnd.range(1.5, 3); x.beginPath(); x.moveTo(px, -4); x.bezierCurveTo(px + rnd.range(-4, 4), 20, px + rnd.range(-4, 4), 44, px, 68); x.stroke();
+        x.strokeStyle = 'rgba(160,118,80,.45)'; x.lineWidth = 1; x.beginPath(); x.moveTo(px + 2, -4); x.lineTo(px + 2, 68); x.stroke();
+      }
       return c;
     }
   };
+  art.paint = name => painters[name] ? painters[name](art.rng(name.length * 977 + name.charCodeAt(0))) : null;   /* for previews and tests */
   /* one material per painted texture, made once; `bump` gives the surface depth in the light without a second picture */
   /* REAL TEXTURES (the Hybrid tier, 2026-10-21): where the game ships a photographed surface (Poly Haven, CC0) the
      material shows it with its normal map; the painted canvas stands in until the file has arrived, or for good
@@ -132,8 +229,10 @@
     if (cache[key]) return cache[key];
     const c = cache['c:' + name] || (cache['c:' + name] = painters[name](art.rng(name.length * 977 + name.charCodeAt(0))));
     const t = tex(c, opts && opts.repeat);
-    const m = new T.MeshStandardMaterial(Object.assign({ map: t, bumpMap: t, bumpScale: 0.6, roughness: 0.92, metalness: 0 }, (opts && opts.m) || {}));
-    if (assetURL && REAL[name]) dressReal(m, REAL[name], opts && opts.repeat);
+    /* the painted look carries its own light, so no bump and no photographed surface: those only where a level asks
+       for them (opts.real, the real-world levels) */
+    const m = new T.MeshStandardMaterial(Object.assign({ map: t, roughness: 1, metalness: 0 }, (opts && opts.m) || {}));
+    if (assetURL && REAL[name] && opts && opts.real) dressReal(m, REAL[name], opts && opts.repeat);
     return (cache[key] = m);
   }
   art.mat = mat;
@@ -414,14 +513,15 @@
       items.forEach((it, i) => { place(it, P, S); Q.setFromAxisAngle(up, (it[0] * 13.7 + it[1] * 7.1) % 6.28); M.compose(P, Q, S); im.setMatrixAt(i, M); });
       ctx.scene.add(im); return im;
     }
-    const bark = mat('bark'), leaves = mat('leaves', { m: { color: '#7d9268', bumpScale: 2 } }), pineLeaves = mat('leaves', { m: { color: '#6b8070', bumpScale: 2.5 } });
+    const bark = mat('bark'), leaves = mat('leaves'), pineLeaves = mat('leaves', { m: { color: '#a9c7a0' } });
     instanced(new T.CylinderGeometry(0.12, 0.24, 3.4, 7), bark, pines, (t, p, s) => { p.set(t[0], height(t[0], t[1]) + 1.7 * t[2], t[1]); s.set(t[2], t[2], t[2]); });
     for (const [y, r, h] of [[2.3, 1.7, 2.0], [3.2, 1.45, 1.9], [4.1, 1.15, 1.7], [4.9, 0.85, 1.5], [5.6, 0.55, 1.3]]) {
       instanced(new T.ConeGeometry(r, h, 9, 1, true), pineLeaves, pines, (t, p, s) => { p.set(t[0], height(t[0], t[1]) + y * t[2], t[1]); s.set(t[2], t[2], t[2]); });
     }
-    instanced(new T.CylinderGeometry(0.2, 0.3, 2.4, 7), bark, oaks, (t, p, s) => { p.set(t[0], height(t[0], t[1]) + 1.2 * t[2], t[1]); s.set(t[2], t[2], t[2]); });
-    const crown = new T.IcosahedronGeometry(1.5, 1);
-    for (const [dx, dy, dz, k] of [[0, 3.1, 0, 1], [0.8, 2.7, 0.3, 0.7], [-0.7, 2.8, -0.4, 0.75], [0.1, 3.8, -0.2, 0.65]]) {
+    /* oaks as the old WoW drew them: a thick trunk flaring at the foot, a big round crown of soft clumps */
+    instanced(new T.CylinderGeometry(0.24, 0.5, 2.6, 8), bark, oaks, (t, p, s) => { p.set(t[0], height(t[0], t[1]) + 1.3 * t[2], t[1]); s.set(t[2], t[2], t[2]); });
+    const crown = new T.IcosahedronGeometry(1.6, 2);
+    for (const [dx, dy, dz, k] of [[0, 3.4, 0, 1.1], [1.0, 2.9, 0.4, 0.8], [-0.9, 3.0, -0.5, 0.85], [0.2, 4.2, -0.2, 0.75], [-0.3, 2.8, 1.0, 0.7]]) {
       instanced(crown, leaves, oaks, (t, p, s) => { p.set(t[0] + dx * t[2], height(t[0], t[1]) + dy * t[2], t[1] + dz * t[2]); s.set(t[2] * k, t[2] * k * 0.85, t[2] * k); });
     }
   };
@@ -454,8 +554,8 @@
       const g = new T.BufferGeometry(); g.setAttribute('position', new T.Float32BufferAttribute(P, 3)); g.setAttribute('color', new T.Float32BufferAttribute(C, 3)); g.setIndex(idx);
       const m = new T.Mesh(g, new T.MeshBasicMaterial({ vertexColors: true, fog: false, side: T.DoubleSide })); m.userData.keep = true; ctx.scene.add(m);
     };
-    ridge(250, 95, 10, '#8b97a2', true, 22);
-    ridge(175, 48, 7, '#5f6b63', false, 21);
+    ridge(250, 95, 10, def.farHills || '#7d98ad', true, 22);
+    ridge(175, 48, 7, def.nearHills || '#4f7a4e', false, 21);
     /* boulders: the same rock, bent once from a seed, scattered and half sunk; the near ones block the way */
     const rg = new T.DodecahedronGeometry(1, 1), rp = rg.attributes.position, rr = art.rng(77);
     for (let i = 0; i < rp.count; i++) { const k = 0.8 + rr() * 0.35; rp.setXYZ(i, rp.getX(i) * k, rp.getY(i) * k * 0.75, rp.getZ(i) * k); }
@@ -796,10 +896,10 @@
          vec3 c = texture2D(scene, vUv).rgb + texture2D(bloom, vUv).rgb * strength;
          c = aces(c * exposure * 0.92);
          float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
-         c = mix(vec3(l), c, 0.88);                                   /* muted, not candy */
-         c = mix(c * vec3(0.9, 0.96, 1.08), c * vec3(1.03, 1.0, 0.95), smoothstep(0.1, 0.7, l));   /* cool shadows, warm light */
-         c = mix(c, c * c * (3.0 - 2.0 * c), 0.35);
-         vec2 d = vUv - 0.5; c *= 1.0 - dot(d, d) * 0.6;
+         c = clamp(mix(vec3(l), c, 1.14), 0.0, 1.0);                 /* the old WoW: rich colour (tbuuol 2026-10-27) */
+         c = mix(c * vec3(0.92, 0.97, 1.08), c * vec3(1.04, 1.01, 0.94), smoothstep(0.1, 0.7, l));   /* cool shadows, warm light */
+         c = mix(c, c * c * (3.0 - 2.0 * c), 0.2);
+         vec2 d = vUv - 0.5; c *= 1.0 - dot(d, d) * 0.35;
          c = srgb(clamp(c, 0.0, 1.0)) + (hash(vUv * 1000.0 + time) - 0.5) / 255.0;
          gl_FragColor = vec4(c, 1.0); }`);
     let W = 1, H = 1;
@@ -827,174 +927,203 @@
     };
   };
 
-  /* --- people from a model file: Kenney's Blocky Characters (CC0) ------------------------------------------------ */
-  /* One small GLB (tools/assets.py slims it to 49 KB) holds the body every character shares and its animations; a
-     character is that body in one of eighteen textures. A minimal reader for exactly what the file uses (float data,
-     byte indices, node animations, linear keys) instead of three.js's whole glTF loader. */
-  let personP = null;
-  const personMats = {};
-  function loadPerson() {
-    if (personP) return personP;
-    personP = fetch(assetURL('model.person')).then(r => { if (!r.ok) throw new Error('model ' + r.status); return r.arrayBuffer(); }).then(buf => {
-      const dv = new DataView(buf), jl = dv.getUint32(12, true);
-      const json = JSON.parse(new TextDecoder().decode(new Uint8Array(buf, 20, jl))), bin = 20 + jl + 8;
-      const SIZE = { SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4 };
-      const acc = i => {
-        const a = json.accessors[i], v = json.bufferViews[a.bufferView], n = SIZE[a.type] * a.count, off = bin + (v.byteOffset || 0) + (a.byteOffset || 0);
-        if (a.componentType === 5126) return new Float32Array(buf.slice(off, off + n * 4));
-        if (a.componentType === 5123) return new Uint16Array(buf.slice(off, off + n * 2));
-        if (a.componentType === 5125) return new Uint32Array(buf.slice(off, off + n * 4));
-        return new Uint16Array(new Uint8Array(buf.slice(off, off + n)));   /* byte indices, widened */
-      };
-      const geos = json.meshes.map(m => m.primitives.map(p => {
-        const g = new T.BufferGeometry();
-        g.setAttribute('position', new T.BufferAttribute(acc(p.attributes.POSITION), 3));
-        if (p.attributes.NORMAL != null) g.setAttribute('normal', new T.BufferAttribute(acc(p.attributes.NORMAL), 3));
-        if (p.attributes.TEXCOORD_0 != null) g.setAttribute('uv', new T.BufferAttribute(acc(p.attributes.TEXCOORD_0), 2));
-        if (p.indices != null) g.setIndex(new T.BufferAttribute(acc(p.indices), 1));
-        return g;
-      }));
-      const nodes = json.nodes.map(n => { const o = new T.Group(); o.name = n.name || '';
-        if (n.translation) o.position.fromArray(n.translation); if (n.rotation) o.quaternion.fromArray(n.rotation); if (n.scale) o.scale.fromArray(n.scale); return o; });
-      json.nodes.forEach((n, i) => {
-        (n.children || []).forEach(c => nodes[i].add(nodes[c]));
-        if (n.mesh != null) geos[n.mesh].forEach(g => nodes[i].add(new T.Mesh(g)));
-      });
-      const root = new T.Group(); json.scenes[json.scene || 0].nodes.forEach(i => root.add(nodes[i]));
-      const PATH = { translation: 'position', rotation: 'quaternion', scale: 'scale' };
-      const clips = (json.animations || []).map(a => new T.AnimationClip(a.name, -1, a.channels.map(ch => {
-        const sm = a.samplers[ch.sampler], prop = PATH[ch.target.path], name = json.nodes[ch.target.node].name;
-        return new (prop === 'quaternion' ? T.QuaternionKeyframeTrack : T.VectorKeyframeTrack)(name + '.' + prop, acc(sm.input), acc(sm.output));
-      })));
-      root.updateMatrixWorld(true);
-      const box = new T.Box3().setFromObject(root);
-      return { root, clips, height: box.max.y - box.min.y, foot: box.min.y };
-    });
-    return personP;
-  }
-  function personMat(letter, tint) {   /* tint: a colour the picture is multiplied by (raiders: darker, dustier) */
-    const key = letter + (tint || '');
-    if (personMats[key]) return personMats[key];
-    const m = new T.MeshStandardMaterial({ roughness: 0.85, color: tint || '#ffffff' });
-    /* glTF's way: no flip, and the UVs run past 0..1 (the default sampler repeats) */
-    new T.TextureLoader().load(assetURL('tex.person.' + letter), t => { t.colorSpace = T.SRGBColorSpace; t.flipY = false; t.wrapS = t.wrapT = T.RepeatWrapping; t.needsUpdate = true; m.map = t; m.needsUpdate = true; });
-    return (personMats[key] = m);
-  }
-  art.PEOPLE = 'abcefikmnp';   /* the looks that belong in a village (no robots, suits or ninjas) */
-
   /* --- people ------------------------------------------------------------------------------------------------ */
-  /* blocky, as befits Blockshire: a head with a painted face, a body, arms and legs on joints. The face is painted
-     once per look; walking swings arms and legs by the speed it is told, standing still it breathes. */
+  /* OUR OWN FIGURE (tbuuol 2026-10-27: an own style, a bit round, like the old WoW): made by code, no model file.
+     Broad round shoulders, big hands and boots, a head a little large, a painted face; every part is lit from above
+     by its vertex colours (bright on top, darker below), as the old hand-painted figures were. Arms and legs bend at
+     elbows and knees; walking, running, breathing, a sword swing, a cast, nodding, shaking the head, bending down and
+     falling are all moved by code. look: {skin, shirt, pants, hair, eyes, beard, hood, hat, helm, apron, gloves, boots,
+     build: 'slim', hairStyle: 'short'|'long'|'bun'|'bald', scale, tint}. */
+  const bodyMats = {};
+  function bodyMat(color, tint, map) {   /* one material per colour; the vertex colours carry the light */
+    const key = color + '|' + (tint || '') + (map ? '|' + map.uuid : '');
+    if (bodyMats[key]) return bodyMats[key];
+    const c = new T.Color(color); if (tint) c.multiply(new T.Color(tint));
+    return (bodyMats[key] = new T.MeshStandardMaterial({ color: c, map: map || null, vertexColors: true, roughness: 0.85, metalness: 0 }));
+  }
+  function litFromAbove(geo, lo, hi) {   /* painted light: the top of a part bright, its underside dark */
+    const pos = geo.attributes.position; let y0 = Infinity, y1 = -Infinity;
+    for (let i = 0; i < pos.count; i++) { const y = pos.getY(i); if (y < y0) y0 = y; if (y > y1) y1 = y; }
+    const col = new Float32Array(pos.count * 3);
+    for (let i = 0; i < pos.count; i++) { const k = (pos.getY(i) - y0) / Math.max(1e-6, y1 - y0), v = (lo || 0.8) + ((hi || 1.1) - (lo || 0.8)) * k; col[i * 3] = col[i * 3 + 1] = col[i * 3 + 2] = v; }
+    geo.setAttribute('color', new T.BufferAttribute(col, 3));
+    return geo;
+  }
+  const faces = {};
+  function faceTexture(skin, eyes, brows, soft) {   /* the face, painted where a sphere's front (-z) is: u 0.75; soft: a woman's */
+    const key = skin + eyes + brows + (soft ? 's' : '');
+    if (faces[key]) return faces[key];
+    const [c, x] = canvas(256); c.height = 128;
+    x.fillStyle = skin; x.fillRect(0, 0, 256, 128);
+    const cx = 192;
+    x.fillStyle = shade(skin.length === 7 ? skin : '#e0b18c', 1.08); x.beginPath(); x.ellipse(cx, 70, 30, 20, 0, 0, 7); x.fill();   /* lit cheeks */
+    for (const sx of [-1, 1]) {
+      const ex = cx + sx * 15;
+      x.fillStyle = '#fbf6ec'; x.beginPath(); x.ellipse(ex, 58, 8, 5.5, 0, 0, 7); x.fill();
+      x.fillStyle = eyes; x.beginPath(); x.arc(ex - sx * 1, 58.5, 4, 0, 7); x.fill();
+      x.fillStyle = '#111'; x.beginPath(); x.arc(ex - sx * 1, 58.5, 2, 0, 7); x.fill();
+      x.fillStyle = '#fff'; x.beginPath(); x.arc(ex - sx * 1 - 1.3, 57, 1.1, 0, 7); x.fill();
+      x.strokeStyle = 'rgba(40,20,10,.75)'; x.lineWidth = 1.6; x.beginPath(); x.ellipse(ex, 58, 8, 5.5, 0, Math.PI * 1.05, Math.PI * 1.95); x.stroke();
+      if (soft) {   /* thin arched brows, lashes */
+        x.strokeStyle = brows; x.lineWidth = 2.2; x.lineCap = 'round'; x.beginPath(); x.moveTo(ex - sx * 9, 49); x.quadraticCurveTo(ex, 44, ex + sx * 8, 48); x.stroke();
+        x.strokeStyle = '#1a0f08'; x.lineWidth = 2.6; x.beginPath(); x.ellipse(ex, 58, 8, 5.5, 0, Math.PI * 1.1, Math.PI * 1.9); x.stroke();
+      } else { x.strokeStyle = brows; x.lineWidth = 4; x.lineCap = 'round'; x.beginPath(); x.moveTo(ex - sx * 9, 49 + 1.5); x.lineTo(ex + sx * 6, 47.5); x.stroke(); }
+    }
+    if (soft) { x.fillStyle = '#b5524a'; x.beginPath(); x.ellipse(cx, 85, 7, 2.8, 0, 0, 7); x.fill(); x.fillStyle = 'rgba(255,200,190,.5)'; x.beginPath(); x.ellipse(cx, 84, 3.5, 1, 0, 0, 7); x.fill();
+                x.fillStyle = 'rgba(220,110,100,.22)'; x.beginPath(); x.arc(cx - 20, 72, 6, 0, 7); x.arc(cx + 20, 72, 6, 0, 7); x.fill(); }
+    else { x.strokeStyle = 'rgba(110,45,35,.85)'; x.lineWidth = 2.5; x.lineCap = 'round'; x.beginPath(); x.moveTo(cx - 9, 84); x.quadraticCurveTo(cx, 87.5, cx + 9, 84); x.stroke(); }
+    x.fillStyle = 'rgba(120,60,40,.25)'; x.beginPath(); x.ellipse(cx, 76, 6, 3, 0, 0, 7); x.fill();   /* under the nose */
+    const t = new T.CanvasTexture(c); t.colorSpace = T.SRGBColorSpace;
+    return (faces[key] = t);
+  }
   art.character = function (ctx, look) {
     look = look || {};
-    const g = new T.Group(), skin = look.skin || '#e0b18c', shirt = look.shirt || '#3e6fa8', pants = look.pants || '#4a3b2a', hair = look.hair || '#4a2f1b';
-    const [c, x] = canvas(64);
-    x.fillStyle = skin; x.fillRect(0, 0, 64, 64);
-    x.fillStyle = hair; x.fillRect(0, 0, 64, look.bald ? 4 : 14);
-    x.fillStyle = '#fff'; x.fillRect(14, 24, 12, 8); x.fillRect(38, 24, 12, 8);
-    x.fillStyle = look.eyes || '#2b4a7a'; x.fillRect(19, 24, 6, 8); x.fillRect(39, 24, 6, 8);
-    x.fillStyle = shade(skin.length === 7 ? skin : '#e0b18c', 0.75); x.fillRect(29, 33, 6, 8);
-    x.fillStyle = '#7a3b2e'; x.fillRect(22, 46, 20, 4);
-    if (look.beard) { x.fillStyle = look.beard; x.fillRect(10, 40, 44, 24); x.fillStyle = '#7a3b2e'; x.fillRect(24, 46, 16, 3); }
-    const face = new T.CanvasTexture(c); face.colorSpace = T.SRGBColorSpace; face.magFilter = T.NearestFilter;
-    const skinM = plain(skin), hairM = plain(hair), shirtM = plain(shirt), pantsM = plain(pants), shoeM = plain('#2b2118');
-    const headMats = [skinM, skinM, hairM, skinM, skinM, new T.MeshStandardMaterial({ map: face, roughness: 0.9 })];
-    const part = (w, h, d, m, px, py, pz, pivotY) => {   /* a box hanging from a joint at its top */
-      const j = new T.Group(); j.position.set(px, py, pz);
-      const b = mesh(new T.BoxGeometry(w, h, d), m); b.position.y = pivotY ? -h / 2 : h / 2; j.add(b); g.add(j); return j;
+    const skin = look.skin || '#e0b18c', shirt = look.shirt || '#3e6fa8', pants = look.pants || '#4a3b2a', hair = look.hair || '#4a2f1b';
+    const tint = look.tint || null, slim = look.build === 'slim', style = look.bald ? 'bald' : (look.hairStyle || (slim ? 'long' : 'short'));
+    const M = col => bodyMat(col, tint);
+    const g = new T.Group(), s = look.scale || 0.9;
+    const part = (geo, col, parent, x, y, z, map) => {
+      const m = mesh(litFromAbove(geo), map ? bodyMat(col, tint, map) : M(col)); m.position.set(x || 0, y || 0, z || 0); parent.add(m); return m;
     };
-    const legL = part(0.24, 0.72, 0.26, pantsM, -0.13, 0.74, 0, true), legR = part(0.24, 0.72, 0.26, pantsM, 0.13, 0.74, 0, true);
-    for (const leg of [legL, legR]) { const s = mesh(new T.BoxGeometry(0.26, 0.12, 0.32), shoeM); s.position.set(0, -0.68, -0.03); leg.add(s); }
-    const body = part(0.54, 0.74, 0.32, shirtM, 0, 0.74, 0, false);
-    if (look.belt !== false) { const b = mesh(new T.BoxGeometry(0.56, 0.08, 0.34), plain('#3b2814')); b.position.y = 0.06; body.add(b); }
-    if (look.apron) { const a = mesh(new T.BoxGeometry(0.42, 0.55, 0.02), plain(look.apron)); a.position.set(0, 0.3, -0.17); body.add(a); }
-    const armL = part(0.2, 0.7, 0.22, shirtM, -0.37, 1.44, 0, true), armR = part(0.2, 0.7, 0.22, shirtM, 0.37, 1.44, 0, true);
-    for (const arm of [armL, armR]) { const h = mesh(new T.BoxGeometry(0.18, 0.14, 0.2), skinM); h.position.y = -0.67; arm.add(h); }
-    const head = new T.Group(); head.position.set(0, 1.48, 0); g.add(head);
-    const hm = mesh(new T.BoxGeometry(0.48, 0.48, 0.48), headMats); hm.position.y = 0.24; head.add(hm);
-    if (look.hat) { const brim = mesh(new T.CylinderGeometry(0.42, 0.42, 0.04, 14), plain(look.hat)); brim.position.y = 0.5; head.add(brim); const top = mesh(new T.CylinderGeometry(0.24, 0.27, 0.26, 12), plain(look.hat)); top.position.y = 0.64; head.add(top); }
-    if (look.hood) { const hd = mesh(new T.BoxGeometry(0.54, 0.4, 0.54), plain(look.hood)); hd.position.set(0, 0.36, 0.04); head.add(hd); }
-    const s = look.scale || 0.9; g.scale.setScalar(s);
-    const root = new T.Group(); root.add(g); root.userData.keep = true;   /* the engine places root; g bobs inside it while walking */
+    const joint = (parent, x, y, z) => { const j = new T.Group(); j.position.set(x, y, z); parent.add(j); return j; };
+    const cap = (r, len) => new T.CapsuleGeometry(r, len, 3, 8);
+    const HIP = 0.89, sw = slim ? 0.86 : 1;   /* shoulder width */
+    /* hips and legs */
+    const hips = joint(g, 0, HIP, 0);
+    part(new T.SphereGeometry(0.19, 10, 8), pants, hips, 0, 0, 0).scale.set(1.15 * sw, 0.72, 0.82);
+    const legs = [], knees = [];
+    for (const sx of [-1, 1]) {
+      const leg = joint(hips, sx * 0.11, -0.03, 0);
+      part(cap(0.118, 0.22), pants, leg, 0, -0.2, 0);
+      const knee = joint(leg, 0, -0.42, 0);
+      part(cap(0.1, 0.2), pants, knee, 0, -0.19, 0);
+      const boot = part(new T.CapsuleGeometry(0.085, 0.16, 3, 8), look.boots || '#4a3020', knee, 0, -0.4, -0.05);
+      boot.rotation.x = Math.PI / 2; boot.scale.set(1.15, 1, 0.82);
+      part(new T.CylinderGeometry(0.105, 0.1, 0.12, 8), look.boots || '#4a3020', knee, 0, -0.3, 0);   /* the boot's cuff */
+      legs.push(leg); knees.push(knee);
+    }
+    /* the body: a barrel wider at the shoulders, a belt, round shoulders */
+    const spine = joint(hips, 0, 0.05, 0);
+    const chest = part(new T.CylinderGeometry(0.27 * sw, 0.2, 0.5, 10), shirt, spine, 0, 0.27, 0); chest.scale.z = 0.72;
+    part(new T.SphereGeometry(0.27 * sw, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), shirt, spine, 0, 0.52, 0).scale.set(1, 0.32, 0.72);   /* the chest's rounded top */
+    if (look.belt !== false) {
+      part(new T.CylinderGeometry(0.212, 0.212, 0.075, 10), '#3b2814', spine, 0, 0.04, 0).scale.z = 0.76;
+      part(new T.BoxGeometry(0.07, 0.06, 0.03), '#c9a24a', spine, 0, 0.04, -0.165);
+    }
+    if (look.apron) { const ap = part(new T.CylinderGeometry(0.2, 0.26, 0.5, 10, 1, true, Math.PI * 0.65, Math.PI * 0.7), look.apron, spine, 0, -0.2, -0.01); ap.scale.z = 0.95; }   /* hangs from the belt */
+    if (look.robe) { const rb = part(new T.CylinderGeometry(0.22, 0.36, 0.78, 12, 1, true), look.robe, spine, 0, -0.42, 0); rb.material = rb.material.clone(); rb.material.side = T.DoubleSide; rb.scale.z = 0.85; }   /* a priest's or an elder's robe */
+    const arms = [], elbows = [], hands = [];
+    for (const sx of [-1, 1]) {
+      part(new T.SphereGeometry(0.135, 10, 8), look.armor ? look.armor : shirt, spine, sx * 0.31 * sw, 0.46, 0).scale.set(1.05, 0.9, 1);   /* round shoulders */
+      const arm = joint(spine, sx * 0.34 * sw, 0.44, 0);
+      part(cap(0.095, 0.14), shirt, arm, 0, -0.14, 0);
+      const elbow = joint(arm, 0, -0.29, 0);
+      part(cap(0.088, 0.13), look.gloves ? look.gloves : shirt, elbow, 0, -0.13, 0);
+      const hand = joint(elbow, 0, -0.3, 0);
+      part(new T.SphereGeometry(0.1, 9, 7), look.gloves || skin, hand, 0, 0.02, 0).scale.set(0.95, 1.15, 0.9);   /* big hands */
+      arms.push(arm); elbows.push(elbow); hands.push(hand);
+    }
+    /* the head: a little large, a painted face, a nose, ears, hair */
+    part(new T.CylinderGeometry(0.075, 0.085, 0.1, 8), skin, spine, 0, 0.58, 0);
+    const head = joint(spine, 0, 0.62, 0);
+    const faceT = faceTexture(skin, look.eyes || '#2b4a7a', shade(hair.length === 7 ? hair : '#4a2f1b', 0.75), slim);
+    const skull = part(new T.SphereGeometry(0.2, 16, 12), '#ffffff', head, 0, 0.18, 0, faceT); skull.scale.set(1, 1.07, 1.02);
+    if (!slim) part(new T.SphereGeometry(0.15, 10, 8), skin, head, 0, 0.07, -0.05).scale.set(1.05, 0.62, 0.9);   /* a strong jaw */
+    const nose = part(new T.ConeGeometry(0.034, 0.1, 6), skin, head, 0, 0.165, -0.205); nose.rotation.x = -Math.PI / 2 - 0.3;
+    for (const sx of [-1, 1]) part(new T.SphereGeometry(0.045, 6, 5), skin, head, sx * 0.2, 0.17, 0.01).scale.set(0.5, 1, 0.8);
+    if (style !== 'bald' && !look.hood && !look.helm) {
+      part(new T.SphereGeometry(0.215, 14, 8, 0, Math.PI * 2, 0, Math.PI * 0.34), hair, head, 0, 0.19, 0.012).scale.set(1.02, 1.12, 1.06);   /* stops at the brow */
+      part(new T.SphereGeometry(0.205, 12, 6, Math.PI * 0.15, Math.PI * 0.7, Math.PI * 0.4, Math.PI * 0.35), hair, head, 0, 0.18, 0.02);   /* the back of the head */
+      if (style === 'long') part(cap(0.13, 0.22), hair, head, 0, 0.02, 0.1).scale.set(1.3, 1, 0.55);
+      if (slim) for (const sx of [-1, 1]) part(cap(0.05, 0.16), hair, head, sx * 0.185, 0.12, -0.02);   /* locks framing the face */
+      if (style === 'bun') part(new T.SphereGeometry(0.09, 8, 6), hair, head, 0, 0.36, 0.13);
+    }
+    if (look.beard) part(new T.SphereGeometry(0.14, 10, 8), look.beard, head, 0, 0.04, -0.11).scale.set(1.15, 1, 0.75);
+    if (look.hat) { part(new T.CylinderGeometry(0.34, 0.34, 0.035, 14), look.hat, head, 0, 0.33, 0); part(new T.CylinderGeometry(0.2, 0.22, 0.2, 12), look.hat, head, 0, 0.45, 0); }
+    if (look.helm) { part(new T.SphereGeometry(0.225, 14, 8, 0, Math.PI * 2, 0, Math.PI * 0.4), look.helm, head, 0, 0.18, 0.01).scale.set(1.04, 1.1, 1.06);
+                     part(new T.CylinderGeometry(0.235, 0.235, 0.04, 14), look.helm, head, 0, 0.255, 0.01); part(new T.BoxGeometry(0.035, 0.11, 0.05), look.helm, head, 0, 0.2, -0.225); }
+    if (look.hood) { part(new T.SphereGeometry(0.245, 14, 10, Math.PI * 1.85, Math.PI * 1.3, 0, Math.PI * 0.62), look.hood, head, 0, 0.17, 0.03).scale.set(1.02, 1.1, 1.1);   /* open at the face */
+                     part(new T.SphereGeometry(0.245, 14, 4, 0, Math.PI * 2, 0, Math.PI * 0.3), look.hood, head, 0, 0.17, 0.03).scale.set(1.02, 1.1, 1.1);
+                     part(new T.CylinderGeometry(0.2, 0.33 * sw, 0.16, 12, 1, true), look.hood, spine, 0, 0.53, 0.01); }
+    g.scale.setScalar(s);
+    const root = new T.Group(); root.add(g); root.userData.keep = true;   /* the engine places root; g moves inside it */
     /* a name over the head */
     const [nc, nx] = canvas(256); nc.height = 48; const ntex = new T.CanvasTexture(nc); ntex.colorSpace = T.SRGBColorSpace;
     const tag = new T.Sprite(new T.SpriteMaterial({ map: ntex, depthTest: false, transparent: true })); tag.scale.set(1.15 / s, 0.215 / s, 1); tag.position.y = 2.25; tag.renderOrder = 10; g.add(tag);
-    const hashStr = str => { let h = 0; for (const ch of String(str)) h = (h * 31 + ch.charCodeAt(0)) | 0; return h; };
     const setName = (text, color) => { nx.clearRect(0, 0, 256, 48); nx.font = '600 24px Georgia,serif'; nx.textAlign = 'center'; const w = Math.min(250, nx.measureText(text).width + 20); nx.fillStyle = 'rgba(0,0,0,.45)'; nx.fillRect(128 - w / 2, 6, w, 36); nx.fillStyle = color || '#fff'; nx.fillText(text, 128, 33); ntex.needsUpdate = true; };
     ctx.scene.add(root);
-    let phase = 0, breathe = Math.random() * 6;
-    let mixer = null, actions = {}, now = null, once = null, hold = null, swingT = 0;
-    const play = (name, fade) => {
-      const a = actions[name]; if (!a || now === a) return;
-      a.reset().fadeIn(fade == null ? 0.25 : fade).play(); if (now) now.fadeOut(fade == null ? 0.25 : fade); now = a;
-    };
     /* WHAT IS IN THE HANDS (tbuuol: a new weapon should be seen -- by the others too): things built in metres, held in
-       the model's hands (the arm's end, pointing forward), or in the stand-in's until the model is there */
-    let hands = { right: armR, left: armL, at: [0, -0.67, 0.04], to: [0, -0.67, 0.04], k: s }, held = null;
+       the hand, pointing forward on a hanging arm, a little bigger than in your own hands: seen from afar */
+    let held = null;
     function holdItem(right, left) {
       if (held) for (const o of held) if (o && o.parent) o.parent.remove(o);
       held = [right, left];
-      [[right, hands.right, hands.at, 0], [left, hands.left, hands.to, 1]].forEach(([o, arm, at, isLeft]) => {
-        if (!o || !arm) return;
-        o.position.fromArray(at); o.scale.setScalar(1.25 / hands.k);   /* a little bigger than in your own hands: seen from afar */
-        o.rotation.set(Math.PI / 2, isLeft ? Math.PI / 2 : 0, 0);   /* upright in the hand is forward on a hanging arm; a shield faces out */
+      [[right, hands[1], 0], [left, hands[0], 1]].forEach(([o, hand, isLeft]) => {
+        if (!o) return;
+        o.position.set(0, 0, -0.02); o.scale.setScalar(1.25 / s);
+        o.rotation.set(Math.PI / 2, isLeft ? Math.PI / 2 : 0, 0);   /* a shield faces out */
         o.traverse(m => { if (m.isMesh) m.castShadow = true; });
-        arm.add(o);
+        hand.add(o);
       });
     }
-    if (assetURL) loadPerson().then(tpl => {
-      const model = tpl.root.clone(true), material = personMat(look.person || art.PEOPLE[Math.abs(hashStr(shirt)) % art.PEOPLE.length], look.tint);
-      model.traverse(o => { if (o.isMesh) { o.material = material; o.castShadow = true; o.receiveShadow = true; } });
-      const k = 1.8 * (look.scale ? look.scale / 0.9 : 1) / tpl.height;
-      model.scale.setScalar(k); model.position.y = -tpl.foot * k; model.rotation.y = Math.PI;   /* glTF faces +z, the game faces -z */
-      g.children.forEach(ch => { if (ch !== tag) ch.visible = false; });
-      root.add(model);
-      hands = { right: model.getObjectByName('arm-right'), left: model.getObjectByName('arm-left'), at: [-0.2, -0.95, 0.02], to: [0.2, -0.95, 0.02], k };
-      if (held) holdItem(held[0], held[1]);
-      mixer = new T.AnimationMixer(model);
-      for (const c of tpl.clips) actions[c.name] = mixer.clipAction(c);
-      for (const n of ['emote-yes', 'emote-no', 'pick-up', 'interact-right', 'attack-melee-right', 'die']) if (actions[n]) { actions[n].setLoop(T.LoopOnce, 1); actions[n].clampWhenFinished = true; }
-      if (hold) play(hold, 0);
-      mixer.addEventListener('finished', () => { once = null; });
-      play('idle', 0);
-    }).catch(e => console.warn('LWQ: the people model did not load; blocky stand-ins stay', e && e.message));
+    /* MOVEMENT, by code: a pose made fresh every frame from the walk's phase, the breath, a gesture under way, a pose held */
+    let phase = 0, breathe = Math.random() * 6, once = null, onceT = 0, hold = null, holdT = 0;
+    const DUR = { 'attack-melee-right': 0.5, 'interact-right': 1.0, 'emote-yes': 0.9, 'emote-no': 0.9, 'pick-up': 1.1 };
+    const lerp = (a, b, k) => a + (b - a) * Math.max(0, Math.min(1, k));
+    function pose(dt, speed) {
+      const sp = Math.min(1.6, (speed || 0) / 2.6), run = speed > 5 ? 1 : 0;
+      phase += dt * (3.2 + speed * 1.9); breathe += dt * 1.5;
+      const sw0 = Math.sin(phase), idle = 1 - Math.min(1, sp * 3);
+      /* legs: swing from the hip, bend at the knee as the foot comes back */
+      legs[0].rotation.set(sw0 * 0.62 * sp, 0, 0); legs[1].rotation.set(-sw0 * 0.62 * sp, 0, 0);
+      knees[0].rotation.x = -Math.max(0, -Math.sin(phase - 0.6)) * 1.1 * sp; knees[1].rotation.x = -Math.max(0, Math.sin(phase - 0.6)) * 1.1 * sp;
+      /* arms: against the legs, elbows a little bent, out from the broad shoulders */
+      arms[0].rotation.set(-sw0 * 0.55 * sp, 0, -0.14 - Math.sin(breathe) * 0.03 * idle); arms[1].rotation.set(sw0 * 0.55 * sp, 0, 0.14 + Math.sin(breathe) * 0.03 * idle);
+      elbows[0].rotation.x = elbows[1].rotation.x = 0.22 + 0.35 * sp + run * 0.5;
+      hips.position.y = HIP + Math.abs(Math.cos(phase)) * 0.045 * sp - 0.02 * run;
+      spine.rotation.set(-0.06 * sp - 0.16 * run, sw0 * 0.09 * sp, 0);
+      spine.scale.y = 1 + Math.sin(breathe) * 0.012 * idle;
+      head.rotation.set(0.04 * sp, -sw0 * 0.05 * sp, 0);
+      /* a gesture on top */
+      if (once) {
+        onceT += dt; const k = onceT / DUR[once];
+        if (once === 'attack-melee-right') {
+          const up = k < 0.35;
+          arms[1].rotation.x = up ? lerp(0, 2.7, k / 0.35) : lerp(2.7, -0.3, (k - 0.35) / 0.65); arms[1].rotation.z = 0.25;
+          elbows[1].rotation.x = up ? lerp(0.3, 1.1, k / 0.35) : lerp(1.1, 0.2, (k - 0.35) / 0.65);
+          spine.rotation.y = up ? lerp(0, -0.35, k / 0.35) : lerp(-0.35, 0.3, (k - 0.35) / 0.65);
+        } else if (once === 'interact-right') {
+          const a = Math.sin(Math.min(1, k) * Math.PI);
+          arms[1].rotation.x = 1.5 * a; elbows[1].rotation.x = 0.3; arms[0].rotation.x = 0.7 * a; head.rotation.x = -0.15 * a;
+        } else if (once === 'emote-yes') head.rotation.x = Math.sin(k * Math.PI * 4) * 0.28;
+        else if (once === 'emote-no') head.rotation.y = Math.sin(k * Math.PI * 4) * 0.4;
+        else if (once === 'pick-up') {
+          const a = Math.sin(Math.min(1, k) * Math.PI);
+          spine.rotation.x = 0.9 * a; knees[0].rotation.x = knees[1].rotation.x = -1.2 * a; legs[0].rotation.x = legs[1].rotation.x = 0.7 * a;
+          hips.position.y = HIP - 0.25 * a; arms[0].rotation.x = arms[1].rotation.x = 0.8 * a;
+        }
+        if (k >= 1) once = null;
+      }
+    }
+    function fallen(dt) {   /* falls on its back and stays there; got up again with hold(null) */
+      holdT = Math.min(1, holdT + dt / 0.6);
+      const k = holdT * holdT;
+      g.rotation.x = -k * Math.PI / 2; g.position.y = k * 0.16 * s; g.position.z = k * 0.12;
+      arms[0].rotation.set(0.2, 0, -1.0 * k); arms[1].rotation.set(0.2, 0, 1.0 * k); legs[0].rotation.set(0, 0, -0.15 * k); legs[1].rotation.set(0, 0, 0.15 * k);
+      knees[0].rotation.x = knees[1].rotation.x = -0.2 * k; head.rotation.set(-0.3 * k, 0.4 * k, 0);
+    }
     return {
       group: root, head, setName, tag, holdItem,
       /* a one-off gesture: 'emote-yes', 'emote-no', 'pick-up', 'interact-right', 'attack-melee-right' */
-      emote(name) {
-        if (name === 'attack-melee-right') swingT = 0.45;   /* the blocky stand-in swings its arm instead */
-        if (!actions[name] || hold) return;
-        if (now === actions[name]) now = null;   /* the same swing again starts again */
-        once = name; play(name, 0.1);
-      },
+      emote(name) { if (hold || !DUR[name]) return; once = name; onceT = 0; },
       /* a pose kept until it is let go: 'die' (falls and stays down); null gets up again */
       hold(name) {
         if (hold === name) return;
-        hold = name; once = null;
-        /* every other action stops first: left running at full weight, a walk under the fall kept a dying raider on
-           its feet, and a fall under the idle kept a guard who was raised again on the ground (tbuuol 2026-10-23) */
-        if (mixer) { mixer.stopAllAction(); now = null; }
-        if (name) play(name, 0); else play('idle', 0);
-        if (!mixer) g.rotation.x = name === 'die' ? -Math.PI / 2 : 0, g.position.z = name === 'die' ? 0.9 : 0;
+        hold = name; once = null; holdT = 0;
+        if (!name) { g.rotation.x = 0; g.position.y = 0; g.position.z = 0; }
       },
-      animate(dt, speed) {
-        if (hold) { if (mixer) mixer.update(dt); return; }
-        if (mixer) {
-          if (!once || speed > 0.3) { once = null; play(speed > 5 ? 'sprint' : speed > 0.3 ? 'walk' : 'idle'); }
-          if (actions.walk) actions.walk.timeScale = Math.max(0.6, speed / 2.6);
-          mixer.update(dt);
-          return;
-        }
-        const sp = Math.min(1.6, (speed || 0) / 3);
-        phase += dt * (4 + speed * 1.8); breathe += dt * 1.6;
-        const swing = Math.sin(phase) * 0.75 * sp;
-        legL.rotation.x = swing; legR.rotation.x = -swing; armL.rotation.x = -swing * 0.9; armR.rotation.x = swing * 0.9;
-        const idle = 1 - Math.min(1, sp * 3);
-        body.scale.y = 1 + Math.sin(breathe) * 0.012 * idle; armL.rotation.z = -0.04 - Math.sin(breathe) * 0.02 * idle; armR.rotation.z = 0.04 + Math.sin(breathe) * 0.02 * idle;
-        g.position.y = Math.abs(Math.sin(phase)) * 0.05 * sp;
-        if (swingT > 0) { swingT -= dt; const k = Math.sin(Math.max(0, swingT) / 0.45 * Math.PI); armR.rotation.x = -2.2 * k; }
-      },
-      wave(t) { armR.rotation.x = -2.6 + Math.sin(t * 9) * 0.3; armR.rotation.z = 0.3; }
+      animate(dt, speed) { if (hold === 'die') fallen(dt); else pose(dt, speed); },
+      wave(t) { arms[1].rotation.x = 2.8 + Math.sin(t * 9) * 0.3; arms[1].rotation.z = 0.3; }
     };
   };
 
@@ -1212,5 +1341,5 @@
     return { groundAt, polys, segs, half, spawn, inside, stats: { buildings: buildings.length, trees: trees.length } };
   };
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('art', { api: 1, v: 5 }, () => art);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('art', { api: 1, v: 7 }, () => art);
 })(typeof globalThis !== 'undefined' ? globalThis : this);

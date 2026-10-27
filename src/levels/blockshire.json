@@ -13,27 +13,27 @@
   ],
   "spawnYaw": 0,
   "env": {
-   "skyTop": "#6c8db0",
-   "skyBottom": "#e2cdb0",
-   "fogColor": "#c9c3b6",
+   "skyTop": "#3f7fcf",
+   "skyBottom": "#cfe6f2",
+   "fogColor": "#bcd5dc",
    "fog": [
-    24,
-    135
+    30,
+    160
    ],
    "sunDir": [
     -0.45,
     0.3,
     -0.84
    ],
-   "sunColor": "#ffdcb4",
-   "sun": 2.3,
-   "hemiSky": "#b7c4d4",
-   "hemiGround": "#5b4d3a",
-   "hemi": 0.7,
-   "exposure": 1.0,
+   "sunColor": "#fff0cc",
+   "sun": 2.6,
+   "hemiSky": "#cfe2ff",
+   "hemiGround": "#6b5a3a",
+   "hemi": 0.95,
+   "exposure": 1.1,
    "ground": 280,
    "flat": 30,
-   "bloom": 0.3
+   "bloom": 0.25
   },
   "solids": [
    {
@@ -166,7 +166,7 @@
      "pine"
     ]
    ],
-   "haze": "#c9c3b6",
+   "haze": "#bcd5dc",
    "clear": [
     [
      -14,
@@ -684,7 +684,8 @@
      "pants": "#3b2f25",
      "hair": "#d8d8d8",
      "beard": "#e6e6e6",
-     "hood": "#4a3466"
+     "hood": "#4a3466",
+     "robe": "#5a3f7a"
     },
     "lines": [
      "Welcome to Blockshire, traveller. Warm yourself by the fire.",
@@ -710,7 +711,9 @@
      "shirt": "#9a3b2e",
      "pants": "#4a3b2a",
      "hair": "#2a1a10",
-     "apron": "#efe6d2"
+     "apron": "#efe6d2",
+     "build": "slim",
+     "hairStyle": "bun"
     },
     "lines": [
      "Stew is on in an hour. Bring me nothing but an appetite.",
@@ -736,7 +739,8 @@
      "pants": "#3a2c20",
      "hair": "#8a4a1e",
      "beard": "#8a4a1e",
-     "hat": "#5a4030"
+     "hat": "#5a4030",
+     "gloves": "#6b4a2e"
     },
     "lines": [
      "Mind the axe. It bites wood and fingers alike.",
@@ -804,7 +808,11 @@
       "shirt": "#6b6f78",
       "pants": "#3a3a40",
       "hair": "#c9a04a",
-      "hat": "#4a4e58"
+      "build": "slim",
+      "hairStyle": "long",
+      "helm": "#9aa1ab",
+      "armor": "#9aa1ab",
+      "gloves": "#5a4a3a"
      }
     },
     {
@@ -824,7 +832,9 @@
       "shirt": "#5d6470",
       "pants": "#33333a",
       "hair": "#3a2a1a",
-      "hat": "#4a4e58"
+      "helm": "#9aa1ab",
+      "armor": "#9aa1ab",
+      "gloves": "#5a4a3a"
      }
     }
    ],
@@ -845,7 +855,8 @@
      "shirt": "#e9e2cf",
      "pants": "#c9bfa5",
      "hair": "#8a6a4a",
-     "hood": "#d8cfb6"
+     "hood": "#d8cfb6",
+     "robe": "#e9e2cf"
     },
     "ae": {
      "radius": 10,

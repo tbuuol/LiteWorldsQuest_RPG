@@ -27,11 +27,11 @@
     },
     "art": {
       "file": "src/modules/art.js",
-      "v": 6,
+      "v": 7,
       "api": 1,
       "kind": "js",
       "id": null,
-      "gz": "3f0066f4641f3932adb75fd04b34a86572974ee5b01a652fe09cd43960ed970e"
+      "gz": null
     },
     "combat": {
       "file": "src/modules/combat.js",

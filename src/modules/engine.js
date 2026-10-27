@@ -606,7 +606,10 @@
     function heldModel(model, look) {
       const g = new THREE.Group(), add = (geo, m, x, y, z) => { const p = new THREE.Mesh(geo, m); p.position.set(x || 0, y || 0, z || 0); g.add(p); return p; };
       const steel = M({ color: look || '#cfd5dd', metalness: 0.85, roughness: 0.3 }), wood = M({ color: '#6b4a2e' }), brass = M({ color: '#b8893a', metalness: 0.7, roughness: 0.4 });
-      if (model === 'fist') { add(new THREE.BoxGeometry(0.08, 0.08, 0.1), M({ color: '#d9a882' })); add(new THREE.BoxGeometry(0.075, 0.075, 0.2), M({ color: '#5a3f2a' }), 0, -0.01, 0.15); }
+      if (model === 'fist') {   /* our own figure's big round hand and its sleeve (Etappe 2) */
+        add(new THREE.SphereGeometry(0.06, 10, 8), M({ color: '#e0b18c', roughness: 0.85 })).scale.set(1, 0.9, 1.2);
+        const sl = add(new THREE.CapsuleGeometry(0.048, 0.16, 3, 8), M({ color: '#3e6fa8', roughness: 0.9 }), 0, -0.01, 0.15); sl.rotation.x = Math.PI / 2;
+      }
       else if (model === 'sword') { add(new THREE.BoxGeometry(0.045, 0.6, 0.012), steel, 0, 0.38); add(new THREE.ConeGeometry(0.032, 0.08, 4), steel, 0, 0.72);
         add(new THREE.BoxGeometry(0.2, 0.035, 0.045), brass, 0, 0.07); add(new THREE.CylinderGeometry(0.02, 0.022, 0.15, 8), wood, 0, -0.02); }
       else if (model === 'axe') { add(new THREE.CylinderGeometry(0.022, 0.025, 0.62, 8), wood, 0, 0.2); add(new THREE.BoxGeometry(0.16, 0.14, 0.02), steel, 0.07, 0.44); }
