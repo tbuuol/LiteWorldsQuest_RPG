@@ -207,6 +207,19 @@ async def session(p, level: str = "") -> None:
         if not frame:
             log("the game did not start; trying again")
             return
+        # A ZONE'S HOUSE: the play page may not hand ?level= on to the game, so the house sends its game there itself,
+        # as a portal does (the frame's own address, its viewer ticket kept)
+        if level and f"level={level}" not in frame.url:
+            await frame.evaluate("lv => { const q = new URLSearchParams(location.search); q.set('level', lv); location.search = '?' + q.toString(); }", level)
+            frame = None
+            for _ in range(300):
+                await asyncio.sleep(1)
+                frame = await find_game(pg)
+                if frame and f"level={level}" in frame.url:
+                    break
+            if not frame or f"level={level}" not in frame.url:
+                log("the game did not go to", level, "; trying again")
+                return
         started = time.time()
         for _ in range(18):   # joining the room can take a while on a busy node: up to 90 s before judging
             await asyncio.sleep(5)
@@ -233,6 +246,7 @@ async def session(p, level: str = "") -> None:
                 log("the game frame is gone; starting again")
                 return
             s = await frame.evaluate("(() => { const s = window.LWQGAME.state; return {online: s.online, house: s.house, players: s.players, seq: s.world.seq}; })()")
+            s["zone"] = level or "main"
             if not s["online"] or s["house"] != "me":
                 log("not the house any more:", s, "; starting again")
                 return

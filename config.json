@@ -36,7 +36,7 @@
     },
     "combat": {
       "file": "src/modules/combat.js",
-      "v": 12,
+      "v": 13,
       "api": 1,
       "kind": "js",
       "id": null,
@@ -92,7 +92,7 @@
     },
     "beach": {
       "file": "src/levels/beach.json",
-      "v": 1,
+      "v": 2,
       "api": 1,
       "kind": "json",
       "id": null

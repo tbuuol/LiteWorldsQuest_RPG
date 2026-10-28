@@ -2,7 +2,7 @@
  "lwq": "module",
  "name": "level.beach",
  "api": 1,
- "v": 1,
+ "v": 2,
  "data": {
   "id": "beach",
   "title": "Beach",
@@ -414,9 +414,9 @@
    "species": {
     "crab": {
      "name": "Shore Crab",
-     "lvl": 7,
-     "hp": 80,
-     "dmg": 8,
+     "lvl": 5,
+     "hp": 60,
+     "dmg": 6,
      "speed": 2.4,
      "aggressive": false,
      "def": 2,
@@ -468,7 +468,8 @@
       "evade",
       "int",
       "herbalism"
-     ]
+     ],
+     "swim": true
     },
     "drowned": {
      "name": "Drowned Sailor",
@@ -537,7 +538,7 @@
      "species": "siren",
      "center": [
       -74,
-      -27
+      -22
      ],
      "r": 9,
      "count": 4
@@ -551,7 +552,8 @@
      "r": 9,
      "count": 4
     }
-   ]
+   ],
+   "waterY": -0.75
   },
   "quests": [
    {

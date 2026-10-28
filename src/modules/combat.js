@@ -376,7 +376,8 @@
           const lying = (performance.now() - u.deadSince) / 1000;
           if (lying > 0.6) y = -Math.min(1.4, (lying - 0.6) * 1.8);   /* down a moment, then quickly into the ground (tbuuol: too slow) */
         } else u.deadSince = 0;
-        u.c.group.position.set(u.x, y + height(u.x, u.z), u.z);
+        const gy = height(u.x, u.z);   /* a swimmer (a siren) keeps its head above the water */
+        u.c.group.position.set(u.x, y + (u.beast && u.beast.spec.swim ? Math.max(gy, wild && wild.waterY != null ? wild.waterY : -0.75) : gy), u.z);
         let d = u.tyaw - u.yaw; d = Math.atan2(Math.sin(d), Math.cos(d)); u.yaw += d * Math.min(1, dt * 8);
         u.c.group.rotation.y = u.yaw;
         const speed = dt > 0 ? Math.hypot(u.x - ox, u.z - oz) / dt : 0;
@@ -585,5 +586,5 @@
     return snap;
   }
   const combat = { api: 1, player, gain, nextXp, create, encode, decode };
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('combat', { api: 1, v: 12, needs: { three: 160, art: 1 } }, () => combat);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('combat', { api: 1, v: 13, needs: { three: 160, art: 1 } }, () => combat);
 })(typeof globalThis !== 'undefined' ? globalThis : this);
