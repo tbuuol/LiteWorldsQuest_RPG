@@ -209,7 +209,19 @@ async def session(p, level: str = "") -> None:
             return
         # A ZONE'S HOUSE: the play page may not hand ?level= on to the game, so the house sends its game there itself,
         # as a portal does (the frame's own address, its viewer ticket kept)
-        if level and f"level={level}" not in frame.url:
+        if level and await frame.evaluate("lv => !!(window.LWQGAME && window.LWQGAME.travel) && window.LWQGAME.level !== lv", level):
+            # IN PLACE (engine 22, 2026-10-28): the game leaves its first room and plays the zone in the same page
+            if not await frame.evaluate("lv => window.LWQGAME.travel(lv)", level):
+                log("the game did not go to", level, "; trying again")
+                return
+        elif level and f"level={level}" not in frame.url:
+            # LEAVE THE FIRST ROOM FIRST (2026-10-28, live): the room is held by the viewer, not the game, so a frame
+            # that only moves on stays in it -- three houses sat in Blockshire as one member, all three answering a
+            # player's fast lane, which flapped between 'direct' and 'room'. A portal leaves too (engine travel()).
+            here = await frame.evaluate("(() => { try { return new URLSearchParams(location.search).get('level') || ''; } catch (e) { return ''; } })()")
+            await frame.evaluate("room => window.parent.postMessage({ arcade: 'realtime', op: 'leave', room: room, seq: 900000001 }, '*')",
+                                 "lwq." + (here or "blockshire"))
+            await asyncio.sleep(2)
             await frame.evaluate("lv => { const q = new URLSearchParams(location.search); q.set('level', lv); location.search = '?' + q.toString(); }", level)
             frame = None
             for _ in range(300):
@@ -269,7 +281,7 @@ async def session(p, level: str = "") -> None:
             for _ in range(CHECK_EVERY):
                 if store is not None:
                     try:
-                        given, taken = await house_store.sync(frame, store)
+                        given, taken = await house_store.sync(frame, store, level)
                         if given or taken:
                             log("store: gave", given, "took", taken)
                     except Exception as e:   # noqa: BLE001 -- the next second tries again
@@ -279,9 +291,10 @@ async def session(p, level: str = "") -> None:
     finally:
         if store is not None and frame is not None:   # what changed in the last second, before the tab goes
             try:
-                await house_store.sync(frame, store)
+                await house_store.sync(frame, store, level)
             except Exception:   # noqa: BLE001 -- the tab may be gone already
                 pass
+        house_store.release(level)
         await ctx.close()
 
 

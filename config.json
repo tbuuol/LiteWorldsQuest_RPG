@@ -21,18 +21,17 @@
     },
     "sound": {
       "file": "src/modules/sound.js",
-      "v": 2,
+      "v": 3,
       "api": 1,
       "kind": "js",
       "id": null
     },
     "art": {
       "file": "src/modules/art.js",
-      "v": 9,
+      "v": 10,
       "api": 1,
       "kind": "js",
-      "id": null,
-      "gz": "3c75d6473d38fe2c7aa32286334891c43146e9cf8ed7db1f5265a3a8a2a2bb6f"
+      "id": null
     },
     "combat": {
       "file": "src/modules/combat.js",
@@ -60,11 +59,10 @@
     },
     "engine": {
       "file": "src/modules/engine.js",
-      "v": 21,
+      "v": 22,
       "api": 1,
       "kind": "js",
-      "id": null,
-      "gz": "a53a6bd99d3ef01ed087af7cf98505069e9f25ddedc43357b3751874e9eaa2cb"
+      "id": null
     }
   },
   "levels": {
@@ -172,8 +170,6 @@
     "notHZVkLNJjG6ymtWGjM6rhBapuh3VU8eb"
   ],
   "house_levels": [
-    "blockshire",
-    "beach",
-    "pirateship"
+    "blockshire"
   ]
 }

@@ -1,5 +1,5 @@
 /* LiteWorldsQuest engine: first person, one small level, other players, the wallet.
-     const game = engine.start(element, {room, game})     -> {stop()}
+     const game = engine.start(element, {room, game, level})  -> {stop(), travel(level), level, ...}
    MOVEMENT  WASD / arrows, Shift to run, Space to jump, mouse to look (click the view to capture it), E to use.
    THE WORLD  doors, levers, pickups are shared. As in ASHVALE, one player keeps them: the HOST, who joined the room
      first (ties by id). Everyone else sends an intent ({I: 'use'|'take', o: id}); the host decides and sends the
@@ -30,13 +30,53 @@
   const hue = id => { let h = 0; for (const c of String(id)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h % 360; };
   const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
+  /* ZONES WITHOUT A RELOAD (tbuuol 2026-10-28: "doof, dass es neu laden muss"): the game is one zone at a time,
+     played by play(); a portal stops it and plays the next in the same page -- the modules, the wallet's permission,
+     the picture (renderer, canvas, a captured mouse) and the sound stay. What the page holds (window.LWQGAME) always
+     speaks to the zone being played. */
   function start(D, el, opts) {
     opts = opts || {};
+    const keep = { renderer: null, sound: undefined, touch: false, travel: go };
+    let cur = null, level = opts.level || null, busy = false;
+    function go(to, label) {
+      if (busy || !D.levels[to]) return Promise.resolve(false);
+      busy = true;
+      const veil = document.createElement('div');
+      veil.style.cssText = 'position:absolute;inset:0;z-index:50;background:#000;opacity:0;transition:opacity .6s;display:flex;align-items:center;' +
+        'justify-content:center;color:#e9dcc0;font:22px Georgia,serif;pointer-events:none';
+      veil.textContent = 'Travelling to ' + (label || D.levels[to].title || to) + '…';
+      el.appendChild(veil); requestAnimationFrame(() => { veil.style.opacity = '1'; });
+      return new Promise(res => setTimeout(() => {
+        try {
+          if (cur) cur.stop(true);
+          level = to; cur = play(D, el, Object.assign({}, opts, { level: to }), keep);
+          /* the address says where you are, so a reload comes back here */
+          try { const q = new URLSearchParams(location.search); q.set('level', to); history.replaceState(history.state, '', '?' + q.toString()); } catch (e) { /* a frame that may not */ }
+          res(true);
+        } catch (e) { console.error(e); res(false); }
+        setTimeout(() => { veil.style.opacity = '0'; setTimeout(() => veil.remove(), 700); busy = false; }, 400);
+      }, 650));
+    }
+    cur = play(D, el, opts, keep);
+    const extra = {
+      travel: (to, label) => go(to, label),
+      get level() { return level || (D.levels.blockshire ? 'blockshire' : 'test'); },
+      stop() { if (cur) cur.stop(false); cur = null; }
+    };
+    return new Proxy(extra, { get: (t, k) => k in t ? t[k] : cur ? cur[k] : undefined, has: (t, k) => k in t || !!cur && k in cur });
+  }
+
+  function play(D, el, opts, keep) {
     const THREE = D.three, net = D.net, wallet = D.wallet, art = D.art;
     /* the Hybrid tier's real files (textures, the people model): the loader says where each one lives */
     const assetURL = G.LWQ && G.LWQ.get ? G.LWQ.get('$asset') : null;
     if (assetURL && art.useAssets) art.useAssets(assetURL);
-    const sound = D.sound ? D.sound.create() : null;
+    if (keep.sound === undefined) keep.sound = D.sound ? D.sound.create() : null;
+    const sound = keep.sound;
+    if (sound && sound.clearFires) sound.clearFires();   /* the last zone's campfires */
+    /* what this zone hangs on the page, window or document, taken off again when it stops */
+    const offs = [], before = new Set(el.children);
+    const on = (t, type, fn, o) => { t.addEventListener(type, fn, o); offs.push(() => t.removeEventListener(type, fn, o)); };
     const LEVEL = opts.level || (D.levels.blockshire ? 'blockshire' : 'test');
     const LV = D.levels[LEVEL];
     if (!LV) throw new Error('no level ' + LEVEL);
@@ -44,10 +84,10 @@
     let stopped = false;
 
     /* --- scene ---------------------------------------------------------------------------------------- */
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    const renderer = keep.renderer || (keep.renderer = new THREE.WebGLRenderer({ antialias: true }));
     renderer.info.autoReset = false;   /* the stats count the whole frame, scene and after-passes, not only the last pass */
     renderer.setPixelRatio(Math.min(2, G.devicePixelRatio || 1));
-    el.appendChild(renderer.domElement);
+    if (renderer.domElement.parentNode !== el) el.appendChild(renderer.domElement);
     renderer.domElement.style.cssText = 'display:block;width:100%;height:100%';
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(72, 1, 0.05, 600);
@@ -67,7 +107,7 @@
       renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
       if (post) post.resize(w, h);
     }
-    G.addEventListener('resize', resize);
+    on(G, 'resize', resize);
 
     const boxes = [];          /* collision: {min:[x,y,z], max:[x,y,z], on()} */
     const usable = [];         /* meshes the crosshair can use */
@@ -217,19 +257,10 @@
         if (!travelling && armed.has(i) && d < 0.9 && Math.abs(me.y - P.y) < 2) travel(P);
       }
     }
-    function travel(P) {
+    function travel(P) {   /* in this page: start() stops this zone and plays the next */
       travelling = true;
-      const veil = document.createElement('div');
-      veil.style.cssText = 'position:absolute;inset:0;background:#000;opacity:0;transition:opacity .8s;display:flex;align-items:center;' +
-        'justify-content:center;color:#e9dcc0;font:22px Georgia,serif;pointer-events:none';
-      veil.textContent = 'Travelling to ' + (P.label || P.to) + '…';
-      el.appendChild(veil); requestAnimationFrame(() => { veil.style.opacity = '1'; });
       if (sound) sound.blip('pickup');
-      setTimeout(() => {
-        if (room) room.leave();
-        try { const q = new URLSearchParams(location.search); q.set('level', P.to); location.search = '?' + q.toString(); }
-        catch (e) { log('The portal is cold here: ' + (e && e.message || e)); travelling = false; veil.remove(); }
-      }, 900);
+      keep.travel(P.to, P.label).then(ok => { if (!ok && !stopped) { log('The portal is cold here.'); travelling = false; } });
     }
     function npcTick(dt, t) {
       for (const id in npcs) {
@@ -423,9 +454,9 @@
       if (TOUCH) { startTouch(); return; }
       try { canvas.requestPointerLock(); } catch (e) { /* no pointer lock here */ }
     });
-    canvas.addEventListener('click', () => { if (!TOUCH && !locked()) try { canvas.requestPointerLock(); } catch (e) { /* ignore */ } });
-    canvas.addEventListener('mousedown', e => { if (e.button === 0 && locked()) attack(); });
-    document.addEventListener('pointerlockchange', () => { if (!TOUCH) $('.lwq-start').style.display = locked() ? 'none' : 'flex'; });
+    on(canvas, 'click', () => { if (!TOUCH && !locked()) try { canvas.requestPointerLock(); } catch (e) { /* ignore */ } });
+    on(canvas, 'mousedown', e => { if (e.button === 0 && locked()) attack(); });
+    on(document, 'pointerlockchange', () => { if (!TOUCH) $('.lwq-start').style.display = locked() ? 'none' : 'flex'; });
 
     /* --- phones: full screen, a joystick and buttons ------------------------------------------------------- */
     /* The picture follows the phone: held upright it is tall, turned it is wide. (v0.4 turned the game itself a
@@ -444,7 +475,7 @@
     const move2 = { x: 0, y: 0 };   /* the joystick, -1..1 each way */
     let runOn = false;
     function startTouch() {
-      touchPlaying = true;
+      touchPlaying = keep.touch = true;
       $('.lwq-start').style.display = 'none';
       $('.lwq-touch').style.display = 'block';
       goFull();
@@ -497,9 +528,9 @@
         }
       };
       pad.addEventListener('touchend', end); pad.addEventListener('touchcancel', end);
-      G.addEventListener('orientationchange', () => setTimeout(resize, 200));
+      on(G, 'orientationchange', () => setTimeout(resize, 200));
     }
-    document.addEventListener('mousemove', e => {
+    on(document, 'mousemove', e => {
       if (!locked()) return;
       me.yaw -= e.movementX * 0.0022;
       me.pitch = Math.max(-1.5, Math.min(1.5, me.pitch - e.movementY * 0.0022));
@@ -514,8 +545,11 @@
       if (down && e.code === 'KeyM' && sound) log(sound.mute() ? 'Sound off (M).' : 'Sound on (M).');
       if (down && e.code === 'Space') e.preventDefault();
     };
-    document.addEventListener('keydown', onKey(true));
-    document.addEventListener('keyup', onKey(false));
+    on(document, 'keydown', onKey(true));
+    on(document, 'keyup', onKey(false));
+    /* through a portal you are still playing: no "click to play" (the mouse is still captured, the thumbs still down) */
+    if (locked()) $('.lwq-start').style.display = 'none';
+    else if (keep.touch) { if (TOUCH) startTouch(); else touchPlaying = true; }
 
     function hits(x, y, z) {
       const a = [x - HALF, y, z - HALF], b = [x + HALF, y + HEIGHT, z + HALF];
@@ -1578,7 +1612,22 @@
     connect().catch(e => log('Multiplayer: ' + (e && e.message || e)));
     G.requestAnimationFrame(frame);
     return {
-      stop() { stopped = true; if (room) room.leave(); G.removeEventListener('resize', resize); },
+      /* through a portal (keepPicture): this zone goes, the canvas and the sound stay for the next */
+      stop(keepPicture) {
+        stopped = true;
+        if (room) { try { room.leave(); } catch (e) { /* gone already */ } room = null; }
+        for (const off of offs.splice(0)) off();
+        for (const c of Array.from(el.children)) if (!before.has(c) && c !== renderer.domElement) c.remove();
+        if (sound && sound.clearFires) sound.clearFires();
+        if (post && post.dispose) post.dispose();
+        /* the zone's meshes off the graphics card (what the art module shares comes back by itself when used again) */
+        scene.traverse(o => {
+          if (o.geometry) o.geometry.dispose();
+          for (const m of [].concat(o.material || [])) { for (const k in m) if (m[k] && m[k].isTexture) m[k].dispose(); m.dispose(); }
+        });
+        for (const t of [scene.background, scene.environment]) if (t && t.isTexture) t.dispose();
+        if (!keepPicture) { renderer.dispose(); renderer.domElement.remove(); keep.renderer = null; }
+      },
       /* for tests and tools: stand somewhere, look somewhere, press E without a captured mouse */
       goto(x, y, z) { me.x = prev.x = +x; me.y = prev.y = +y; me.z = prev.z = +z; me.vy = 0; },
       look(yaw, pitch) { me.yaw = +yaw; me.pitch = +(pitch || 0); },
@@ -1587,7 +1636,7 @@
       log: () => logLines.slice(),
       camZ: () => camera.position.z,
       draw(on) { drawing = !!on; },   /* tests: everything runs, nothing is drawn (a machine without a GPU keeps up) */
-      play() { if (TOUCH) startTouch(); else touchPlaying = true; },   /* tests: as if the view had been clicked */
+      play() { if (TOUCH) startTouch(); else touchPlaying = keep.touch = true; },   /* tests: as if the view had been clicked */
       strike() { attack(); },
       netPeers() { return room ? room.peers() : null; },
       netStats(reset) { if (!room || !room.stats) return null; const st = room.stats(); if (reset) room.resetStats(); return st; },
@@ -1614,17 +1663,19 @@
         return Object.keys(all).length;
       },
       /* what changed since the last time, and the players who left (handed back, then forgotten) */
-      houseTake() {
-        const out = {};
+      houseTake() { return JSON.stringify(JSON.parse(this.houseTake2()).rec); },
+      /* the same, and who was handed back for good: another zone's house may have their record now */
+      houseTake2() {
+        const out = {}, gone = [];
         for (const a of saveDirty) if (book && book.has(a)) out[a] = book.of(a);
         saveDirty.clear();
         for (const a of leaving) {
           if (Array.from(remotes.values()).some(r => r.from.address === a)) continue;   /* back already */
           if (book && book.has(a)) { out[a] = book.of(a); book.forget(a); }
-          storeGiven.delete(a);
+          storeGiven.delete(a); gone.push(a);
         }
         leaving.clear();
-        return JSON.stringify(out);
+        return JSON.stringify({ rec: out, gone });
       },
       houseLoad: json => { const n = book ? book.load(json) : 0; for (const [, r] of remotes) if (r.from.address) dirty.add(r.from.address); return n; },
       record: () => rec,
@@ -1636,6 +1687,6 @@
     };
   }
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 21, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, levels: 1 } },
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 22, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, levels: 1 } },
     D => ({ start: (el, opts) => start(D, el, opts) }));
 })(typeof globalThis !== 'undefined' ? globalThis : this);

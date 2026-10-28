@@ -1121,7 +1121,9 @@
         }
         FINAL.uniforms.scene.value = main.texture; FINAL.uniforms.bloom.value = src.texture; FINAL.uniforms.time.value = (t || 0) % 100;
         pass(FINAL, null);
-      }
+      },
+      /* a zone left through a portal: its targets and shaders off the graphics card */
+      dispose() { for (const r of [main].concat(down, up)) r.dispose(); for (const m of [DOWN, UP, FINAL]) m.dispose(); quad.geometry.dispose(); }
     };
   };
 
@@ -1700,5 +1702,5 @@
     return { groundAt, polys, segs, half, spawn, inside, stats: { buildings: buildings.length, trees: trees.length } };
   };
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('art', { api: 1, v: 9 }, () => art);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('art', { api: 1, v: 10 }, () => art);
 })(typeof globalThis !== 'undefined' ? globalThis : this);

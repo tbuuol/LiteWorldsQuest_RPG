@@ -35,11 +35,11 @@
       p.connect(master); return p;
     }
     function startFire(f) {
-      const out = panner(f.x, f.y + 0.5, f.z, 2.5);
+      const out = f.out = panner(f.x, f.y + 0.5, f.z, 2.5);
       const rumble = ctx.createBiquadFilter(); rumble.type = 'lowpass'; rumble.frequency.value = 220;
       const rg = ctx.createGain(); rg.gain.value = 0.35; loopNoise(rumble); rumble.connect(rg); rg.connect(out);
       const crackle = () => {   /* a pop: a few milliseconds of bright noise, at random */
-        if (!ctx) return;
+        if (!ctx || f.dead) return;
         const t = ctx.currentTime, s = ctx.createBufferSource(), bp = ctx.createBiquadFilter(), g = ctx.createGain();
         s.buffer = noise; bp.type = 'bandpass'; bp.frequency.value = 1500 + Math.random() * 3500; bp.Q.value = 2;
         g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.25 + Math.random() * 0.5, t + 0.003);
@@ -75,6 +75,8 @@
         if (ctx.state === 'suspended') ctx.resume();
       },
       fire(x, y, z) { const f = { x, y, z }; fires.push(f); if (ctx) startFire(f); },
+      /* another zone: its fires go quiet (2026-10-28, zones without a reload) */
+      clearFires() { for (const f of fires.splice(0)) { f.dead = true; if (f.out) f.out.disconnect(); } },
       listen(camera) {
         if (!ctx) return;
         const L = ctx.listener, p = camera.position, e = camera.matrixWorld.elements;
@@ -122,5 +124,5 @@
     };
     return api;
   }
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('sound', { api: 1, v: 2 }, () => ({ api: 1, create }));
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('sound', { api: 1, v: 3 }, () => ({ api: 1, create }));
 })(typeof globalThis !== 'undefined' ? globalThis : this);

@@ -77,13 +77,36 @@ class Store:
         return day, sha, n
 
 
-async def sync(frame, store: Store) -> tuple[int, int]:
-    """One round with a house in store mode: the records it waits for, then what changed. (given, taken)"""
+#: who holds whose record: {address: zone}. A ZONE CHANGE TAKES A SECOND NOW (2026-10-28, no reload): the zone a player
+#: comes to may ask for the record before the zone they left has handed it back -- it waits until that house has.
+HELD: dict[str, str] = {}
+
+
+def release(zone: str) -> None:
+    """A zone's house stops: whatever it held is in the database (its last sync), so nobody waits for it."""
+    for a in [a for a, z in HELD.items() if z == zone]:
+        del HELD[a]
+
+
+async def sync(frame, store: Store, zone: str = "") -> tuple[int, int]:
+    """One round with a house in store mode: what changed, then the records it waits for. (given, taken)"""
+    raw = json.loads(await frame.evaluate("window.LWQGAME.houseTake2 ? window.LWQGAME.houseTake2() : null") or "null")
+    held = raw is not None   # an older game says nobody who left: no holding then
+    if raw is None:
+        raw = {"rec": json.loads(await frame.evaluate("window.LWQGAME.houseTake()") or "{}"), "gone": []}
+    taken = raw.get("rec") or {}
+    if taken:
+        store.put(taken)
+    for a in raw.get("gone") or []:
+        if HELD.get(a) == zone:
+            del HELD[a]
     wants = await frame.evaluate("window.LWQGAME.houseWants()")
+    if held:
+        wants = [a for a in wants if HELD.get(a, zone) == zone]
     given = 0
     if wants:
         given = await frame.evaluate("json => window.LWQGAME.houseGive(json)", json.dumps(store.get(wants)))
-    taken = json.loads(await frame.evaluate("window.LWQGAME.houseTake()") or "{}")
-    if taken:
-        store.put(taken)
+        if held:
+            for a in wants:
+                HELD[a] = zone
     return given, len(taken)
