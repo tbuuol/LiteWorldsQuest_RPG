@@ -62,7 +62,7 @@
     cur = play(D, el, opts, keep);
     const extra = {
       travel: (to, label) => go(to, label),
-      get level() { return level || (D.levels.blockshire ? 'blockshire' : 'test'); },
+      get level() { return level && D.levels[level] && !(D.levels.world && (D.levels.world.from || []).includes(level)) ? level : D.levels.world ? 'world' : D.levels.blockshire ? 'blockshire' : 'test'; },
       stop() { if (cur) cur.stop(false); cur = null; }
     };
     return new Proxy(extra, { get: (t, k) => k in t ? t[k] : cur ? cur[k] : undefined, has: (t, k) => k in t || !!cur && k in cur });
@@ -79,7 +79,9 @@
     /* what this zone hangs on the page, window or document, taken off again when it stops */
     const offs = [], before = new Set(el.children);
     const on = (t, type, fn, o) => { t.addEventListener(type, fn, o); offs.push(() => t.removeEventListener(type, fn, o)); };
-    const LEVEL = opts.level || (D.levels.blockshire ? 'blockshire' : 'test');
+    /* ONE WORLD (2026-10-28): the zones that are part of it now (an old ?level=beach) open the world */
+    const inWorld = l => D.levels.world && (D.levels.world.from || []).includes(l);
+    const LEVEL = opts.level && !inWorld(opts.level) ? opts.level : D.levels.world ? 'world' : D.levels.blockshire ? 'blockshire' : 'test';
     const LV = D.levels[LEVEL];
     if (!LV) throw new Error('no level ' + LEVEL);
     const ROOM = opts.room || ('lwq.' + LV.id), GAME = opts.game || 'liteworldsquest';
@@ -119,7 +121,8 @@
                   usable: (m, data) => { m.userData = data; usable.push(m); },
                   every: fn => updates.push(fn),
                   /* the ground under any point: the village's hills or a coast (art.terrainAt) */
-                  height: !LV.real && LV.env && art.terrainAt ? art.terrainAt(LV.env) : null };
+                  height: !LV.real && LV.env && art.terrainAt ? art.terrainAt(LV.env) : null,
+                  floor: !LV.real && LV.env && art.floorAt ? art.floorAt(LV.env) : null };   /* the ground without ships' decks */
     function box(def, mat) {
       const m = new THREE.Mesh(new THREE.BoxGeometry(def.size[0], def.size[1], def.size[2]),
         mat || new THREE.MeshLambertMaterial({ color: def.color || '#888' }));
@@ -171,10 +174,12 @@
     if (LV.water && art.water) art.water(ctx, LV.water);
     for (const dk of LV.docks || []) art.dock(ctx, dk);
     for (const sh of LV.ships || []) art.ship(ctx, sh);
-    if (LV.fire) { art.campfire(ctx, LV.fire); if (sound) sound.fire(LV.fire.pos[0], 0, LV.fire.pos[1]); }
-    if (LV.forest) art.forest(ctx, LV.forest);
-    if (LV.grass) art.grass(ctx, LV.grass);
-    if (LV.paths) art.paths(ctx, LV.paths);
+    /* one of each in a zone, several in the world */
+    const many = v => v ? [].concat(v) : [];
+    for (const f of many(LV.fire)) { art.campfire(ctx, f); if (sound) sound.fire(f.pos[0], ctx.height ? ctx.height(f.pos[0], f.pos[1]) : 0, f.pos[1]); }
+    for (const f of many(LV.forest)) art.forest(ctx, f);
+    for (const g of many(LV.grass)) art.grass(ctx, g);
+    for (const pa of many(LV.paths)) art.paths(ctx, pa);
     for (const pr of LV.props || []) art.prop(ctx, pr);
     /* THINGS TO GATHER around the camp (tbuuol 2026-10-23): an oak, an ore boulder, herbs. Which are spent is part of
        the shared world (W.dep); the house decides what gathering gives, and when a spent one grows back. */
@@ -240,7 +245,7 @@
       if (!LV.wild || iAmHouse) return;
       /* the level's areas by rectangle ([x0, z0, x1, z1], first match), or the old ring round the village */
       const area = (LV.zones || []).find(a => me.x >= a.rect[0] && me.x <= a.rect[2] && me.z >= a.rect[1] && me.z <= a.rect[3]);
-      const z = area ? area.name : LV.zones ? (LV.title || '') : Math.hypot(me.x, me.z) > (LV.wild.from || 28) ? LV.wild.zone : (LV.title || 'Blockshire');
+      const z = area ? area.name : LV.zones ? (LV.zoneElse || LV.title || '') : Math.hypot(me.x, me.z) > (LV.wild.from || 28) ? LV.wild.zone : (LV.title || 'Blockshire');
       if (!z) return;
       if (z === zoneNow) return;
       const first = zoneNow == null; zoneNow = z;
@@ -602,7 +607,16 @@
       }
     }
     /* the ground to walk on: the real world's, or the level's hills (flat where the village is) */
-    const groundAt = realW ? realW.groundAt : ctx.height;
+    const groundAt = realW ? realW.groundAt : ctx.floor || ctx.height;   /* a ship is walked on its solid decks, not grown out of the ground */
+    const dry = { x: SPAWN[0], y: SPAWN[1], z: SPAWN[2] };
+    /* under the level's water (its plane: pos, size); a dip in the hills elsewhere is only a dip */
+    const wet = (x, z) => { const w = LV.water; if (!w) return false; const [wx, wz] = w.pos || [0, 0], h = (w.size || 360) / 2; return Math.abs(x - wx) <= h && Math.abs(z - wz) <= h; };
+    function inShape(e, x, z) {
+      if (e.rect) return x >= e.rect[0] && x <= e.rect[2] && z >= e.rect[1] && z <= e.rect[3];
+      if (e.c) return Math.hypot(x - e.c[0], z - e.c[1]) <= e.r;
+      const [ax, az] = e.a, [bx, bz] = e.b, vx = bx - ax, vz = bz - az, t = Math.max(0, Math.min(1, ((x - ax) * vx + (z - az) * vz) / (vx * vx + vz * vz)));
+      return Math.hypot(x - ax - vx * t, z - az - vz * t) <= e.r;
+    }
     function physics(dt) {
       let f = (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0);
       let s = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0);
@@ -628,13 +642,21 @@
       }
       if (groundAt) {
         const g = groundAt(me.x, me.z);
-        if (me.y <= g || (wasGround && me.vy <= 0 && me.y - g < 0.45)) { me.y = g; me.vy = 0; me.ground = true; }   /* down a slope too, not in hops */
+        /* down a slope too, not in hops -- but not off a dock or a deck onto the sand just under it */
+        if (me.y <= g || (wasGround && me.vy <= 0 && me.y - g < 0.45 && !hits(me.x, me.y - 0.06, me.z))) { me.y = Math.max(me.y, g); me.vy = 0; me.ground = true; }
       }
-      if (groundAt && LV.env && LV.env.terrain === 'coast' && groundAt(me.x, me.z) < -1.1 && me.y < 0.1) { me.x = x0; me.z = z0; }   /* no swimming: the sea stops you at chest height */
+      if (groundAt && wet(me.x, me.z) && groundAt(me.x, me.z) < -1.1 && me.y < 0.1) { me.x = x0; me.z = z0; }   /* no swimming: the sea stops you at chest height */
       if (LV.env && LV.env.terrain === 'ship' && me.y < -1.5) { me.x = prev.x = SPAWN[0]; me.y = prev.y = SPAWN[1] + 0.5; me.z = prev.z = SPAWN[2]; me.vy = 0; log('Overboard! The crew hauls you back on deck.'); }
+      /* OVERBOARD in the world (off the ship's rail): back where you last stood dry */
+      if (me.ground && me.y > -0.2) { dry.x = me.x; dry.y = me.y; dry.z = me.z; }
+      else if (wet(me.x, me.z) && me.y < -1.2) { me.x = prev.x = dry.x; me.y = prev.y = dry.y + 0.3; me.z = prev.z = dry.z; me.vy = 0; log('Overboard! You climb back out, soaked.'); }
       if (!realW && LV.env) {   /* the edge of the world: the far side of the forest, before the mountains */
-        const r = Math.hypot(me.x, me.z), most = LV.edge || 100;
-        if (r > most) { me.x *= most / r; me.z *= most / r; }
+        if (Array.isArray(LV.edge)) {   /* the world: inside one of its shapes ({c, r} circles, {a, b, r} paths) */
+          if (!LV.edge.some(e => inShape(e, me.x, me.z))) { me.x = x0; me.z = z0; }
+        } else {
+          const r = Math.hypot(me.x, me.z), most = LV.edge || 100;
+          if (r > most) { me.x *= most / r; me.z *= most / r; }
+        }
       }
       if (me.y < (realW ? -100 : -20)) { me.x = prev.x = SPAWN[0]; me.y = prev.y = SPAWN[1] + 1; me.z = prev.z = SPAWN[2]; me.vy = 0; log('You fell out of the world.'); }
     }
@@ -1007,10 +1029,13 @@
       }
       if (P.hp <= 0) {
         P.dead = true;
-        log((from ? aName(from, true) + ' strikes you down.' : 'You fall.') + ' ' + (LV.revive || 'Brother Anselm carries you back inside.'));
+        /* the world: you wake at the nearest place that takes the fallen in (LV.revives: {at, spawn, yaw, text}) */
+        const rv = (LV.revives || []).reduce((b, r) => !b || Math.hypot(me.x - r.at[0], me.z - r.at[1]) < Math.hypot(me.x - b.at[0], me.z - b.at[1]) ? r : b, null);
+        const back = rv ? rv.spawn : SPAWN;
+        log((from ? aName(from, true) + ' strikes you down.' : 'You fall.') + ' ' + ((rv && rv.text) || LV.revive || 'Brother Anselm carries you back inside.'));
         setTimeout(() => {
           P.dead = false; P.hp = P.max;
-          me.x = prev.x = SPAWN[0]; me.y = prev.y = SPAWN[1]; me.z = prev.z = SPAWN[2]; me.vy = 0; me.yaw = LV.spawnYaw || 0;
+          me.x = prev.x = back[0]; me.y = prev.y = back[1]; me.z = prev.z = back[2]; me.vy = 0; me.yaw = rv && rv.yaw != null ? rv.yaw : LV.spawnYaw || 0;
           drawStats();
         }, 3000);
       }
@@ -1669,6 +1694,6 @@
     };
   }
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 23, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, levels: 1 } },
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 24, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, levels: 1 } },
     D => ({ start: (el, opts) => start(D, el, opts) }));
 })(typeof globalThis !== 'undefined' ? globalThis : this);

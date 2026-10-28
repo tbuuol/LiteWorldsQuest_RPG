@@ -280,7 +280,7 @@
       for (const u of units.values()) if (u.kind === 'beast' && u.area != null && !u.extra) count[u.area]++;
       wild.areas.forEach((a, i) => {
         const st = areaState[i];
-        while (count[i] + st.due.length < (a.count || 3)) st.due.push(st.started ? now + (wild.respawn || 25) * 1000 : now);
+        while (count[i] + st.due.length < (a.count || 3)) st.due.push(st.started ? now + (a.respawn || wild.respawn || 25) * 1000 : now);   /* an area may have its own (the world: each zone's) */
         st.started = true;
         st.due = st.due.filter(t => { if (t <= now) { spawnBeast(i); return false; } return true; });
       });
@@ -586,5 +586,5 @@
     return snap;
   }
   const combat = { api: 1, player, gain, nextXp, create, encode, decode };
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('combat', { api: 1, v: 13, needs: { three: 160, art: 1 } }, () => combat);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('combat', { api: 1, v: 14, needs: { three: 160, art: 1 } }, () => combat);
 })(typeof globalThis !== 'undefined' ? globalThis : this);

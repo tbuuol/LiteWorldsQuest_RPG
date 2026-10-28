@@ -276,11 +276,20 @@
   };
   /* THE GROUND OF A LEVEL: the village's hills (above), or a COAST (env.terrain 'coast', the Beach): the sea floor
      falling away north of env.shore, flat sand, and hills inland south of env.inland */
+  /* the ground itself, under the water and the ships: the world without its decks (a ship's part is walked, not grown) */
+  art.floorAt = function (env) {
+    env = env || {};
+    return env.terrain === 'world' ? art.terrainAt(Object.assign({}, env, { parts: (env.parts || []).filter(p => !p.over) })) : art.terrainAt(env);
+  };
   art.terrainAt = function (env) {
     env = env || {};
+    if (env.terrain === 'world') return worldTerrain(env);
+    const [ox, oz] = env.at || [0, 0];   /* a zone's ground, moved to where it lies in the world */
+    if (ox || oz) { const f = art.terrainAt(Object.assign({}, env, { at: null })); return (x, z) => f(x - ox, z - oz); }
     if (env.terrain === 'ship') {   /* the pirate ship's level: its decks over the open sea (env.ship as art.ship's def) */
       const sh = env.ship || {}, L = sh.length || 30, W = sh.beam || 8, D = sh.deck != null ? sh.deck : 1, AFT = L / 2 - 8, [px, pz] = sh.pos || [0, 0];
-      return (x, z) => { const lx = x - px, lz = z - pz; return Math.abs(lx) <= W / 2 && Math.abs(lz) <= L / 2 ? (lz >= AFT ? D + 2.1 : D) : -8; };
+      const flip = ((sh.rot || 0) % 360 + 360) % 360 === 180 ? -1 : 1;   /* turned round: the quarterdeck at the other end */
+      return (x, z) => { const lx = (x - px) * flip, lz = (z - pz) * flip; return Math.abs(lx) <= W / 2 && Math.abs(lz) <= L / 2 ? (lz >= AFT ? D + 2.1 : D) : -8; };
     }
     if (env.terrain !== 'coast') return art.heightAt(env.flat || 30);
     const shore = env.shore != null ? env.shore : -18, inland = env.inland != null ? env.inland : 45;
@@ -290,7 +299,37 @@
       return y;
     };
   };
+  /* ONE WORLD (tbuuol 2026-10-28: "eine zusammenhängende Welt"): the zones' grounds side by side. env.parts: each a
+     zone's terrain ({terrain, at, ...} as above) over a rect [x0, z0, x1, z1], faded into its neighbours over its band
+     (metres inside the rect); a part with over: true (a ship's decks) is the ground wherever it is. env.passes: a valley
+     cut through the hills between two points ({a, b, w: flat half-width, fall: metres to the hills, y: [ya, yb]}). */
+  function worldTerrain(env) {
+    const parts = (env.parts || []).map(p => ({ p, f: art.terrainAt(p), r: p.rect, band: p.band || 0.001 }));
+    const smooth = t => t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t);
+    const passes = env.passes || [];
+    return (x, z) => {
+      let sum = 0, h = 0, best = null, bestIn = -1e9;
+      for (const q of parts) {
+        const r = q.r, inside = Math.min(x - r[0], r[2] - x, z - r[1], r[3] - z);
+        if (q.p.over) { if (inside >= 0) return q.f(x, z); continue; }
+        if (inside > bestIn) { bestIn = inside; best = q; }
+        const w = smooth(inside / q.band);
+        if (w > 0) { sum += w; h += w * q.f(x, z); }
+      }
+      h = sum > 0 ? h / sum : best ? best.f(x, z) : 0;
+      for (const ps of passes) {
+        const [ax, az] = ps.a, [bx, bz] = ps.b, vx = bx - ax, vz = bz - az, L2 = vx * vx + vz * vz;
+        const t = Math.max(0, Math.min(1, ((x - ax) * vx + (z - az) * vz) / L2)), d = Math.hypot(x - ax - vx * t, z - az - vz * t);
+        const k = 1 - smooth((d - (ps.w || 5)) / (ps.fall || 10));
+        if (k > 0) { const y = ps.y ? ps.y[0] + (ps.y[1] - ps.y[0]) * t : 0; h += (y + Math.sin(x * 0.13) * Math.cos(z * 0.11) * 0.15 - h) * k; }
+      }
+      return h;
+    };
+  }
+  /* what stays round the eye however far you walk (the horizon's ridges), moved by setup's update */
+  let followers = [];
   art.setup = function (THREE, renderer, scene, env) {
+    followers = [];
     T = THREE; env = env || {};
     renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFShadowMap;
     renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = env.exposure || 1.05;
@@ -314,7 +353,17 @@
     sunL.shadow.bias = -0.0004; sunL.shadow.normalBias = 0.03;
     scene.add(sunL); scene.add(sunL.target);
     /* the ground: grass everywhere, rolling hills beyond the fence (flat where people walk) */
-    const size = env.ground === 0 ? 0 : env.ground || 260, seg = 96, rnd = art.rng(7);
+    const size = env.grounds ? 0 : env.ground === 0 ? 0 : env.ground || 260, seg = 96, rnd = art.rng(7);
+    /* the world's grounds: one rect each, grass or sand, on one 4 m grid so neighbours meet without a crack */
+    for (const gd of env.grounds || []) {
+      const [x0, z0, x1, z1] = gd.rect, w = x1 - x0, d = z1 - z0, hill = art.floorAt(env);
+      const g = new THREE.PlaneGeometry(w, d, Math.max(1, Math.round(w / 4)), Math.max(1, Math.round(d / 4))); g.rotateX(-Math.PI / 2);
+      g.translate(x0 + w / 2, 0, z0 + d / 2);
+      const pos = g.attributes.position, uv = g.attributes.uv;
+      for (let i = 0; i < pos.count; i++) { pos.setY(i, hill(pos.getX(i), pos.getZ(i)) - 0.001); uv.setXY(i, pos.getX(i) / 6, -pos.getZ(i) / 6); }
+      g.computeVertexNormals();
+      const ground = mesh(g, mat(gd.mat || 'grass', { repeat: [1, 1] }), false); ground.receiveShadow = true; scene.add(ground);
+    }
     if (size) {
     const g = new THREE.PlaneGeometry(size, size, seg, seg); g.rotateX(-Math.PI / 2);
     const pos = g.attributes.position, hill = art.terrainAt(env);
@@ -342,6 +391,7 @@
       sun: sunL,
       update(dt, t, eye) {
         for (const s of clouds) { s.position.x += dt * 0.8; if (s.position.x > 240) s.position.x = -240; }
+        if (eye) for (const f of followers) { f.position.x = eye.x; f.position.z = eye.z; }
         if (eye) { sky.position.copy(eye); sunL.target.position.set(eye.x, 0, eye.z); sunL.position.copy(sunDir).multiplyScalar(60).add(sunL.target.position); }
       }
     };
@@ -482,7 +532,7 @@
   /* one big sheet at def.y: deep blue far out, turquoise in the shallows and foam where it meets the sand (by the depth
      of the ground under each point), rocked by slow waves in the vertex shader */
   art.water = function (ctx, def) {
-    const size = def.size || 360, seg = 120, y0 = def.y != null ? def.y : -0.35, height = ctx.height || (() => -5);
+    const size = def.size || 360, seg = 120, y0 = def.y != null ? def.y : -0.35, height = ctx.floor || ctx.height || (() => -5);
     const g = new T.PlaneGeometry(size, size, seg, seg); g.rotateX(-Math.PI / 2);
     const pos = g.attributes.position, col = new Float32Array(pos.count * 3);
     const deep = new T.Color(def.deep || '#1f5f9a'), shallow = new T.Color(def.shallow || '#3fc2c0'), foam = new T.Color('#f4fbf6'), c = new T.Color();
@@ -545,7 +595,10 @@
     /* the rail */
     const railM = mat('planks', { m: { color: '#5a3520' } });
     const rails = [];
+    /* def.gaps: [[z0, z1, side]] open in the rail, where a gangplank comes aboard (side -1 port, +1 starboard) */
+    const gap = (z, sx) => (def.gaps || []).some(gp => gp[2] === sx && z >= gp[0] && z < gp[1]);
     for (let z = -L / 2 + 1; z < L / 2; z += 1) for (const sx of [-1, 1]) {
+      if (gap(z, sx)) continue;
       const za = z, zb = z + 1, xa = sx * half(za), xb = sx * half(zb), len = Math.hypot(xb - xa, zb - za);
       const r = mesh(new T.BoxGeometry(0.14, 0.9, len + 0.04), railM); r.position.set((xa + xb) / 2, D + (za >= AFT ? Q : 0) + 0.45, (za + zb) / 2);
       r.rotation.y = Math.atan2(xb - xa, zb - za); g.add(r); rails.push([xa, za, xb, zb]);
@@ -719,7 +772,7 @@
   };
 
   art.forest = function (ctx, def) {
-    const rnd = art.rng(def.seed || 11), list = (def.trees || []).slice();
+    const rnd = art.rng(def.seed || 11), list = (def.trees || []).slice(), [ox, oz] = def.at || [0, 0];   /* at: the ring's middle */
     const inner = def.inner || 26, outer = def.outer || 90, n = def.count || 160;
     const clear = def.clear || [];   /* [x0, z0, x1, z1] boxes kept free of trees: a field, a road */
     for (let i = 0; i < n; i++) {
@@ -727,11 +780,11 @@
       /* which kinds grow here, by weight (def.kinds, e.g. {"palm": 1} on the Beach) */
       const kinds = def.kinds || { pine: 0.62, oak: 0.38 }, sum = Object.values(kinds).reduce((x, y) => x + y, 0);
       let pickK = rnd() * sum, kind = 'pine'; for (const k in kinds) { pickK -= kinds[k]; if (pickK <= 0) { kind = k; break; } }
-      const t = [Math.cos(a) * r, Math.sin(a) * r, rnd.range(0.8, 1.5), kind];
-      const ht = ctx.height ? ctx.height(t[0], t[1]) : 1;
+      const t = [ox + Math.cos(a) * r, oz + Math.sin(a) * r, rnd.range(0.8, 1.5), kind];
+      const ht = (ctx.floor || ctx.height) ? (ctx.floor || ctx.height)(t[0], t[1]) : 1;   /* the ground, not a ship's deck */
       if (ht > 0.05 && !clear.some(b => t[0] > b[0] && t[0] < b[2] && t[1] > b[1] && t[1] < b[3])) list.push(t);   /* nothing grows in the sea */
     }
-    const height = ctx.height || art.heightAt(def.flat || 30);
+    const height = ctx.floor || ctx.height || art.heightAt(def.flat || 30);
     art.trees(ctx, list, height);
     /* every trunk stands in the way: the forest can be walked now (Etappe 3) */
     for (const t of list) { const y = height(t[0], t[1]); ctx.solid([t[0] - 0.35, y - 1, t[1] - 0.35], [t[0] + 0.35, y + 3, t[1] + 0.35]); }
@@ -751,9 +804,12 @@
       for (let i = 0; i < N; i++) { const k = i * 2; idx.push(k, k + 1, k + 2, k + 1, k + 3, k + 2); }
       const g = new T.BufferGeometry(); g.setAttribute('position', new T.Float32BufferAttribute(P, 3)); g.setAttribute('color', new T.Float32BufferAttribute(C, 3)); g.setIndex(idx);
       const m = new T.Mesh(g, new T.MeshBasicMaterial({ vertexColors: true, fog: false, side: T.DoubleSide })); m.userData.keep = true; ctx.scene.add(m);
+      followers.push(m);   /* the horizon walks with you */
     };
-    ridge(250, 95, 10, def.farHills || '#7d98ad', true, 22);
-    ridge(175, 48, 7, def.nearHills || '#4f7a4e', false, 21);
+    if (def.ridges !== false) {
+      ridge(250, 95, 10, def.farHills || '#7d98ad', true, 22);
+      ridge(175, 48, 7, def.nearHills || '#4f7a4e', false, 21);
+    }
     /* boulders: the same rock, bent once from a seed, scattered and half sunk; the near ones block the way */
     const rg = new T.DodecahedronGeometry(1, 1), rp = rg.attributes.position, rr = art.rng(77);
     for (let i = 0; i < rp.count; i++) { const k = 0.8 + rr() * 0.35; rp.setXYZ(i, rp.getX(i) * k, rp.getY(i) * k * 0.75, rp.getZ(i) * k); }
@@ -761,7 +817,10 @@
     const rocks = [];
     for (let i = 0; i < (def.rocks || 70); i++) {
       const a = rnd() * Math.PI * 2, d = rnd.range(22, 80), sc = rnd.range(0.4, 1.8);
-      rocks.push([Math.cos(a) * d, Math.sin(a) * d, sc]);
+      const rx = ox + Math.cos(a) * d, rz = oz + Math.sin(a) * d;
+      if (height(rx, rz) < 0.05) continue;   /* not in the sea */
+      if ((def.clear || []).some(b => rx > b[0] && rx < b[2] && rz > b[1] && rz < b[3])) continue;
+      rocks.push([rx, rz, sc]);
     }
     const im = new T.InstancedMesh(rg, mat('stone', { m: { color: '#a29c92' } }), rocks.length), M = new T.Matrix4(), Q = new T.Quaternion(), V = new T.Vector3(), S = new T.Vector3();
     rocks.forEach((rk, i) => { V.set(rk[0], height(rk[0], rk[1]) + rk[2] * 0.15, rk[1]); Q.setFromEuler(new T.Euler(rnd() * 0.4, rnd() * 6.3, rnd() * 0.4)); S.set(rk[2], rk[2], rk[2]); M.compose(V, Q, S); im.setMatrixAt(i, M);
@@ -1702,5 +1761,5 @@
     return { groundAt, polys, segs, half, spawn, inside, stats: { buildings: buildings.length, trees: trees.length } };
   };
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('art', { api: 1, v: 10 }, () => art);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('art', { api: 1, v: 11 }, () => art);
 })(typeof globalThis !== 'undefined' ? globalThis : this);

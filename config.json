@@ -29,19 +29,17 @@
     },
     "art": {
       "file": "src/modules/art.js",
-      "v": 10,
+      "v": 11,
       "api": 1,
       "kind": "js",
-      "id": null,
-      "gz": "44b032d0e6eef8de17881454e774453dc804fb97ccd2bdfb254e2629c02b878f"
+      "id": null
     },
     "combat": {
       "file": "src/modules/combat.js",
-      "v": 13,
+      "v": 14,
       "api": 1,
       "kind": "js",
-      "id": null,
-      "gz": "a05657d7562946df743e3d5f592fa2beae952d3114b235c9489875eba4b923fc"
+      "id": null
     },
     "rpg": {
       "file": "src/modules/rpg.js",
@@ -61,11 +59,10 @@
     },
     "engine": {
       "file": "src/modules/engine.js",
-      "v": 23,
+      "v": 24,
       "api": 1,
       "kind": "js",
-      "id": null,
-      "gz": "ec8b9016bc4cef79b15cfbcb1e56ebc18dbf4d5e8f45ee9fec27519ecfd2f448"
+      "id": null
     }
   },
   "levels": {
@@ -106,6 +103,13 @@
       "kind": "json",
       "id": null,
       "gz": "d8191853dfe747c8fb08f7eb0e22753b439c237782bdc9dd1a83b5a15232d6c1"
+    },
+    "world": {
+      "file": "src/levels/world.json",
+      "v": 1,
+      "api": 1,
+      "kind": "json",
+      "id": null
     }
   },
   "page_id": "780e737befad5f1d5ee39f62a766940c67f40c43acdbfe3de6dea1be64d858c0",
@@ -175,8 +179,6 @@
     "notHZVkLNJjG6ymtWGjM6rhBapuh3VU8eb"
   ],
   "house_levels": [
-    "blockshire",
-    "beach",
-    "pirateship"
+    "world"
   ]
 }
