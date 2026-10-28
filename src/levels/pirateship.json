@@ -1,0 +1,315 @@
+{
+ "lwq": "module",
+ "name": "level.pirateship",
+ "api": 1,
+ "v": 1,
+ "data": {
+  "id": "pirateship",
+  "title": "Pirate Ship",
+  "spawn": [
+   0,
+   1.05,
+   -13.2
+  ],
+  "spawnYaw": 3.14159,
+  "env": {
+   "terrain": "ship",
+   "ship": {
+    "pos": [
+     0,
+     0
+    ],
+    "length": 30,
+    "beam": 8,
+    "deck": 1.0
+   },
+   "skyTop": "#4a6ab0",
+   "skyBottom": "#f6c08a",
+   "fogColor": "#e8b896",
+   "fog": [
+    30,
+    200
+   ],
+   "sunDir": [
+    0.5,
+    0.5,
+    -0.45
+   ],
+   "sunColor": "#ffb070",
+   "sun": 2.6,
+   "hemiSky": "#b0b8e0",
+   "hemiGround": "#6a4a3a",
+   "hemi": 1.1,
+   "exposure": 1.15,
+   "ground": 0,
+   "bloom": 0.35
+  },
+  "water": {
+   "y": -0.35,
+   "size": 520,
+   "deep": "#1a4a7a",
+   "shallow": "#1a4a7a"
+  },
+  "ships": [
+   {
+    "pos": [
+     0,
+     0
+    ],
+    "rot": 0,
+    "deck": 1.0,
+    "walk": true,
+    "sails": "#2e2a26"
+   }
+  ],
+  "portals": [
+   {
+    "pos": [
+     0,
+     -14.2
+    ],
+    "face": [
+     0,
+     0
+    ],
+    "to": "beach",
+    "label": "Row back to the Beach",
+    "y": 1.0,
+    "color": "#7fd8ff"
+   }
+  ],
+  "wild": {
+   "respawn": 120,
+   "species": {
+    "pirate": {
+     "name": "Pirate Deckhand",
+     "lvl": 11,
+     "hp": 130,
+     "dmg": 12,
+     "speed": 3.2,
+     "aggressive": true,
+     "sight": 5,
+     "model": "human",
+     "look": {
+      "skin": "#d9a882",
+      "shirt": "#7a2a24",
+      "pants": "#2a2a30",
+      "hair": "#2a1a10",
+      "bandana": "#a83a2e",
+      "boots": "#2a1a10"
+     },
+     "weapon": "sword",
+     "weaponLook": "#c8ced6",
+     "loot": [
+      [
+       "torn_cloth",
+       0.3
+      ],
+      [
+       "sea_salt",
+       0.3
+      ],
+      [
+       "pearl",
+       0.05
+      ],
+      [
+       "tricorn_hat",
+       0.03
+      ],
+      [
+       "boarding_axe",
+       0.02
+      ]
+     ],
+     "codex": [
+      "melee",
+      "sword",
+      "evade"
+     ]
+    },
+    "bosun": {
+     "name": "Pirate Bosun",
+     "lvl": 12,
+     "hp": 170,
+     "dmg": 14,
+     "speed": 3.0,
+     "aggressive": true,
+     "sight": 5,
+     "model": "human",
+     "look": {
+      "skin": "#d9a882",
+      "shirt": "#3a3a50",
+      "pants": "#2a2a30",
+      "hair": "#2a1a10",
+      "bandana": "#202020",
+      "boots": "#2a1a10",
+      "eyepatch": true,
+      "beard": "#2a1a10",
+      "scale": 1.0
+     },
+     "weapon": "axe",
+     "weaponLook": "#9aa4ae",
+     "loot": [
+      [
+       "sea_salt",
+       0.4
+      ],
+      [
+       "pearl",
+       0.08
+      ],
+      [
+       "boarding_axe",
+       0.05
+      ],
+      [
+       "tricorn_hat",
+       0.05
+      ]
+     ],
+     "codex": [
+      "axe",
+      "anatomy",
+      "toughness"
+     ]
+    },
+    "captain": {
+     "name": "Captain Blackgill",
+     "lvl": 14,
+     "hp": 900,
+     "dmg": 22,
+     "speed": 3.0,
+     "aggressive": true,
+     "sight": 7,
+     "model": "human",
+     "def": 3,
+     "look": {
+      "skin": "#c98b62",
+      "shirt": "#1c1c2a",
+      "pants": "#1a1a1a",
+      "hair": "#111",
+      "beard": "#111",
+      "tricorn": "#141414",
+      "eyepatch": true,
+      "gloves": "#3a2a1a",
+      "scale": 1.15
+     },
+     "weapon": "sword",
+     "weaponLook": "#e8eef4",
+     "boss": {
+      "aoe": {
+       "every": 12,
+       "first": 6,
+       "radius": 5,
+       "dmg": 35,
+       "warn": 1.8,
+       "name": "Blackgill's broadside"
+      },
+      "adds": {
+       "at": 0.5,
+       "species": "pirate",
+       "n": 2,
+       "mat": 1
+      }
+     },
+     "loot": [
+      [
+       "pirate_cutlass",
+       0.45
+      ],
+      [
+       "tricorn_hat",
+       0.4
+      ],
+      [
+       "captains_coat",
+       0.25
+      ],
+      [
+       "pearl",
+       1
+      ],
+      [
+       "pearl",
+       0.5
+      ]
+     ],
+     "codex": [
+      "sword",
+      "toughness",
+      "str"
+     ]
+    }
+   },
+   "areas": [
+    {
+     "species": "pirate",
+     "center": [
+      0,
+      -2
+     ],
+     "r": 2.2,
+     "count": 3,
+     "mat": 1
+    },
+    {
+     "species": "pirate",
+     "center": [
+      0,
+      3
+     ],
+     "r": 2.0,
+     "count": 2,
+     "mat": 2
+    },
+    {
+     "species": "bosun",
+     "center": [
+      0,
+      6
+     ],
+     "r": 1.2,
+     "count": 1,
+     "mat": 1
+    },
+    {
+     "species": "captain",
+     "center": [
+      0,
+      12
+     ],
+     "r": 2.0,
+     "count": 1,
+     "mat": 1
+    }
+   ]
+  },
+  "quests": [
+   {
+    "id": "captain",
+    "npc": "ysolde",
+    "giver": "Harbourmaster Ysolde",
+    "title": "The Black Sails",
+    "after": "sirens",
+    "offer": "That ship out past the dock flies black sails. Captain Blackgill raids our boats every week. Row out with friends, board her and end him.",
+    "done": "Blackgill is gone? Then Saltwind can fish in peace. Take his coat -- it suits a hero better than a thief.",
+    "need": {
+     "kill": {
+      "captain": 1
+     }
+    },
+    "reward": {
+     "items": [
+      "captains_coat"
+     ],
+     "sk": {
+      "sword": 40,
+      "toughness": 30
+     }
+    }
+   }
+  ],
+  "revive": "You wake on the dock at Saltwind, soaked. The sea spat you back."
+ }
+}

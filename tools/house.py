@@ -150,15 +150,17 @@ async def wallet_access(pg, game: str, password: str) -> bool:
     return await switch.count() > 0 and await switch.first.is_checked()
 
 
-async def session(p) -> None:
+async def session(p, level: str = "") -> None:
     cfg = json.loads((ROOT / "config.json").read_text())
     game = cfg["page_id"]
     password = json.loads((SECRET / "arcade-account.json").read_text())["password"]
     store = frame = None
-    if not PROFILE.exists():   # a copy, so the house never fights other tools over the same profile
-        shutil.copytree(SECRET / "arcade-browser", PROFILE, ignore=shutil.ignore_patterns("Singleton*"))
+    # a copy per zone, so no two houses (and no other tool) fight over one profile
+    profile = PROFILE if not level else PROFILE.with_name(f"house-browser-{level}")
+    if not profile.exists():
+        shutil.copytree(SECRET / "arcade-browser", profile, ignore=shutil.ignore_patterns("Singleton*"))
     ctx = await p.chromium.launch_persistent_context(
-        str(PROFILE), headless=True, viewport={"width": 320, "height": 180},
+        str(profile), headless=True, viewport={"width": 320, "height": 180},
         # a window nobody looks at must not be slowed down: the house's frames are the fight's clock
         args=["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--mute-audio",
               "--disable-background-timer-throttling", "--disable-renderer-backgrounding",
@@ -172,7 +174,7 @@ async def session(p) -> None:
         # to the game off (2026-10-23, "interrupted by another navigation to /apps")
         apps, pg = pg, await ctx.new_page()
         await apps.close()
-        await pg.goto(f"{NODE}/play/{game}", timeout=120_000)
+        await pg.goto(f"{NODE}/play/{game}" + (f"?level={level}" if level else ""), timeout=120_000)
         # JOINING SIGNS WHO YOU ARE, once a day, and only this tab remembers it: the viewer asks for the password
         # ("Join this game as you?") -- for another node too -- and the game gives up asking after 20 s (2026-10-23
         # evening). So every ask is answered while the game joins, and a game left alone after one is loaded again:
@@ -292,16 +294,26 @@ async def watchdog() -> None:
             await tell_keeper("LiteWorldsQuest house: back in the game, keeping the world again.")
 
 
+async def keep(p, level: str) -> None:
+    """One zone's house, for ever: each level has a room of its own (lwq.<level>), so each needs its own house. They
+    share the database (players.sqlite): a player who leaves one zone is handed back, and the next zone's house asks
+    for them."""
+    while True:
+        try:
+            await session(p, level)
+        except Exception as e:   # noqa: BLE001 -- whatever it was, the house comes back
+            log("error", f"[{level or 'main'}]:", repr(e)[:300])
+        await asyncio.sleep(15)
+
+
 async def main() -> None:
-    log("house starting")
+    #: the zones to keep: config.json "house_levels" (e.g. ["blockshire", "beach", "pirateship"]); an empty name is
+    #: the page's own first level. A page that knows no other levels keeps the one house it always had.
+    levels = json.loads((ROOT / "config.json").read_text()).get("house_levels") or [""]
+    log("house starting:", ", ".join(levels))
     asyncio.get_running_loop().create_task(watchdog())
     async with async_playwright() as p:
-        while True:
-            try:
-                await session(p)
-            except Exception as e:   # noqa: BLE001 -- whatever it was, the house comes back
-                log("error:", repr(e)[:300])
-            await asyncio.sleep(15)
+        await asyncio.gather(*(keep(p, lv) for lv in levels))
 
 
 if __name__ == "__main__":

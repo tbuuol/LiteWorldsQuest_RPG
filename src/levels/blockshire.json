@@ -2,7 +2,7 @@
  "lwq": "module",
  "name": "level.blockshire",
  "api": 1,
- "v": 8,
+ "v": 9,
  "data": {
   "id": "blockshire",
   "title": "Blockshire",
@@ -487,8 +487,9 @@
      0,
      0
     ],
-    "to": "weida",
-    "label": "Weida"
+    "to": "beach",
+    "label": "Beach",
+    "color": "#7fd8ff"
    }
   ],
   "props": [

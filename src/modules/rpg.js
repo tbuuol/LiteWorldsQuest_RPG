@@ -107,7 +107,19 @@
     wolfskin_mantle: { name: 'Wolfskin Mantle', slot: 'shoulders', def: 3, at: { dex: 1 }, req: { defender: 1 } },
     tusk_amulet: { name: 'Tusk Amulet', slot: 'amulet', at: { str: 2 } },
     fang_ring: { name: 'Fang Ring', slot: 'ring', at: { dex: 1, str: 1 }, req: { evader: 1 } },
-    silk_gloves: { name: 'Silk Gloves', slot: 'hands', def: 1, at: { dex: 2 }, req: { tailor: 1 } }
+    silk_gloves: { name: 'Silk Gloves', slot: 'hands', def: 1, at: { dex: 2 }, req: { tailor: 1 } },
+    /* the coast (zone 2): the Beach, Mermaid Cove and the pirate ship */
+    crab_shell: { name: 'Crab Shell', material: true }, coral: { name: 'Coral', material: true },
+    siren_scale: { name: 'Siren Scale', material: true }, pearl: { name: 'Pearl', material: true },
+    sea_salt: { name: 'Sea Salt', material: true },
+    shell_shield: { name: 'Shell Shield', slot: 'off', model: 'shield', def: 6, req: { defender: 2 }, look: '#e8b8a0' },
+    coral_ring: { name: 'Coral Ring', slot: 'ring', at: { dex: 1, int: 1 } },
+    siren_charm: { name: 'Siren Charm', slot: 'amulet', at: { int: 2, dex: 1 }, req: { herbalist: 1 } },
+    boarding_axe: { name: 'Boarding Axe', slot: 'main', skill: 'axe', model: 'axe', dmg: [9, 17], req: { axe_hit: 2 }, look: '#8f9aa6' },
+    pirate_cutlass: { name: 'Pirate Cutlass', slot: 'main', skill: 'sword', model: 'sword', dmg: [10, 17], req: { sword_hit: 3 }, look: '#d6dde6' },
+    tricorn_hat: { name: 'Tricorn Hat', slot: 'head', def: 4, at: { dex: 1 } },
+    captains_coat: { name: "Captain's Coat", slot: 'chest', def: 7, at: { sta: 2 }, req: { defender: 2 } },
+    sea_boots: { name: 'Sea Boots', slot: 'feet', def: 3, at: { dex: 1 } }
   };
   /* what gathering a kind of thing gives: [material, chance, more per level of the profession], the skill it teaches,
      its profession, how hard it is (for the effort), and the attributes it trains */
@@ -136,7 +148,12 @@
     tusk_amulet: { skill: 'woodworking', prof: 'carpenter', level: 0, needs: { boar_tusk: 2, leather_scrap: 1 }, known: true },
     wolfskin_mantle: { skill: 'tailoring', prof: 'tailor', level: 1, needs: { wolf_pelt: 3, leather_scrap: 2 } },
     fang_ring: { skill: 'smithing', prof: 'smith', level: 1, needs: { wolf_fang: 2, copper_ore: 1 } },
-    silk_gloves: { skill: 'tailoring', prof: 'tailor', level: 1, needs: { spider_silk: 4 } }
+    silk_gloves: { skill: 'tailoring', prof: 'tailor', level: 1, needs: { spider_silk: 4 } },
+    shell_shield: { skill: 'woodworking', prof: 'carpenter', level: 1, needs: { crab_shell: 4, oak_log: 1 }, known: true },
+    coral_ring: { skill: 'smithing', prof: 'smith', level: 1, needs: { coral: 2, copper_ore: 1 }, known: true },
+    sea_boots: { skill: 'tailoring', prof: 'tailor', level: 1, needs: { leather_scrap: 3, siren_scale: 1 } },
+    siren_charm: { skill: 'tailoring', prof: 'tailor', level: 2, needs: { siren_scale: 3, pearl: 1 } },
+    boarding_axe: { skill: 'smithing', prof: 'smith', level: 2, needs: { iron_ore: 5, oak_log: 2, sea_salt: 1 } }
   };
   /* THE CODEX (Entropia's, tbuuol 2026-10-27): every beast of a kind killed counts; at each rank the player may put a
      reward of skill points into one of the skills that kind teaches (the level says which) */
@@ -419,5 +436,5 @@
   }
 
   const rpg = { api: 1, SLOTS, SKILLS, PROFS, ATTRS, RANKS, ITEMS, FISTS, LOOT, GATHER, RECIPES, CODEX, ABILITIES, abilities, questState, questProgress, knows, fresh, stats, profs, rank, meets, itemOf, attr, book };
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('rpg', { api: 1, v: 6 }, () => rpg);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('rpg', { api: 1, v: 7 }, () => rpg);
 })(typeof globalThis !== 'undefined' ? globalThis : this);

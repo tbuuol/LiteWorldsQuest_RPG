@@ -28,7 +28,7 @@
     },
     "art": {
       "file": "src/modules/art.js",
-      "v": 8,
+      "v": 9,
       "api": 1,
       "kind": "js",
       "id": null,
@@ -36,7 +36,7 @@
     },
     "combat": {
       "file": "src/modules/combat.js",
-      "v": 11,
+      "v": 12,
       "api": 1,
       "kind": "js",
       "id": null,
@@ -44,7 +44,7 @@
     },
     "rpg": {
       "file": "src/modules/rpg.js",
-      "v": 6,
+      "v": 7,
       "api": 1,
       "kind": "js",
       "id": null,
@@ -60,7 +60,7 @@
     },
     "engine": {
       "file": "src/modules/engine.js",
-      "v": 20,
+      "v": 21,
       "api": 1,
       "kind": "js",
       "id": null,
@@ -70,7 +70,7 @@
   "levels": {
     "blockshire": {
       "file": "src/levels/blockshire.json",
-      "v": 8,
+      "v": 9,
       "api": 1,
       "kind": "json",
       "id": null,
@@ -85,6 +85,20 @@
     },
     "weida": {
       "file": "src/levels/weida.json",
+      "v": 1,
+      "api": 1,
+      "kind": "json",
+      "id": null
+    },
+    "beach": {
+      "file": "src/levels/beach.json",
+      "v": 1,
+      "api": 1,
+      "kind": "json",
+      "id": null
+    },
+    "pirateship": {
+      "file": "src/levels/pirateship.json",
       "v": 1,
       "api": 1,
       "kind": "json",
@@ -153,5 +167,10 @@
   },
   "house": [
     "notHZVkLNJjG6ymtWGjM6rhBapuh3VU8eb"
+  ],
+  "house_levels": [
+    "blockshire",
+    "beach",
+    "pirateship"
   ]
 }

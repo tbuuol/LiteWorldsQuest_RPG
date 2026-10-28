@@ -89,11 +89,13 @@
     }
     /* the blessing as it is seen: a golden ring rising from the priest's feet to its radius, and gone */
     const rings = [];
-    function ring(x, z, r) {
-      const m = new T.Mesh(new T.RingGeometry(0.85, 1, 64), new T.MeshBasicMaterial({ color: '#ffd76a', transparent: true, opacity: 0.9,
+    const RING = ['#ffd76a', '#ff3a2a', '#ff9a3a', '#ff7aa0'];   /* blessing, a warning, a blast, a taunt */
+    const FXK = ['ae', 'warn', 'blast', 'taunt'];
+    function ring(x, z, r, k) {
+      const m = new T.Mesh(new T.RingGeometry(0.85, 1, 64), new T.MeshBasicMaterial({ color: RING[k | 0] || RING[0], transparent: true, opacity: 0.9,
         side: T.DoubleSide, depthWrite: false, blending: T.AdditiveBlending }));
       m.rotation.x = -Math.PI / 2; m.position.set(x, 0.15, z); m.renderOrder = 9; scene.add(m);
-      rings.push({ m, r, life: 1 });
+      rings.push({ m, r, life: 1, slow: k === 1 });
     }
     function look(kind, id) {
       if (kind === 'raider') {
@@ -121,7 +123,10 @@
       if (kind === 'beast' && !bs) return null;
       const b = bs || statOf(kind), u = { id, kind, name: bs ? bs.name : nameOf(kind, id), x, z, tx: x, tz: z, yaw: 0, tyaw: 0, buf: [], hp: b.max, max: b.max,
         state: 'idle', cd: Math.random() * 0.5, atk: 0, shown: { hp: -1, atk: 0, state: '' }, gone: 0, target: null, aggro: null, beast: bs };
-      u.c = bs ? art.creature(ctx, { kind: bs.spec.model || bs.sp, color: bs.spec.color, scale: bs.scale }) : art.character(ctx, look(kind, id));
+      if (bs && bs.spec.model === 'human') {   /* people of a dungeon (pirates): our own figure, a weapon in hand */
+        u.c = art.character(ctx, Object.assign({}, bs.spec.look || {}, { scale: ((bs.spec.look && bs.spec.look.scale) || 0.9) * bs.scale }));
+        if (bs.spec.weapon && art.held) u.c.holdItem(art.held(bs.spec.weapon, bs.spec.weaponLook));
+      } else u.c = bs ? art.creature(ctx, { kind: bs.spec.model || bs.sp, color: bs.spec.color, scale: bs.scale }) : art.character(ctx, look(kind, id));
       u.c.setName(u.name, kind === 'raider' ? '#ff9a8a' : kind === 'priest' ? '#c9f5c0' : kind === 'beast' ? ['#c8d0c0', '#ffe9a8', '#ffb46a', '#ff7a5a'][bs.m] : '#cfe1ff');
       u.bar = bar(u);
       u.c.group.position.set(x, 0, z);
@@ -265,13 +270,14 @@
     function spawnBeast(ai) {
       const a = wild.areas[ai], r = Math.random(); let m = 0, acc = 0;
       for (let i = 0; i < MAT_ODDS.length; i++) { acc += MAT_ODDS[i]; if (r < acc) { m = i; break; } }
+      if (a.mat != null) m = a.mat;   /* an area that always has the same one (a boss, a guard post) */
       const ang = Math.random() * Math.PI * 2, d = Math.sqrt(Math.random()) * a.r;
       const u = make('b.' + a.species + '.' + m + '.' + (++beastNo % 10000), 'beast', a.center[0] + Math.cos(ang) * d, a.center[1] + Math.sin(ang) * d);
       if (u) { u.area = ai; u.wt = Math.random() * 4; }
     }
     function beasts(dt, livePlayers, events) {
       const now = performance.now(), count = areaState.map(() => 0);
-      for (const u of units.values()) if (u.kind === 'beast' && u.area != null) count[u.area]++;
+      for (const u of units.values()) if (u.kind === 'beast' && u.area != null && !u.extra) count[u.area]++;
       wild.areas.forEach((a, i) => {
         const st = areaState[i];
         while (count[i] + st.due.length < (a.count || 3)) st.due.push(st.started ? now + (wild.respawn || 25) * 1000 : now);
@@ -293,6 +299,32 @@
           if (best) { u.aggro = 'p:' + best.id; tgt = best; }
         }
         u.cd -= dt;
+        /* A BOSS (the pirate captain): a broadside every so often -- a red ring where it will land, then it lands on
+           everyone inside -- and, at half its life, a call for help */
+        const boss = b.spec.boss;
+        if (boss && tgt && !u.evade) {
+          if (boss.aoe) {
+            u.aoeCd = (u.aoeCd == null ? boss.aoe.first || 6 : u.aoeCd) - dt;
+            if (u.warnLeft > 0) {
+              u.warnLeft -= dt;
+              if (u.warnLeft <= 0) {
+                for (const p of livePlayers) if (Math.hypot(p.x - u.warnAt[0], p.z - u.warnAt[1]) <= boss.aoe.radius) events.push({ t: 'hit', to: p.id, d: boss.aoe.dmg, from: boss.aoe.name || u.name, lvl: b.lvl });
+                fx.push({ id: ++fxNo, k: 'blast', x: u.warnAt[0], z: u.warnAt[1], r: boss.aoe.radius, at: performance.now() });
+              }
+            } else if (u.aoeCd <= 0) {
+              u.aoeCd = boss.aoe.every || 12; u.warnLeft = boss.aoe.warn || 1.6; u.warnAt = [tgt.x, tgt.z];
+              fx.push({ id: ++fxNo, k: 'warn', x: tgt.x, z: tgt.z, r: boss.aoe.radius, at: performance.now() });
+            }
+          }
+          if (boss.adds && !u.added && u.hp <= u.max * (boss.adds.at || 0.5)) {
+            u.added = true;
+            for (let k = 0; k < (boss.adds.n || 2); k++) {
+              const ai = wild.areas.findIndex(x => x.species === boss.adds.species);
+              const add = make('b.' + boss.adds.species + '.' + (boss.adds.mat || 1) + '.' + (++beastNo % 10000), 'beast', u.x + (k ? 2 : -2), u.z + 1.5);
+              if (add) { add.area = ai >= 0 ? ai : u.area; add.aggro = u.aggro; add.wt = 2; add.extra = true; }
+            }
+          }
+        }
         if (u.evade) {   /* home, and whole again */
           u.hp = u.max;
           if (step(u, a.center[0], a.center[1], b.speed * 1.4, dt, 2)) u.state = 'walk'; else { u.evade = false; u.state = 'idle'; }
@@ -366,12 +398,12 @@
         u.shown.atk = u.atk;
       }
       for (let i = rings.length - 1; i >= 0; i--) {
-        const g = rings[i]; g.life -= dt * 1.25; const k = 1 - Math.max(0, g.life);
+        const g = rings[i]; g.life -= dt * (g.slow ? 0.6 : 1.25); const k = g.slow ? 1 : 1 - Math.max(0, g.life);
         g.m.scale.setScalar(0.5 + k * g.r); g.m.material.opacity = Math.max(0, g.life) * 0.9;
         if (g.life <= 0) { scene.remove(g.m); g.m.geometry.dispose(); g.m.material.dispose(); rings.splice(i, 1); }
       }
       /* the host's own effects, the moment they happen (a client's come with the snapshot) */
-      for (const e of fx) if (!fxSeen.has(e.id)) { fxSeen.add(e.id); ring(e.x, e.z, e.r); }
+      for (const e of fx) if (!fxSeen.has(e.id)) { fxSeen.add(e.id); ring(e.x, e.z, e.r, Math.max(0, FXK.indexOf(e.k))); }
       while (fx.length && performance.now() - fx[0].at > 2000) fx.shift();
       for (let i = floaters.length - 1; i >= 0; i--) {
         const f = floaters[i]; f.life -= dt * 1.1; f.s.position.y += dt * 1.1; f.s.material.opacity = Math.max(0, Math.min(1, f.life * 1.6));
@@ -432,7 +464,7 @@
         }
         const snap = { s: ++seq, t: Math.round(performance.now()), u };
         if (o.delta) snap.d = 1;
-        if (fx.length) snap.e = fx.map(e => [e.id, Math.round(e.x * 10), Math.round(e.z * 10), e.r]);
+        if (fx.length) snap.e = fx.map(e => [e.id, Math.round(e.x * 10), Math.round(e.z * 10), e.r, Math.max(0, FXK.indexOf(e.k))]);
         return snap;
       },
       /* a snapshot cut into pieces that each fit a room message (the room takes 500 bytes): with thirty raiders one
@@ -464,7 +496,7 @@
         }
         const want = Math.max(120, Math.min(1500, gap * 1.3 + 2.5 * jit + 50));   /* the same rule as for players */
         delay = want > delay ? want : delay + (want - delay) * 0.05;   /* grows at once, shrinks slowly */
-        for (const e of snap.e || []) if (Array.isArray(e) && !fxSeen.has('h' + e[0])) { fxSeen.add('h' + e[0]); ring(e[1] / 10, e[2] / 10, +e[3] || 10); }
+        for (const e of snap.e || []) if (Array.isArray(e) && !fxSeen.has('h' + e[0])) { fxSeen.add('h' + e[0]); ring(e[1] / 10, e[2] / 10, +e[3] || 10, e[4] | 0); }
         for (const row of snap.u) {
           if (!Array.isArray(row) || row.length < 8) continue;
           const [id, k, x, z, yaw, hp, st, atk] = row, kind = KIND[k];
@@ -513,10 +545,10 @@
   /* THE SNAPSHOT AS BYTES (Etappe 4, where the viewer passes bytes): about half of its JSON. Type 1:
        u8 1 | u8 flags (1 = delta) | u32 seq | u32 t (ms) | u16 rows | rows | u8 effects | effects
        row:    u8 id length | id (ASCII) | u8 kind | i16 x*10 | i16 z*10 | i16 yaw*100 | u16 hp | u8 state | u8 atk
-       effect: u32 id | i16 x*10 | i16 z*10 | u8 radius */
+       effect: u32 id | i16 x*10 | i16 z*10 | u8 radius | u8 kind (0 blessing, 1 warning, 2 blast, 3 taunt) */
   function encode(snap) {
     const rows = snap.u || [], fx2 = snap.e || [];
-    let size = 1 + 1 + 4 + 4 + 2 + 1 + fx2.length * 9;
+    let size = 1 + 1 + 4 + 4 + 2 + 1 + fx2.length * 10;
     for (const r of rows) size += 1 + Math.min(255, String(r[0]).length) + 1 + 2 + 2 + 2 + 2 + 1 + 1;
     const buf = new ArrayBuffer(size), v = new DataView(buf);
     let o = 0;
@@ -531,7 +563,7 @@
       v.setUint16(o, Math.max(0, Math.min(65535, r[5]))); o += 2; v.setUint8(o, r[6]); o += 1; v.setUint8(o, r[7] & 255); o += 1;
     }
     v.setUint8(o, fx2.length); o += 1;
-    for (const e of fx2) { v.setUint32(o, e[0] >>> 0); o += 4; v.setInt16(o, e[1]); o += 2; v.setInt16(o, e[2]); o += 2; v.setUint8(o, e[3] & 255); o += 1; }
+    for (const e of fx2) { v.setUint32(o, e[0] >>> 0); o += 4; v.setInt16(o, e[1]); o += 2; v.setInt16(o, e[2]); o += 2; v.setUint8(o, e[3] & 255); o += 1; v.setUint8(o, (e[4] | 0) & 255); o += 1; }
     return buf;
   }
   function decode(buf) {
@@ -549,9 +581,9 @@
       o += 11;
     }
     const ne = v.getUint8(o); o += 1;
-    if (ne) { snap.e = []; for (let k = 0; k < ne; k++) { snap.e.push([v.getUint32(o), v.getInt16(o + 4), v.getInt16(o + 6), v.getUint8(o + 8)]); o += 9; } }
+    if (ne) { snap.e = []; for (let k = 0; k < ne; k++) { snap.e.push([v.getUint32(o), v.getInt16(o + 4), v.getInt16(o + 6), v.getUint8(o + 8), v.getUint8(o + 9)]); o += 10; } }
     return snap;
   }
   const combat = { api: 1, player, gain, nextXp, create, encode, decode };
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('combat', { api: 1, v: 11, needs: { three: 160, art: 1 } }, () => combat);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('combat', { api: 1, v: 12, needs: { three: 160, art: 1 } }, () => combat);
 })(typeof globalThis !== 'undefined' ? globalThis : this);

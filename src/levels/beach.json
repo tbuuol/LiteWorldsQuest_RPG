@@ -1,0 +1,648 @@
+{
+ "lwq": "module",
+ "name": "level.beach",
+ "api": 1,
+ "v": 1,
+ "data": {
+  "id": "beach",
+  "title": "Beach",
+  "spawn": [
+   0,
+   0.3,
+   4
+  ],
+  "spawnYaw": 0,
+  "env": {
+   "terrain": "coast",
+   "shore": -18,
+   "inland": 45,
+   "groundMat": "sand",
+   "skyTop": "#2f8fe0",
+   "skyBottom": "#c8ecf8",
+   "fogColor": "#bfe4ee",
+   "fog": [
+    40,
+    230
+   ],
+   "sunDir": [
+    0.55,
+    0.55,
+    0.35
+   ],
+   "sunColor": "#fff3d6",
+   "sun": 2.8,
+   "hemiSky": "#d6f0ff",
+   "hemiGround": "#c8a870",
+   "hemi": 1.0,
+   "exposure": 1.1,
+   "ground": 420,
+   "bloom": 0.18
+  },
+  "water": {
+   "y": -0.35,
+   "size": 520,
+   "pos": [
+    0,
+    -80
+   ],
+   "deep": "#1d5f9c",
+   "shallow": "#38c4c2"
+  },
+  "docks": [
+   {
+    "from": [
+     12,
+     -15
+    ],
+    "to": [
+     12,
+     -42
+    ],
+    "width": 2.4,
+    "y": 0.35
+   },
+   {
+    "from": [
+     -6,
+     -15
+    ],
+    "to": [
+     -6,
+     -26
+    ],
+    "width": 2,
+    "y": 0.3
+   }
+  ],
+  "ships": [
+   {
+    "pos": [
+     48,
+     -66
+    ],
+    "rot": 90,
+    "deck": 1.3,
+    "sails": "#2e2a26"
+   },
+   {
+    "pos": [
+     -100,
+     -28
+    ],
+    "rot": 180,
+    "length": 14,
+    "beam": 4.5,
+    "deck": -1.6,
+    "sails": "#6a6052",
+    "list": 0.22
+   }
+  ],
+  "huts": [
+   {
+    "id": "harbour",
+    "pos": [
+     10,
+     4
+    ],
+    "size": [
+     6,
+     5
+    ],
+    "rot": 270,
+    "lit": true,
+    "trim": "#2f5d8a",
+    "inside": [
+     "table",
+     "shelf",
+     "rug"
+    ],
+    "rug": "#2f5d8a",
+    "door": {
+     "id": "door_harbour",
+     "label": "Harbour office door",
+     "opens": "hand"
+    }
+   },
+   {
+    "id": "fisher",
+    "pos": [
+     -10,
+     3
+    ],
+    "size": [
+     5,
+     4
+    ],
+    "rot": 90,
+    "chimney": true,
+    "lit": true,
+    "trim": "#a83a2e",
+    "inside": [
+     "bed",
+     "table",
+     "barrel"
+    ],
+    "blanket": "#3f6f8f",
+    "door": {
+     "id": "door_fisher",
+     "label": "Fisher's door",
+     "opens": "hand"
+    }
+   },
+   {
+    "id": "inn",
+    "pos": [
+     1,
+     15
+    ],
+    "size": [
+     7,
+     5
+    ],
+    "rot": 0,
+    "chimney": true,
+    "lit": true,
+    "trim": "#2f8a6a",
+    "inside": [
+     "table",
+     "shelf",
+     "barrel",
+     "rug"
+    ],
+    "rug": "#8a6a2f",
+    "door": {
+     "id": "door_inn",
+     "label": "The Salty Gull",
+     "opens": "hand"
+    }
+   }
+  ],
+  "fire": {
+   "pos": [
+    0,
+    -4
+   ]
+  },
+  "props": [
+   {
+    "kind": "bench",
+    "pos": [
+     0,
+     -7.1
+    ],
+    "rot": 0
+   },
+   {
+    "kind": "bench",
+    "pos": [
+     3.1,
+     -4
+    ],
+    "rot": 90
+   },
+   {
+    "kind": "barrel",
+    "pos": [
+     13.5,
+     -18
+    ]
+   },
+   {
+    "kind": "barrel",
+    "pos": [
+     10.6,
+     -21
+    ]
+   },
+   {
+    "kind": "crate",
+    "pos": [
+     13.4,
+     -24
+    ]
+   },
+   {
+    "kind": "crate",
+    "pos": [
+     -4.6,
+     -17
+    ]
+   },
+   {
+    "kind": "lamppost",
+    "pos": [
+     10.3,
+     -15.5
+    ]
+   },
+   {
+    "kind": "lamppost",
+    "pos": [
+     -7.7,
+     -15.5
+    ]
+   },
+   {
+    "kind": "logpile",
+    "pos": [
+     -14,
+     9
+    ],
+    "rot": 90
+   }
+  ],
+  "portals": [
+   {
+    "pos": [
+     -6,
+     24
+    ],
+    "face": [
+     0,
+     0
+    ],
+    "to": "blockshire",
+    "label": "Blockshire",
+    "color": "#ffc77f"
+   },
+   {
+    "pos": [
+     12,
+     -40.5
+    ],
+    "face": [
+     12,
+     0
+    ],
+    "to": "pirateship",
+    "label": "Row out to the Pirate Ship",
+    "y": 0.35,
+    "color": "#7fd8ff"
+   }
+  ],
+  "forest": {
+   "seed": 3,
+   "inner": 16,
+   "outer": 95,
+   "count": 170,
+   "kinds": {
+    "palm": 1
+   },
+   "flat": 30,
+   "haze": "#bfe4ee",
+   "openSea": true,
+   "rocks": 45,
+   "farHills": "#8fb0a0",
+   "nearHills": "#6a9a5a",
+   "clear": [
+    [
+     -17,
+     -17,
+     22,
+     22
+    ],
+    [
+     10,
+     -45,
+     14,
+     -14
+    ],
+    [
+     -8,
+     -30,
+     -4,
+     -14
+    ],
+    [
+     -10,
+     20,
+     -2,
+     28
+    ]
+   ]
+  },
+  "npcs": [
+   {
+    "id": "ysolde",
+    "name": "Harbourmaster Ysolde",
+    "pos": [
+     9,
+     -12.5
+    ],
+    "lookAt": [
+     0,
+     0
+    ],
+    "look": {
+     "skin": "#d9a882",
+     "shirt": "#2f5d8a",
+     "pants": "#3a3a40",
+     "hair": "#c9a04a",
+     "build": "slim",
+     "hairStyle": "long",
+     "tricorn": "#2a2420"
+    },
+    "lines": [
+     "Welcome to Saltwind. Mind the crabs, and never sing back to the sirens.",
+     "The tide brings wrecks, and the wrecks bring trouble."
+    ]
+   },
+   {
+    "id": "finn",
+    "name": "Old Finn",
+    "pos": [
+     -4,
+     -12
+    ],
+    "lookAt": [
+     0,
+     0
+    ],
+    "look": {
+     "skin": "#c98b62",
+     "shirt": "#e9e2cf",
+     "pants": "#3a4a6a",
+     "hair": "#bbbbbb",
+     "beard": "#d0d0d0",
+     "bandana": "#a83a2e"
+    },
+    "lines": [
+     "Fifty years I've fished this coast. The cove west of here? I don't fish there no more.",
+     "Drowned men walk by the old wreck at night. Day too, lately."
+    ]
+   },
+   {
+    "id": "marisol",
+    "name": "Marisol",
+    "pos": [
+     -3.5,
+     -1
+    ],
+    "lookAt": [
+     0,
+     -4
+    ],
+    "look": {
+     "skin": "#a8705a",
+     "shirt": "#e0a030",
+     "pants": "#4a3b2a",
+     "hair": "#1c1410",
+     "apron": "#efe6d2",
+     "build": "slim",
+     "hairStyle": "bun"
+    },
+    "lines": [
+     "Crab stew tonight! If somebody brings me crabs, that is.",
+     "The Salty Gull pours the best grog on the coast. The only grog, too."
+    ]
+   }
+  ],
+  "zones": [
+   {
+    "name": "Mermaid Cove",
+    "rect": [
+     -140,
+     -90,
+     -40,
+     40
+    ]
+   }
+  ],
+  "wild": {
+   "zone": "Mermaid Cove",
+   "respawn": 30,
+   "species": {
+    "crab": {
+     "name": "Shore Crab",
+     "lvl": 7,
+     "hp": 80,
+     "dmg": 8,
+     "speed": 2.4,
+     "aggressive": false,
+     "def": 2,
+     "color": "#c4532e",
+     "loot": [
+      [
+       "crab_shell",
+       0.6
+      ],
+      [
+       "sea_salt",
+       0.25
+      ],
+      [
+       "pearl",
+       0.03
+      ]
+     ],
+     "codex": [
+      "toughness",
+      "evade",
+      "sta"
+     ]
+    },
+    "siren": {
+     "name": "Siren",
+     "lvl": 10,
+     "hp": 110,
+     "dmg": 12,
+     "speed": 3.0,
+     "aggressive": true,
+     "sight": 8,
+     "color": "#2f8f8a",
+     "loot": [
+      [
+       "siren_scale",
+       0.5
+      ],
+      [
+       "coral",
+       0.35
+      ],
+      [
+       "pearl",
+       0.08
+      ]
+     ],
+     "codex": [
+      "evade",
+      "int",
+      "herbalism"
+     ]
+    },
+    "drowned": {
+     "name": "Drowned Sailor",
+     "lvl": 9,
+     "hp": 100,
+     "dmg": 10,
+     "speed": 2.2,
+     "aggressive": true,
+     "sight": 7,
+     "model": "human",
+     "look": {
+      "skin": "#8fa8a0",
+      "shirt": "#4a5a5a",
+      "pants": "#2a3434",
+      "hair": "#2a3a34",
+      "bandana": "#3a4a48",
+      "tint": "#a8c0bc"
+     },
+     "weapon": "sword",
+     "weaponLook": "#7a6a5a",
+     "loot": [
+      [
+       "torn_cloth",
+       0.4
+      ],
+      [
+       "scrap_iron",
+       0.3
+      ],
+      [
+       "sea_salt",
+       0.3
+      ],
+      [
+       "pearl",
+       0.04
+      ]
+     ],
+     "codex": [
+      "anatomy",
+      "melee",
+      "toughness"
+     ]
+    }
+   },
+   "areas": [
+    {
+     "species": "crab",
+     "center": [
+      -52,
+      -6
+     ],
+     "r": 11,
+     "count": 6
+    },
+    {
+     "species": "crab",
+     "center": [
+      30,
+      -10
+     ],
+     "r": 8,
+     "count": 3
+    },
+    {
+     "species": "siren",
+     "center": [
+      -74,
+      -27
+     ],
+     "r": 9,
+     "count": 4
+    },
+    {
+     "species": "drowned",
+     "center": [
+      -92,
+      -14
+     ],
+     "r": 9,
+     "count": 4
+    }
+   ]
+  },
+  "quests": [
+   {
+    "id": "crabs",
+    "npc": "marisol",
+    "giver": "Marisol",
+    "title": "Crab Stew",
+    "offer": "Six shore crabs, that's all I need. West along the sand, where the cove starts. They pinch, so mind your fingers.",
+    "done": "Look at these! Stew for the whole harbour. Here, take some sea salt for your trouble -- and a pearl I found in one.",
+    "need": {
+     "kill": {
+      "crab": 6
+     }
+    },
+    "reward": {
+     "mats": {
+      "pearl": 1,
+      "sea_salt": 2
+     },
+     "sk": {
+      "evade": 20
+     }
+    }
+   },
+   {
+    "id": "sirens",
+    "npc": "ysolde",
+    "giver": "Harbourmaster Ysolde",
+    "title": "Songs in the Shallows",
+    "after": "crabs",
+    "offer": "Sirens sing in the cove and our fishermen walk into the sea. Silence four of them before we lose another boat.",
+    "done": "Quiet at last. Their charms are said to sharpen the mind. Wear this one.",
+    "need": {
+     "kill": {
+      "siren": 4
+     }
+    },
+    "reward": {
+     "items": [
+      "siren_charm"
+     ],
+     "sk": {
+      "evade": 25
+     }
+    }
+   },
+   {
+    "id": "drowned",
+    "npc": "finn",
+    "giver": "Old Finn",
+    "title": "Rest for the Drowned",
+    "offer": "My old crew lies out by the wreck. Something won't let them rest. Put four of them back in the sand, will you?",
+    "done": "Thank you. Here, my old sea boots. They've seen more storms than you have.",
+    "need": {
+     "kill": {
+      "drowned": 4
+     }
+    },
+    "reward": {
+     "items": [
+      "sea_boots"
+     ],
+     "sk": {
+      "anatomy": 25
+     }
+    }
+   },
+   {
+    "id": "captain",
+    "npc": "ysolde",
+    "giver": "Harbourmaster Ysolde",
+    "title": "The Black Sails",
+    "after": "sirens",
+    "offer": "That ship out past the dock flies black sails. Captain Blackgill raids our boats every week. Row out with friends, board her and end him.",
+    "done": "Blackgill is gone? Then Saltwind can fish in peace. Take his coat -- it suits a hero better than a thief.",
+    "need": {
+     "kill": {
+      "captain": 1
+     }
+    },
+    "reward": {
+     "items": [
+      "captains_coat"
+     ],
+     "sk": {
+      "sword": 40,
+      "toughness": 30
+     }
+    }
+   }
+  ],
+  "revive": "The fishers of Saltwind pull you out of the surf and lay you by the fire."
+ }
+}

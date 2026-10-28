@@ -75,7 +75,9 @@
     const ctx = { THREE, scene, rng: art.rng,
                   solid: (min, max, on) => boxes.push({ min, max, on: on || (() => true) }),
                   usable: (m, data) => { m.userData = data; usable.push(m); },
-                  every: fn => updates.push(fn) };
+                  every: fn => updates.push(fn),
+                  /* the ground under any point: the village's hills or a coast (art.terrainAt) */
+                  height: !LV.real && LV.env && art.terrainAt ? art.terrainAt(LV.env) : null };
     function box(def, mat) {
       const m = new THREE.Mesh(new THREE.BoxGeometry(def.size[0], def.size[1], def.size[2]),
         mat || new THREE.MeshLambertMaterial({ color: def.color || '#888' }));
@@ -123,6 +125,10 @@
     const portalDefs = (LV.portals || []).slice();
     if (realW && !portalDefs.length) portalDefs.push({ pos: [realW.spawn[0], realW.spawn[1]], y: realW.groundAt(realW.spawn[0], realW.spawn[1]) - 0.2, to: 'blockshire', label: 'Blockshire', rot: 0, color: '#ffc77f' });
     const portals = portalDefs.map(d => art.portal(ctx, d));
+    /* zone 2: the sea, docks, ships (one of them the pirates' dungeon) */
+    if (LV.water && art.water) art.water(ctx, LV.water);
+    for (const dk of LV.docks || []) art.dock(ctx, dk);
+    for (const sh of LV.ships || []) art.ship(ctx, sh);
     if (LV.fire) { art.campfire(ctx, LV.fire); if (sound) sound.fire(LV.fire.pos[0], 0, LV.fire.pos[1]); }
     if (LV.forest) art.forest(ctx, LV.forest);
     if (LV.grass) art.grass(ctx, LV.grass);
@@ -189,8 +195,11 @@
     /* THE ZONE'S NAME, as the old WoW showed it: big, golden, in the middle, when you come into it (Etappe 3) */
     let zoneNow = null, zoneEl = null;
     function zoneTick() {
-      if (!LV.wild || !LV.wild.zone || iAmHouse) return;
-      const z = Math.hypot(me.x, me.z) > (LV.wild.from || 28) ? LV.wild.zone : (LV.title || 'Blockshire');
+      if (!LV.wild || iAmHouse) return;
+      /* the level's areas by rectangle ([x0, z0, x1, z1], first match), or the old ring round the village */
+      const area = (LV.zones || []).find(a => me.x >= a.rect[0] && me.x <= a.rect[2] && me.z >= a.rect[1] && me.z <= a.rect[3]);
+      const z = area ? area.name : LV.zones ? (LV.title || '') : Math.hypot(me.x, me.z) > (LV.wild.from || 28) ? LV.wild.zone : (LV.title || 'Blockshire');
+      if (!z) return;
       if (z === zoneNow) return;
       const first = zoneNow == null; zoneNow = z;
       if (first) return;
@@ -290,8 +299,8 @@
 
     /* --- the fight at the gate (combat module): guards, a priest, raiders out of the forest ------------------ */
     const combat = D.combat || null;
-    const fight = LV.defense && combat ? combat.create({ THREE, art, ctx, def: LV.defense, wild: LV.wild || null,
-      height: !realW && LV.env && art.heightAt ? art.heightAt(LV.env.flat || 30) : null }) : null;
+    const fight = (LV.defense || LV.wild) && combat ? combat.create({ THREE, art, ctx, def: LV.defense || {}, wild: LV.wild || null,
+      height: ctx.height }) : null;
 
     /* everything that never moves, merged by material: hundreds of parts become a few dozen draw calls */
     for (const id in doors) if (!doors[id].pivots) doors[id].mesh.userData.keep = true;
@@ -381,7 +390,7 @@
     /* THE PLAYER'S MENU (menu module): skills, attributes, the bag, what is worn. Wearing and taking off are asked of
        the house, which keeps the record; I or Tab, or the ☰ button on a phone. */
     let menu = null;
-    if (D.menu && D.rpg && LV.defense) {
+    if (D.menu && D.rpg && (LV.defense || LV.wild)) {
       menu = D.menu.create({ el, rpg: D.rpg, touch: TOUCH, wild: LV.wild || null, quests: LV.quests || [], atForge: () => nearForge(me.x, me.z),
         ask(q) {
           if (!room || !houseId()) { log('The house is away: what you carry is kept by the house, so nothing can change now.'); return; }
@@ -553,7 +562,7 @@
       }
     }
     /* the ground to walk on: the real world's, or the level's hills (flat where the village is) */
-    const groundAt = realW ? realW.groundAt : (LV.env && art.heightAt ? art.heightAt(LV.env.flat || 30) : null);
+    const groundAt = realW ? realW.groundAt : ctx.height;
     function physics(dt) {
       let f = (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0);
       let s = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0);
@@ -581,6 +590,8 @@
         const g = groundAt(me.x, me.z);
         if (me.y <= g || (wasGround && me.vy <= 0 && me.y - g < 0.45)) { me.y = g; me.vy = 0; me.ground = true; }   /* down a slope too, not in hops */
       }
+      if (groundAt && LV.env && LV.env.terrain === 'coast' && groundAt(me.x, me.z) < -1.1 && me.y < 0.1) { me.x = x0; me.z = z0; }   /* no swimming: the sea stops you at chest height */
+      if (LV.env && LV.env.terrain === 'ship' && me.y < -1.5) { me.x = prev.x = SPAWN[0]; me.y = prev.y = SPAWN[1] + 0.5; me.z = prev.z = SPAWN[2]; me.vy = 0; log('Overboard! The crew hauls you back on deck.'); }
       if (!realW && LV.env) {   /* the edge of the world: the far side of the forest, before the mountains */
         const r = Math.hypot(me.x, me.z), most = LV.edge || 100;
         if (r > most) { me.x *= most / r; me.z *= most / r; }
@@ -982,7 +993,7 @@
       }
       if (P.hp <= 0) {
         P.dead = true;
-        log((from ? aName(from, true) + ' strikes you down.' : 'You fall.') + ' Brother Anselm carries you back inside.');
+        log((from ? aName(from, true) + ' strikes you down.' : 'You fall.') + ' ' + (LV.revive || 'Brother Anselm carries you back inside.'));
         setTimeout(() => {
           P.dead = false; P.hp = P.max;
           me.x = prev.x = SPAWN[0]; me.y = prev.y = SPAWN[1]; me.z = prev.z = SPAWN[2]; me.vy = 0; me.yaw = LV.spawnYaw || 0;
@@ -1625,6 +1636,6 @@
     };
   }
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 20, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, levels: 1 } },
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 21, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, levels: 1 } },
     D => ({ start: (el, opts) => start(D, el, opts) }));
 })(typeof globalThis !== 'undefined' ? globalThis : this);

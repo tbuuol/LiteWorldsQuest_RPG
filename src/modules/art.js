@@ -175,6 +175,19 @@
       blots(x, 256, rnd, 40, ['#7d8a5a', '#6a6f4a'], 4, 10, 0.25);   /* a little moss */
       return c;
     },
+    sand(rnd) {   /* the beach (Etappe zone 2): warm sand, ripples drawn by the wind, a few shells and pebbles */
+      const [c, x] = canvas(256); x.fillStyle = '#e2c98f'; x.fillRect(0, 0, 256, 256);
+      blots(x, 256, rnd, 70, ['#ecd6a0', '#d4b77c', '#f2e0b0', '#d9bf88', '#c9a96c'], 20, 60, 0.35);
+      strokes(x, 256, rnd, 260, ['#c8a86e', '#f6e7bf'], 8, 22, 1, 2, 0.35, Math.PI / 2, 0.15);   /* ripples */
+      for (let i = 0; i < 40; i++) {
+        const px = rnd() * 256, py = rnd() * 256, r = rnd.range(1.5, 3.5);
+        wrap(256, px, py, r + 2, (qx, qy) => {
+          x.fillStyle = 'rgba(120,90,50,.35)'; x.beginPath(); x.ellipse(qx + 0.8, qy + 1.2, r, r * 0.7, 0, 0, 7); x.fill();
+          x.fillStyle = rnd.pick(['#f7efe0', '#e8c8b8', '#d8d0c0', '#b8b0a0']); x.beginPath(); x.ellipse(qx, qy, r, r * 0.7, 0, 0, 7); x.fill();
+        });
+      }
+      return c;
+    },
     cloth(rnd) {
       const [c, x] = canvas(64); x.fillStyle = '#fff'; x.fillRect(0, 0, 64, 64);
       for (let i = 0; i < 64; i += 4) { x.fillStyle = 'rgba(0,0,0,.06)'; x.fillRect(i, 0, 2, 64); x.fillRect(0, i, 64, 2); }
@@ -261,6 +274,22 @@
     flat = flat || 30;
     return (x, z) => { const d = Math.hypot(x, z), k = Math.max(0, Math.min(1, (d - flat) / 40)); return k * k * (Math.sin(x * 0.05) * 4 + Math.cos(z * 0.043) * 5 + Math.sin((x + z) * 0.11) * 1.5 + 3); };
   };
+  /* THE GROUND OF A LEVEL: the village's hills (above), or a COAST (env.terrain 'coast', the Beach): the sea floor
+     falling away north of env.shore, flat sand, and hills inland south of env.inland */
+  art.terrainAt = function (env) {
+    env = env || {};
+    if (env.terrain === 'ship') {   /* the pirate ship's level: its decks over the open sea (env.ship as art.ship's def) */
+      const sh = env.ship || {}, L = sh.length || 30, W = sh.beam || 8, D = sh.deck != null ? sh.deck : 1, AFT = L / 2 - 8, [px, pz] = sh.pos || [0, 0];
+      return (x, z) => { const lx = x - px, lz = z - pz; return Math.abs(lx) <= W / 2 && Math.abs(lz) <= L / 2 ? (lz >= AFT ? D + 2.1 : D) : -8; };
+    }
+    if (env.terrain !== 'coast') return art.heightAt(env.flat || 30);
+    const shore = env.shore != null ? env.shore : -18, inland = env.inland != null ? env.inland : 45;
+    return (x, z) => {
+      let y = z < shore ? Math.max(-7, (z - shore) * 0.13) : Math.min(0.25, (z - shore) * 0.03) + Math.sin(x * 0.11) * Math.cos(z * 0.13) * 0.12 * Math.min(1, Math.max(0, (z - shore - 4) / 8));
+      if (z > inland) { const k = Math.min(1, (z - inland) / 40); y += k * k * (Math.sin(x * 0.05) * 4 + Math.cos(z * 0.043) * 5 + 7); }
+      return y;
+    };
+  };
   art.setup = function (THREE, renderer, scene, env) {
     T = THREE; env = env || {};
     renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFShadowMap;
@@ -288,10 +317,10 @@
     const size = env.ground === 0 ? 0 : env.ground || 260, seg = 96, rnd = art.rng(7);
     if (size) {
     const g = new THREE.PlaneGeometry(size, size, seg, seg); g.rotateX(-Math.PI / 2);
-    const pos = g.attributes.position, hill = art.heightAt(env.flat || 30);
+    const pos = g.attributes.position, hill = art.terrainAt(env);
     for (let i = 0; i < pos.count; i++) pos.setY(i, hill(pos.getX(i), pos.getZ(i)) - 0.001);
     g.computeVertexNormals();
-    const ground = mesh(g, mat('grass', { repeat: [size / 6, size / 6], m: { bumpScale: 1.2 } }), false); ground.receiveShadow = true; scene.add(ground);
+    const ground = mesh(g, mat(env.groundMat || 'grass', { repeat: [size / 6, size / 6] }), false); ground.receiveShadow = true; scene.add(ground);
     }
     /* clouds: soft puffs drifting slowly */
     /* clouds: wide, soft banks of many puffs, light on top and grey beneath, drifting slowly */
@@ -449,6 +478,135 @@
 
   /* --- the campfire -------------------------------------------------------------------------------------- */
   /* a ring of stones, crossed logs, glowing embers, flames, sparks and smoke as particles, and a light that flickers */
+  /* --- the sea (zone 2) ----------------------------------------------------------------------------------- */
+  /* one big sheet at def.y: deep blue far out, turquoise in the shallows and foam where it meets the sand (by the depth
+     of the ground under each point), rocked by slow waves in the vertex shader */
+  art.water = function (ctx, def) {
+    const size = def.size || 360, seg = 120, y0 = def.y != null ? def.y : -0.35, height = ctx.height || (() => -5);
+    const g = new T.PlaneGeometry(size, size, seg, seg); g.rotateX(-Math.PI / 2);
+    const pos = g.attributes.position, col = new Float32Array(pos.count * 3);
+    const deep = new T.Color(def.deep || '#1f5f9a'), shallow = new T.Color(def.shallow || '#3fc2c0'), foam = new T.Color('#f4fbf6'), c = new T.Color();
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i) + (def.pos ? def.pos[0] : 0), z = pos.getZ(i) + (def.pos ? def.pos[1] : 0), d = y0 - height(x, z);
+      c.copy(shallow).lerp(deep, Math.max(0, Math.min(1, d / 3.5)));
+      if (d < 0.35) c.lerp(foam, Math.max(0, 1 - d / 0.35) * 0.85);
+      col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
+    }
+    g.setAttribute('color', new T.BufferAttribute(col, 3));
+    const time = { value: 0 };
+    const m = new T.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0, transparent: true, opacity: 0.86 });
+    m.onBeforeCompile = sh => {
+      sh.uniforms.uTime = time;
+      sh.vertexShader = 'uniform float uTime;\n' + sh.vertexShader.replace('#include <begin_vertex>',
+        '#include <begin_vertex>\n transformed.y += sin(position.x * 0.35 + uTime * 1.1) * 0.06 + cos(position.z * 0.27 + uTime * 0.8) * 0.06;');
+    };
+    const w = new T.Mesh(g, m); w.position.set(def.pos ? def.pos[0] : 0, y0, def.pos ? def.pos[1] : 0); w.receiveShadow = true; w.renderOrder = 2;
+    ctx.scene.add(w);
+    ctx.every((dt, t) => { time.value = t; });
+    return w;
+  };
+  /* a dock: planks on posts, from one point to another along x or z, walkable (its deck is solid) */
+  art.dock = function (ctx, def) {
+    const [x0, z0] = def.from, [x1, z1] = def.to, w = def.width || 2.4, y = def.y != null ? def.y : 0.35, alongZ = Math.abs(z1 - z0) >= Math.abs(x1 - x0);
+    const len = alongZ ? Math.abs(z1 - z0) : Math.abs(x1 - x0), cx = (x0 + x1) / 2, cz = (z0 + z1) / 2, g = new T.Group();
+    const deck = mesh(boxM(alongZ ? w : len, 0.16, alongZ ? len : w, 1), mat('planks', { m: { color: '#c9a274' } })); deck.position.set(0, y - 0.08, 0); g.add(deck);
+    const postM = mat('bark');
+    for (let k = 0; k <= len; k += 2.5) for (const side of [-1, 1]) {
+      const p = mesh(new T.CylinderGeometry(0.12, 0.14, 4, 7), postM), along = -len / 2 + k;
+      p.position.set(alongZ ? side * (w / 2 - 0.1) : along, y - 2, alongZ ? along : side * (w / 2 - 0.1)); g.add(p);
+    }
+    g.position.set(cx, 0, cz); ctx.scene.add(g);
+    ctx.solid([cx - (alongZ ? w : len) / 2, y - 0.4, cz - (alongZ ? len : w) / 2], [cx + (alongZ ? w : len) / 2, y, cz + (alongZ ? len : w) / 2]);
+    return g;
+  };
+
+  /* --- a pirate ship (zone 2's dungeon, and offshore at the Beach) -------------------------------------------- */
+  /* bow towards -z (rot 0; 90/180/270 turn it), deck at def.deck. The hull widens from a pointed bow to a square stern
+     and narrows below the deck; a rail all round; at the stern a raised quarterdeck with stairs either side, the
+     captain's cabin under it and the wheel on it; two masts with yards, billowing sails and a black flag; cannons
+     along both sides. def.walk: the deck, the quarterdeck, the stairs and the rails are solid. Returns {deck, aft}. */
+  art.ship = function (ctx, def) {
+    const L = def.length || 30, W = def.beam || 8, D = def.deck != null ? def.deck : 1.6, rot = ((def.rot || 0) % 360 + 360) % 360;
+    const [px, pz] = def.pos || [0, 0], g = new T.Group(), AFT = L / 2 - 8, Q = 2.1;   /* quarterdeck from AFT to the stern, Q high */
+    const half = z => z > -L / 2 + 8 ? W / 2 : Math.max(0.15, W / 2 * Math.sqrt(Math.max(0, (z + L / 2) / 8)));
+    const shape = new T.Shape(); shape.moveTo(-W / 2, L / 2);   /* the shape's y is the ship's z */
+    for (let z = L / 2; z >= -L / 2; z -= 1) shape.lineTo(-half(z), z);
+    for (let z = -L / 2; z <= L / 2; z += 1) shape.lineTo(half(z), z);
+    const hull = new T.ExtrudeGeometry(shape, { depth: 3.6, bevelEnabled: false, curveSegments: 1 });
+    hull.rotateX(Math.PI / 2);   /* y -> z, and extruded downwards */
+    const hp = hull.attributes.position;
+    for (let i = 0; i < hp.count; i++) { const y = hp.getY(i), k = Math.min(1, -y / 3.6); hp.setX(i, hp.getX(i) * (1 - 0.38 * k * k)); }
+    hull.computeVertexNormals();
+    const hullM = mat('planks', { m: { color: '#6a4026' } }), deckM = mat('planks', { m: { color: '#b88a5a' } }), dark = plain('#2a1a10');
+    const hm = mesh(hull, hullM); hm.position.y = D; g.add(hm);
+    const band = mesh(hull.clone(), plain('#b8902f')); band.scale.set(1.012, 0.08, 1.004); band.position.y = D - 0.35; g.add(band);   /* a gilded band */
+    const deck = new T.ShapeGeometry(shape); deck.rotateX(Math.PI / 2);
+    const dm = mesh(deck, mat('planks', { m: { color: '#b88a5a', side: T.DoubleSide } })); dm.position.y = D + 0.01; g.add(dm);
+    /* the rail */
+    const railM = mat('planks', { m: { color: '#5a3520' } });
+    const rails = [];
+    for (let z = -L / 2 + 1; z < L / 2; z += 1) for (const sx of [-1, 1]) {
+      const za = z, zb = z + 1, xa = sx * half(za), xb = sx * half(zb), len = Math.hypot(xb - xa, zb - za);
+      const r = mesh(new T.BoxGeometry(0.14, 0.9, len + 0.04), railM); r.position.set((xa + xb) / 2, D + (za >= AFT ? Q : 0) + 0.45, (za + zb) / 2);
+      r.rotation.y = Math.atan2(xb - xa, zb - za); g.add(r); rails.push([xa, za, xb, zb]);
+    }
+    const stern = mesh(new T.BoxGeometry(W, 0.9, 0.14), railM); stern.position.set(0, D + Q + 0.45, L / 2 - 0.07); g.add(stern);
+    /* quarterdeck, its front wall with the cabin door, stairs at both sides */
+    const qd = mesh(boxM(W, 0.2, L / 2 - AFT, 1), deckM); qd.position.set(0, D + Q - 0.1, (AFT + L / 2) / 2); g.add(qd);
+    const front = mesh(boxM(W - 3.2, Q, 0.2, 1), hullM); front.position.set(0, D + Q / 2, AFT); g.add(front);
+    const door = mesh(new T.BoxGeometry(1.1, 1.8, 0.05), dark); door.position.set(0, D + 0.9, AFT - 0.12); g.add(door);
+    for (const sx of [-1, 1]) for (let k = 0; k < 5; k++) {
+      const st = mesh(boxM(1.4, Q * (k + 1) / 5, 0.5, 1), deckM); st.position.set(sx * (W / 2 - 0.85), D + Q * (k + 1) / 10, AFT - 2.4 + k * 0.5); g.add(st);
+    }
+    /* the wheel */
+    const wheel = new T.Group(); wheel.position.set(0, D + Q + 1.0, AFT + 2.2); g.add(wheel);
+    wheel.add(mesh(new T.TorusGeometry(0.45, 0.05, 6, 16), plain('#6b4a2e')));
+    for (let i = 0; i < 8; i++) { const sp = mesh(new T.CylinderGeometry(0.025, 0.025, 1.15, 5), plain('#6b4a2e')); sp.rotation.z = i * Math.PI / 8; wheel.add(sp); }
+    const post = mesh(new T.BoxGeometry(0.2, 1.0, 0.2), railM); post.position.set(0, D + Q + 0.5, AFT + 2.4); g.add(post);
+    /* masts, yards, sails, the flag */
+    const sailM = mat('cloth', { m: { color: def.sails || '#d9cfb4', side: T.DoubleSide } });
+    for (const [mz, mh] of [[-4, 15], [4.5, 13]]) {
+      const mast = mesh(new T.CylinderGeometry(0.18, 0.26, mh, 8), mat('bark', { m: { color: '#8a6040' } })); mast.position.set(0, D + mh / 2, mz); g.add(mast);
+      for (const [yy, ww] of [[mh * 0.55, W * 1.2], [mh * 0.85, W * 0.9]]) {
+        const yard = mesh(new T.CylinderGeometry(0.09, 0.09, ww, 6), mat('bark', { m: { color: '#8a6040' } })); yard.rotation.z = Math.PI / 2; yard.position.set(0, D + yy, mz - 0.2); g.add(yard);
+        const sg = new T.PlaneGeometry(ww * 0.92, mh * 0.27, 8, 4), sp2 = sg.attributes.position;
+        for (let i = 0; i < sp2.count; i++) { const u = sp2.getX(i) / (ww * 0.46), v = sp2.getY(i) / (mh * 0.135); sp2.setZ(i, -0.9 * (1 - u * u) * (1 - 0.3 * v * v)); }   /* billowing */
+        sg.computeVertexNormals();
+        const sail = mesh(sg, sailM); sail.position.set(0, D + yy - mh * 0.14, mz - 0.25); g.add(sail);
+      }
+      if (mz < 0) {   /* the black flag with a skull */
+        const [fc, fx] = canvas(128); fc.height = 80; fx.fillStyle = '#111'; fx.fillRect(0, 0, 128, 80);
+        fx.fillStyle = '#eee'; fx.beginPath(); fx.arc(64, 34, 16, 0, 7); fx.fill(); fx.fillRect(56, 44, 16, 10);
+        fx.fillStyle = '#111'; fx.beginPath(); fx.arc(58, 33, 4, 0, 7); fx.arc(70, 33, 4, 0, 7); fx.fill();
+        fx.strokeStyle = '#eee'; fx.lineWidth = 6; fx.beginPath(); fx.moveTo(34, 58); fx.lineTo(94, 74); fx.moveTo(94, 58); fx.lineTo(34, 74); fx.stroke();
+        const ft = new T.CanvasTexture(fc); ft.colorSpace = T.SRGBColorSpace;
+        const flag = new T.Mesh(new T.PlaneGeometry(1.8, 1.1), new T.MeshStandardMaterial({ map: ft, side: T.DoubleSide, roughness: 1 }));
+        flag.position.set(0.95, D + mh + 0.4, mz); flag.rotation.y = Math.PI / 2; g.add(flag);
+        ctx.every((dt, t) => { flag.rotation.y = Math.PI / 2 + Math.sin(t * 2.2) * 0.12; });
+      }
+    }
+    /* cannons along both sides */
+    for (const sx of [-1, 1]) for (const cz of [-6, -2, 2]) {
+      const c = new T.Group(); c.position.set(sx * (half(cz) - 0.8), D + 0.35, cz); c.rotation.z = sx * Math.PI / 2; g.add(c);
+      c.add(mesh(new T.CylinderGeometry(0.16, 0.22, 1.3, 10), plain('#2b2b2e', { metalness: 0.7, roughness: 0.4 })));
+      const cart = mesh(new T.BoxGeometry(0.5, 0.35, 0.6), plain('#5a3520')); cart.position.set(sx * 0.05, -0.15, 0); cart.rotation.z = -c.rotation.z; c.add(cart);
+    }
+    g.position.set(px, 0, pz); g.rotation.y = -rot * Math.PI / 180; if (def.list) g.rotation.z = def.list;   /* a wreck lies over */
+    ctx.scene.add(g);
+    /* solid where it is walked (the dungeon): in the level's frame, for rot 0 or 180 */
+    if (def.walk) {
+      const flip = rot === 180 ? -1 : 1, S = (x0, y0, z0, x1, y1, z1) => ctx.solid([px + Math.min(x0 * flip, x1 * flip), y0, pz + Math.min(z0 * flip, z1 * flip)], [px + Math.max(x0 * flip, x1 * flip), y1, pz + Math.max(z0 * flip, z1 * flip)]);
+      for (let z = -L / 2; z < AFT; z += 1) { const w = half(z + 0.5); S(-w, D - 1, z, w, D, z + 1); }
+      S(-W / 2, D + Q - 1, AFT, W / 2, D + Q, L / 2);                      /* the quarterdeck */
+      S(-W / 2 + 1.6, D, AFT - 0.1, W / 2 - 1.6, D + Q, AFT + 0.1);        /* its front wall (the stairs left free) */
+      for (const sx of [-1, 1]) for (let k = 0; k < 5; k++) { const x0 = sx * (W / 2 - 1.55), x1 = sx * (W / 2 - 0.15); S(x0, D, AFT - 2.65 + k * 0.5, x1, D + Q * (k + 1) / 5, AFT - 2.15 + k * 0.5); }
+      for (const [xa, za, xb, zb] of rails) { const yb = D + (za >= AFT ? Q : 0); S(Math.min(xa, xb) - 0.08, yb, za, Math.max(xa, xb) + 0.08, yb + 1.1, zb); }
+      S(-W / 2, D + Q, L / 2 - 0.15, W / 2, D + Q + 1.1, L / 2);
+      for (const mz of [-4, 4.5]) S(-0.3, D, mz - 0.3, 0.3, D + 12, mz + 0.3);
+    }
+    return { group: g, deck: D, aft: AFT, quarter: D + Q };
+  };
+
   art.campfire = function (ctx, def) {
     const g = new T.Group(), [x0, z0] = def.pos, rnd = art.rng(42);
     const stone = mat('stone');
@@ -508,8 +666,34 @@
   /* pines and round leafy trees, all instanced (one draw call per part however many there are) */
   /* trees, instanced (one draw call per part however many): list = [[x, z, scale, 'pine'|'oak'], ...], height(x, z)
      the ground under each */
+  /* a few geometries into one (positions, normals, uvs; all indexed or not) */
+  function merge(geos) {
+    const P = [], N = [], U = [], I = []; let base = 0;
+    for (const g0 of geos) {
+      const g = g0.index ? g0 : g0; const pos = g.attributes.position, nor = g.attributes.normal, uv = g.attributes.uv;
+      for (let i = 0; i < pos.count; i++) { P.push(pos.getX(i), pos.getY(i), pos.getZ(i)); N.push(nor.getX(i), nor.getY(i), nor.getZ(i)); U.push(uv ? uv.getX(i) : 0, uv ? uv.getY(i) : 0); }
+      if (g.index) for (let i = 0; i < g.index.count; i++) I.push(base + g.index.getX(i)); else for (let i = 0; i < pos.count; i++) I.push(base + i);
+      base += pos.count;
+    }
+    const out = new T.BufferGeometry();
+    out.setAttribute('position', new T.Float32BufferAttribute(P, 3)); out.setAttribute('normal', new T.Float32BufferAttribute(N, 3)); out.setAttribute('uv', new T.Float32BufferAttribute(U, 2)); out.setIndex(I);
+    return out;
+  }
+  let palmGeo = null;
+  function palmGeos() {   /* a leaning, curving trunk and a crown of drooping fronds, made once */
+    if (palmGeo) return palmGeo;
+    const curve = new T.CatmullRomCurve3([new T.Vector3(0, 0, 0), new T.Vector3(0.25, 1.6, 0), new T.Vector3(0.75, 3.2, 0), new T.Vector3(1.4, 4.6, 0)]);
+    const trunk = new T.TubeGeometry(curve, 10, 0.17, 7, false);
+    const fronds = [];
+    for (let i = 0; i < 8; i++) {
+      const f = new T.PlaneGeometry(0.75, 2.8, 1, 6), p = f.attributes.position;
+      for (let k = 0; k < p.count; k++) { const yy = p.getY(k) + 1.4; p.setXYZ(k, p.getX(k) * (1 - yy / 3.2), -0.12 * yy * yy, yy); }   /* tapering, drooping */
+      f.computeVertexNormals(); f.rotateY(i / 8 * Math.PI * 2 + 0.2); f.translate(1.4, 4.6, 0); fronds.push(f);
+    }
+    return (palmGeo = { trunk, crown: merge(fronds), coco: new T.SphereGeometry(0.14, 7, 5) });
+  }
   art.trees = function (ctx, list, height) {
-    const pines = list.filter(t => (t[3] || 'pine') === 'pine'), oaks = list.filter(t => t[3] === 'oak');
+    const pines = list.filter(t => (t[3] || 'pine') === 'pine'), oaks = list.filter(t => t[3] === 'oak'), palms = list.filter(t => t[3] === 'palm');
     const M = new T.Matrix4(), Q = new T.Quaternion(), S = new T.Vector3(), P = new T.Vector3(), up = new T.Vector3(0, 1, 0);
     function instanced(geo, material, items, place) {
       const im = new T.InstancedMesh(geo, material, items.length); im.castShadow = true; im.receiveShadow = true;
@@ -522,6 +706,11 @@
       instanced(new T.ConeGeometry(r, h, 9, 1, true), pineLeaves, pines, (t, p, s) => { p.set(t[0], height(t[0], t[1]) + y * t[2], t[1]); s.set(t[2], t[2], t[2]); });
     }
     /* oaks as the old WoW drew them: a thick trunk flaring at the foot, a big round crown of soft clumps */
+    if (palms.length) {
+      const pg = palmGeos(), frondM = mat('leaves', { m: { side: T.DoubleSide, color: '#cfe6a0' } });
+      instanced(pg.trunk, mat('bark', { m: { color: '#c9a070' } }), palms, (t, p, s) => { p.set(t[0], height(t[0], t[1]) - 0.1, t[1]); s.set(t[2], t[2], t[2]); });
+      instanced(pg.crown, frondM, palms, (t, p, s) => { p.set(t[0], height(t[0], t[1]) - 0.1, t[1]); s.set(t[2], t[2], t[2]); });
+    }
     instanced(new T.CylinderGeometry(0.24, 0.5, 2.6, 8), bark, oaks, (t, p, s) => { p.set(t[0], height(t[0], t[1]) + 1.3 * t[2], t[1]); s.set(t[2], t[2], t[2]); });
     const crown = new T.IcosahedronGeometry(1.6, 2);
     for (const [dx, dy, dz, k] of [[0, 3.4, 0, 1.1], [1.0, 2.9, 0.4, 0.8], [-0.9, 3.0, -0.5, 0.85], [0.2, 4.2, -0.2, 0.75], [-0.3, 2.8, 1.0, 0.7]]) {
@@ -535,10 +724,14 @@
     const clear = def.clear || [];   /* [x0, z0, x1, z1] boxes kept free of trees: a field, a road */
     for (let i = 0; i < n; i++) {
       const a = rnd() * Math.PI * 2, r = inner + Math.pow(rnd(), 0.8) * (outer - inner);
-      const t = [Math.cos(a) * r, Math.sin(a) * r, rnd.range(0.8, 1.5), rnd() < 0.62 ? 'pine' : 'oak'];
-      if (!clear.some(b => t[0] > b[0] && t[0] < b[2] && t[1] > b[1] && t[1] < b[3])) list.push(t);
+      /* which kinds grow here, by weight (def.kinds, e.g. {"palm": 1} on the Beach) */
+      const kinds = def.kinds || { pine: 0.62, oak: 0.38 }, sum = Object.values(kinds).reduce((x, y) => x + y, 0);
+      let pickK = rnd() * sum, kind = 'pine'; for (const k in kinds) { pickK -= kinds[k]; if (pickK <= 0) { kind = k; break; } }
+      const t = [Math.cos(a) * r, Math.sin(a) * r, rnd.range(0.8, 1.5), kind];
+      const ht = ctx.height ? ctx.height(t[0], t[1]) : 1;
+      if (ht > 0.05 && !clear.some(b => t[0] > b[0] && t[0] < b[2] && t[1] > b[1] && t[1] < b[3])) list.push(t);   /* nothing grows in the sea */
     }
-    const height = art.heightAt(def.flat || 30);
+    const height = ctx.height || art.heightAt(def.flat || 30);
     art.trees(ctx, list, height);
     /* every trunk stands in the way: the forest can be walked now (Etappe 3) */
     for (const t of list) { const y = height(t[0], t[1]); ctx.solid([t[0] - 0.35, y - 1, t[1] - 0.35], [t[0] + 0.35, y + 3, t[1] + 0.35]); }
@@ -551,6 +744,7 @@
         const a = i / N * Math.PI * 2;
         let h = height * (0.55 + 0.25 * Math.sin(a * 3 + ph[0]) + 0.14 * Math.sin(a * 7 + ph[1]) + 0.07 * Math.sin(a * 17 + ph[2]) + 0.04 * Math.sin(a * 41 + ph[3]));
         h = Math.max(6, h + (r() - 0.5) * rough);
+        if (def.openSea && Math.sin(a) < -0.15) h = -12;   /* the Beach: no mountains beyond the sea */
         const x = Math.cos(a) * radius, z = Math.sin(a) * radius, tc = snow && h > height * 0.8 ? white : top;
         P.push(x, -10, z, x, h, z); C.push(haze.r, haze.g, haze.b, tc.r, tc.g, tc.b);
       }
@@ -954,8 +1148,8 @@
     return geo;
   }
   const faces = {};
-  function faceTexture(skin, eyes, brows, soft) {   /* the face, painted where a sphere's front (-z) is: u 0.75; soft: a woman's */
-    const key = skin + eyes + brows + (soft ? 's' : '');
+  function faceTexture(skin, eyes, brows, soft, patch) {   /* the face, painted where a sphere's front (-z) is: u 0.75; soft: a woman's */
+    const key = skin + eyes + brows + (soft ? 's' : '') + (patch ? 'p' : '');
     if (faces[key]) return faces[key];
     const [c, x] = canvas(256); c.height = 128;
     x.fillStyle = skin; x.fillRect(0, 0, 256, 128);
@@ -977,6 +1171,10 @@
                 x.fillStyle = 'rgba(220,110,100,.22)'; x.beginPath(); x.arc(cx - 20, 72, 6, 0, 7); x.arc(cx + 20, 72, 6, 0, 7); x.fill(); }
     else { x.strokeStyle = 'rgba(110,45,35,.85)'; x.lineWidth = 2.5; x.lineCap = 'round'; x.beginPath(); x.moveTo(cx - 9, 84); x.quadraticCurveTo(cx, 87.5, cx + 9, 84); x.stroke(); }
     x.fillStyle = 'rgba(120,60,40,.25)'; x.beginPath(); x.ellipse(cx, 76, 6, 3, 0, 0, 7); x.fill();   /* under the nose */
+    if (patch) {   /* a pirate's eyepatch over the left eye, its string round the head */
+      x.fillStyle = '#141010'; x.beginPath(); x.ellipse(cx + 15, 58, 10, 8, 0, 0, 7); x.fill();
+      x.strokeStyle = '#141010'; x.lineWidth = 2; x.beginPath(); x.moveTo(cx - 40, 44); x.lineTo(cx + 40, 66); x.stroke();
+    }
     const t = new T.CanvasTexture(c); t.colorSpace = T.SRGBColorSpace;
     return (faces[key] = t);
   }
@@ -1030,7 +1228,7 @@
     /* the head: a little large, a painted face, a nose, ears, hair */
     part(new T.CylinderGeometry(0.075, 0.085, 0.1, 8), skin, spine, 0, 0.58, 0);
     const head = joint(spine, 0, 0.62, 0);
-    const faceT = faceTexture(skin, look.eyes || '#2b4a7a', shade(hair.length === 7 ? hair : '#4a2f1b', 0.75), slim);
+    const faceT = faceTexture(skin, look.eyes || '#2b4a7a', shade(hair.length === 7 ? hair : '#4a2f1b', 0.75), slim, !!look.eyepatch);
     const skull = part(new T.SphereGeometry(0.2, 16, 12), '#ffffff', head, 0, 0.18, 0, faceT); skull.scale.set(1, 1.07, 1.02);
     if (!slim) part(new T.SphereGeometry(0.15, 10, 8), skin, head, 0, 0.07, -0.05).scale.set(1.05, 0.62, 0.9);   /* a strong jaw */
     const nose = part(new T.ConeGeometry(0.034, 0.1, 6), skin, head, 0, 0.165, -0.205); nose.rotation.x = -Math.PI / 2 - 0.3;
@@ -1046,6 +1244,11 @@
     if (look.hat) { part(new T.CylinderGeometry(0.34, 0.34, 0.035, 14), look.hat, head, 0, 0.33, 0); part(new T.CylinderGeometry(0.2, 0.22, 0.2, 12), look.hat, head, 0, 0.45, 0); }
     if (look.helm) { part(new T.SphereGeometry(0.225, 14, 8, 0, Math.PI * 2, 0, Math.PI * 0.4), look.helm, head, 0, 0.18, 0.01).scale.set(1.04, 1.1, 1.06);
                      part(new T.CylinderGeometry(0.235, 0.235, 0.04, 14), look.helm, head, 0, 0.255, 0.01); part(new T.BoxGeometry(0.035, 0.11, 0.05), look.helm, head, 0, 0.2, -0.225); }
+    if (look.tricorn) {   /* a pirate's hat: a crown and a brim turned up on three sides */
+      part(new T.CylinderGeometry(0.2, 0.23, 0.18, 12), look.tricorn, head, 0, 0.42, 0.01);
+      for (let i = 0; i < 3; i++) { const b = part(new T.BoxGeometry(0.42, 0.13, 0.04), look.tricorn, head, Math.sin(i * 2.09) * 0.2, 0.4, Math.cos(i * 2.09) * 0.2); b.rotation.y = i * 2.09; b.rotation.x = -0.35; }
+    }
+    if (look.bandana) part(new T.SphereGeometry(0.218, 14, 8, 0, Math.PI * 2, 0, Math.PI * 0.36), look.bandana, head, 0, 0.19, 0.01).scale.set(1.03, 1.1, 1.06);
     if (look.hood) { part(new T.SphereGeometry(0.245, 14, 10, Math.PI * 1.85, Math.PI * 1.3, 0, Math.PI * 0.62), look.hood, head, 0, 0.17, 0.03).scale.set(1.02, 1.1, 1.1);   /* open at the face */
                      part(new T.SphereGeometry(0.245, 14, 4, 0, Math.PI * 2, 0, Math.PI * 0.3), look.hood, head, 0, 0.17, 0.03).scale.set(1.02, 1.1, 1.1);
                      part(new T.CylinderGeometry(0.2, 0.33 * sw, 0.16, 12, 1, true), look.hood, spine, 0, 0.53, 0.01); }
@@ -1134,6 +1337,16 @@
     };
   };
 
+  /* a weapon for a foe to hold (the people of a dungeon): the same shapes as a player's, made here */
+  art.held = function (model, look) {
+    const g = new T.Group(), steel = plain(look || '#cfd5dd', { metalness: 0.8, roughness: 0.3 }), wood = plain('#6b4a2e'), brass = plain('#b8893a', { metalness: 0.7, roughness: 0.4 });
+    const add = (geo, m, x, y, z) => { const p = new T.Mesh(geo, m); p.position.set(x || 0, y || 0, z || 0); g.add(p); return p; };
+    if (model === 'sword') { add(new T.BoxGeometry(0.05, 0.62, 0.014), steel, 0.03, 0.38); add(new T.BoxGeometry(0.2, 0.04, 0.05), brass, 0, 0.07); add(new T.CylinderGeometry(0.02, 0.022, 0.15, 8), wood, 0, -0.02); }
+    else if (model === 'axe') { add(new T.CylinderGeometry(0.022, 0.025, 0.62, 8), wood, 0, 0.2); add(new T.BoxGeometry(0.16, 0.14, 0.02), steel, 0.07, 0.44); }
+    else { add(new T.CylinderGeometry(0.022, 0.025, 0.5, 8), wood, 0, 0.15); add(new T.SphereGeometry(0.07, 10, 8), plain('#5a5a5a'), 0, 0.42); }
+    g.userData.kind = model;
+    return g;
+  };
   /* --- creatures ---------------------------------------------------------------------------------------- */
   /* THE BEASTS OF THE GREENWOOD (Etappe 3), made by code in the same round, painted style as the people: a boar, a wolf
      and a forest spider. The same interface as a person (group, setName, tag, animate, emote, hold), so the fight
@@ -1185,6 +1398,42 @@
       }
       tail = joint(body, 0, 0.12, 0.5); part(cap(0.07, 0.35), fur, tail, 0, -0.1, 0.18).rotation.x = 1.0;
       barY = 1.45;
+    } else if (kind === 'crab') {   /* a shore crab (zone 2): a wide shell, eight thin legs, two big claws, eyes on stalks */
+      const shell = look.color || '#c4532e', dark = shade(shell, 0.65), light = shade(shell, 1.25);
+      body.position.y = 0.32;
+      part(new T.SphereGeometry(0.42, 12, 8), shell, body, 0, 0, 0).scale.set(1.25, 0.45, 0.9);
+      part(new T.SphereGeometry(0.3, 10, 6), light, body, 0, 0.08, -0.05).scale.set(1.2, 0.35, 0.8);
+      head = joint(body, 0, 0.08, -0.32);
+      for (const sx of [-1, 1]) {
+        const st = part(new T.CylinderGeometry(0.02, 0.02, 0.22, 5), dark, head, sx * 0.1, 0.12, 0); st.rotation.z = sx * 0.2;
+        part(new T.SphereGeometry(0.045, 6, 5), '#111', head, sx * 0.12, 0.24, 0);
+        const arm = joint(body, sx * 0.42, 0, -0.25); arm.rotation.y = sx * -0.5;
+        part(cap(0.05, 0.25), dark, arm, sx * 0.1, 0, -0.18).rotation.x = Math.PI / 2;
+        part(new T.SphereGeometry(0.13, 8, 6), shell, arm, sx * 0.12, 0.02, -0.42).scale.set(0.8, 0.6, 1.3);   /* the claw */
+        for (let i = 0; i < 4; i++) {
+          const l = joint(body, sx * 0.4, -0.05, -0.05 + i * 0.13); l.rotation.y = sx * (0.2 - i * 0.25);
+          const up = part(cap(0.03, 0.26), dark, l, sx * 0.16, 0.06, 0); up.rotation.z = sx * -1.1;
+          const dn = part(cap(0.025, 0.3), dark, l, sx * 0.34, -0.12, 0); dn.rotation.z = sx * 0.5;
+          legs.push([l, (i % 2 ? Math.PI : 0) + (sx > 0 ? Math.PI : 0), null, sx]);
+        }
+      }
+      barY = 0.95;
+    } else if (kind === 'siren') {   /* a siren of the cove: a woman's body, long sea-green hair, a fish's tail */
+      const skin = look.skin || '#9fc9c0', tailC = look.color || '#2f8f8a', hair = look.hair || '#1f5a4a';
+      body.position.y = 0.95;
+      part(new T.CylinderGeometry(0.2, 0.16, 0.42, 10), skin, body, 0, 0.25, 0).scale.z = 0.75;
+      part(new T.SphereGeometry(0.14, 8, 6), '#e0c25a', body, 0, 0.32, -0.08).scale.set(1.5, 0.5, 0.5);   /* shells */
+      head = joint(body, 0, 0.55, 0);
+      part(new T.SphereGeometry(0.17, 12, 10), skin, head, 0, 0.1, 0).scale.set(1, 1.08, 1);
+      for (const sx of [-1, 1]) part(new T.SphereGeometry(0.03, 6, 5), '#ffef8a', head, sx * 0.06, 0.12, -0.15);
+      part(new T.SphereGeometry(0.19, 10, 8, 0, Math.PI * 2, 0, Math.PI * 0.55), hair, head, 0, 0.12, 0.02);
+      part(cap(0.12, 0.55), hair, head, 0, -0.2, 0.12).scale.set(1.3, 1, 0.5);   /* hair down the back */
+      for (const sx of [-1, 1]) { const arm = joint(body, sx * 0.24, 0.42, 0); part(cap(0.05, 0.38), skin, arm, 0, -0.22, 0); arm.rotation.z = sx * 0.3; legs.push([arm, sx > 0 ? 0 : Math.PI, null, sx * 0.2]); }
+      tail = joint(body, 0, 0, 0);   /* the tail: four parts, each a little smaller, swaying */
+      let t2 = tail, sz = 0.17;
+      for (let i = 0; i < 4; i++) { const seg = joint(t2, 0, i ? -0.24 : 0, i ? 0.05 : 0); part(new T.SphereGeometry(sz, 10, 8), tailC, seg, 0, -0.12, 0).scale.set(1, 1.5, 0.8); t2 = seg; sz *= 0.85; }
+      const fin = part(new T.ConeGeometry(0.22, 0.3, 4), '#57c4b0', t2, 0, -0.42, 0.05); fin.rotation.x = Math.PI; fin.scale.z = 0.25;
+      barY = 1.85;
     } else {   /* a forest spider */
       const shell = look.color || '#3b2f3a', mark = '#b85a2a';
       body.position.y = 0.55;
@@ -1228,7 +1477,8 @@
           else { l.rotation.x = a * 0.6 * sp; if (knee) knee.rotation.x = Math.max(0, -a) * 0.8 * sp; }
         }
         body.position.y = baseY + Math.abs(Math.sin(phase)) * 0.03 * sp + Math.sin(breathe) * 0.008;
-        if (tail) tail.rotation.y = Math.sin(phase * 0.7) * 0.4;
+        if (tail && kind === 'siren') { let j = tail, k = 0; while (j && k < 5) { j.rotation.x = Math.sin(phase * 0.6 - k * 0.7) * 0.18; j = j.children.find(c => c.isGroup); k++; } }
+        else if (tail) tail.rotation.y = Math.sin(phase * 0.7) * 0.4;
         lunge = Math.max(0, lunge - dt);
         const k = Math.sin((lunge / 0.45) * Math.PI);
         body.position.z = -k * 0.25; if (head) head.rotation.x = k * 0.35 + Math.sin(breathe * 0.5) * 0.04;
@@ -1450,5 +1700,5 @@
     return { groundAt, polys, segs, half, spawn, inside, stats: { buildings: buildings.length, trees: trees.length } };
   };
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('art', { api: 1, v: 8 }, () => art);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('art', { api: 1, v: 9 }, () => art);
 })(typeof globalThis !== 'undefined' ? globalThis : this);
