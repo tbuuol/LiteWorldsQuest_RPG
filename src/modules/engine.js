@@ -1,12 +1,14 @@
 /* LiteWorldsQuest engine: first person, one small level, other players, the wallet.
      const game = engine.start(element, {room, game, level})  -> {stop(), travel(level), level, ...}
    MOVEMENT  WASD / arrows, Shift to run, Space to jump, mouse to look (click the view to capture it), E to use.
-   THE WORLD  doors, levers, pickups are shared. As in ASHVALE, one player keeps them: the HOST, who joined the room
-     first (ties by id). Everyone else sends an intent ({I: 'use'|'take', o: id}); the host decides and sends the
-     whole world ({W}) to everyone, again every 3 s for anybody who missed it. Alone, you are the host.
-   PLAYERS  each page sends its position 15 times a second over the fast lane (browser to browser), or 4 a second
-     through the room when there is none, and a heartbeat once a second standing still. Others are drawn a little
-     behind (100 ms on the fast lane, 300 ms through the room) and interpolated between the samples.
+   THE WORLD  doors, levers, pickups and the fight are kept by the HOUSE alone (the game's own account, kept in the
+     room by a machine). ONLY DIRECT (tbuuol 2026-10-28): a player plays only while linked directly (WebRTC, the
+     arcade's fast lane as a star) with the house; until then the game waits on its loading screen, and a player whose
+     link is gone for 2 s is taken out. No solo, no player keeping the world, no game data through the room (the room is
+     for joining, who is who and setting the link up). Intents ({I: 'use'|'take', o: id}) go to the house, which
+     decides and sends the world ({W}) to the players linked with it.
+   PLAYERS  each page sends its position 15 times a second to the house, which passes it on to the players near them
+     ({F}). Others are drawn a little behind and interpolated between the samples.
    MESSAGES  {p: [x, y, z], r: [yaw, pitch], j: joinedAt, n?: name, w?: [main, off] item ids}   where a player is
              {I: op, o: id}                                         an intent, to the host
              {W: world}                                             the world, from the host
@@ -362,6 +364,10 @@
       '<div class="lwq-start"><b>' + esc(LV.title || 'LiteWorldsQuest') + '</b><br>' + (TOUCH ? 'Tap to play' : 'Click to play') + '<br>' +
       (TOUCH ? '<small>Left thumb: walk · right thumb: look · ⚔ strike · E use · ▲ jump</small></div>'
              : '<small>WASD move · Shift run · Space jump · Mouse look · E use · F / click strike · M sound · F3 fps · Esc release mouse</small></div>');
+    /* THE GATE (only direct, tbuuol 2026-10-28): the loading screen until this player is linked directly with the house
+       and has its character; and where you land when the link is lost for 2 s (kicked) */
+    hud.insertAdjacentHTML('beforeend', '<div class="lwq-gate"><div class="lwq-gate-t">Connecting to the arcade…</div><small class="lwq-gate-s"></small>' +
+      '<button class="lwq-gate-b" type="button" style="display:none"></button></div>');
     el.appendChild(hud);
     /* the ability bar takes taps and clicks itself (not the look or the joystick) */
     const abilBar = hud.querySelector('.lwq-abil');
@@ -381,6 +387,10 @@
       '.lwq-start{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;' +
       'background:rgba(0,0,0,.45);color:#fff;font:20px/1.6 system-ui,sans-serif;text-align:center;cursor:pointer}' +
       '.lwq-start small{font-size:13px;opacity:.85}' +
+      '.lwq-gate{position:absolute;inset:0;z-index:20;display:flex;flex-direction:column;gap:12px;align-items:center;justify-content:center;' +
+      'background:#0d0a07;color:#e9dcc0;font:22px/1.5 Georgia,serif;text-align:center;padding:0 16px}' +
+      '.lwq-gate.soft{background:rgba(0,0,0,.55)}.lwq-gate small{font:14px/1.5 system-ui,sans-serif;opacity:.8;max-width:34em}' +
+      '.lwq-gate button{font:16px system-ui,sans-serif;padding:8px 18px;border-radius:8px;border:1px solid #c9a04a;background:#3a2a12;color:#ffe9a8;cursor:pointer}' +
       '.lwq-talk{display:none;position:absolute;left:50%;bottom:118px;transform:translateX(-50%);width:min(560px,80%);' +
       'background:rgba(28,20,12,.82);border:2px solid #b08a50;border-radius:8px;padding:12px 16px;color:#f3e6cc;' +
       'font:15px/1.45 Georgia,serif;pointer-events:none}.lwq-talk b{color:#ffd88a}' +
@@ -424,15 +434,11 @@
     if (D.menu && D.rpg && (LV.defense || LV.wild)) {
       menu = D.menu.create({ el, rpg: D.rpg, touch: TOUCH, wild: LV.wild || null, quests: LV.quests || [], atForge: () => nearForge(me.x, me.z),
         ask(q) {
-          if (!room || !houseId()) { log('The house is away: what you carry is kept by the house, so nothing can change now.'); return; }
-          /* a question must arrive: always the room's reliable way (the fast lane drops all but the newest) */
-          room.tell(Object.assign({ Q: q.op }, q.op === 'equip' ? { u: q.uid } : q.op === 'craft' ? { r: q.recipe } : q.op === 'codex' ? { sp: q.species, k: q.skill } : { s: q.slot }));
+          if (!live()) return;
+          sendIntent(Object.assign({ Q: q.op }, q.op === 'equip' ? { u: q.uid } : q.op === 'craft' ? { r: q.recipe } : q.op === 'codex' ? { sp: q.species, k: q.skill } : { s: q.slot }));
         } });
     }
-    function askHouse(msg) {
-      if (!room || !houseId()) { log('The house is away: it keeps your quests, so nothing can change now.'); return; }
-      room.tell(msg);   /* must arrive: the room's reliable way */
-    }
+    function askHouse(msg) { if (live()) sendIntent(msg); }
     function toggleMenu() {
       if (!menu) return;
       if (menu.isOpen()) { menu.close(); return; }
@@ -448,7 +454,7 @@
     const canvas = renderer.domElement;
     const locked = () => document.pointerLockElement === canvas;
     let touchPlaying = false;
-    const playing = () => locked() || touchPlaying;
+    const playing = () => (locked() || touchPlaying) && live();
     $('.lwq-start').addEventListener('click', () => {
       if (sound) sound.start();
       if (TOUCH) { startTouch(); return; }
@@ -633,7 +639,8 @@
       if (me.y < (realW ? -100 : -20)) { me.x = prev.x = SPAWN[0]; me.y = prev.y = SPAWN[1] + 1; me.z = prev.z = SPAWN[2]; me.vy = 0; log('You fell out of the world.'); }
     }
     function move(dt) {
-      acc += Math.min(dt, 0.25);                     /* after a long stall (a hidden tab) do not run seconds of physics at once */
+      if (!live()) { acc = 0; for (const k in keys) keys[k] = false; }   /* not directly with the house: frozen */
+      else acc += Math.min(dt, 0.25);                     /* after a long stall (a hidden tab) do not run seconds of physics at once */
       while (acc >= STEP) { prev.x = me.x; prev.y = me.y; prev.z = me.z; physics(STEP); acc -= STEP; }
       const k = acc / STEP;
       camera.position.set(prev.x + (me.x - prev.x) * k, prev.y + (me.y - prev.y) * k + EYE, prev.z + (me.z - prev.z) * k);
@@ -935,34 +942,26 @@
     }
     function notice(to, text) { if (to === myId()) heardNotice(text); else toPlayer(['N', to, text]); }
     function heardNotice(text) { log(text); if (/bag|level/.test(text) && sound) sound.blip('pickup'); }
-    /* NETWORK, tuned (tbuuol 2026-10-27): the fast lane's reliable sends where the link is direct (in order, never lost,
-       and not the room's 4-a-second allowance); the room only where somebody is not directly linked yet, or there is
-       no fast lane. Every message reaches everybody either way (neither the room nor the fast lane can send to one
-       player), so what the house says to players goes out together: one packet a tenth of a second, {B: [n, items]}. */
-    const allDirect = () => { if (!room || !room.fast) return false; const st = Object.values(room.peers()); return st.length > 0 && st.every(x => x === 'direct'); };
+    /* ONLY DIRECT (tbuuol 2026-10-28): game data goes over the direct link between a player and the house, and nowhere
+       else -- no solo, no player keeping the world, nothing through the room. The room is for joining, who is who and
+       setting the link up. A player plays only while linked directly to the house (see gateTick); the house serves only
+       players linked directly to it. What the house says to a player goes out together, {B: [n, items]}, a tenth of a
+       second at a time. */
+    const linked = id => !!(room && room.star && id && room.peers()[id] === 'direct');
+    const directPlayers = () => Array.from(remotes.keys()).filter(id => !remotes.get(id).house && linked(id));
     function sendIntent(msg) {   /* a blow, a gathering, an ability, a question: to the house, surely */
-      if (!room) return;
-      if (room.fast && room.peers()[hostId()] === 'direct') room.sure(msg); else room.tell(msg);
+      const h = houseId();
+      if (room && !iAmHouse && linked(h)) room.to([h], msg, true);
     }
     const outQ = []; let outNo = 0, outAt = 0;
     function toPlayer(item) { if (room) outQ.push(item); }
     function flushOut(now) {
       if (!room || !outQ.length || now - outAt < 100) return;
       outAt = now;
-      const room2 = !allDirect();
-      if (room.star && iAmHouse) {   /* the star: each player gets a packet of its own, with only its own lines */
-        const by = new Map();
-        for (const it of outQ.splice(0)) { const k = String(it[1]); if (!by.has(k)) by.set(k, []); by.get(k).push(it); }
-        for (const [to, items] of by) { const pk = { B: [++outNo, items] }; room.to([to], pk, true); if (room2 && JSON.stringify(pk).length <= 470) room.tell(pk); }
-        return;
-      }
-      while (outQ.length) {   /* packets that fit a room message each, in case the room must carry them */
-        const items = [];
-        while (outQ.length && (!items.length || JSON.stringify({ B: [0, items.concat([outQ[0]])] }).length <= 470)) items.push(outQ.shift());
-        const pk = { B: [++outNo, items] };
-        if (room.fast) room.sure(pk);
-        if (room2) room.tell(pk);
-      }
+      /* each player a packet of its own, with only its own lines */
+      const by = new Map();
+      for (const it of outQ.splice(0)) { const k = String(it[1]); if (!by.has(k)) by.set(k, []); by.get(k).push(it); }
+      for (const [to, items] of by) if (linked(to)) room.to([to], { B: [++outNo, items] }, true);
     }
     const packetsSeen = [];
     function heardPacket(b) {
@@ -975,8 +974,7 @@
         else if (it[0] === 'M' && fight) fight.missed(String(it[2]));
       }
     }
-    /* the house sends each player its record when it changed (at most every 1.5 s), whole over the direct link,
-       in pieces through the room */
+    /* the house sends each player its record when it changed (at most every 1.5 s), over the direct link */
     /* THE HOUSE'S STORE (Etappe 4): with houseStore(true) the house no longer holds every record from the start. A
        player's record is asked for when the player is there (houseWants -> the keeper's database -> houseGive), what
        changed is handed back (houseTake), and a player who left is handed back and forgotten -- the house of another
@@ -989,32 +987,14 @@
     function sendRecords(now) {
       if (!iAmHouse || !room || !book || !dirty.size || now - lastRecords < 1500) return;
       lastRecords = now;
-      for (const a of dirty) if (!storeMode || book.has(a)) for (const [id, r] of remotes) if (r.from.address === a) sendBig({ R: book.of(a), to: id }, id);
-      dirty.clear();
-    }
-    function sendBig(obj, to) {
-      if (room.fast && room.peers()[to] === 'direct') { if (!room.to || !room.to(to, obj, true)) room.sure(obj); return; }   /* whole, in one, surely; to that player only where the viewer can */
-      const s = JSON.stringify(obj);
-      if (s.length <= 470) { room.tell(obj); return; }
-      const id = Math.floor(Math.random() * 1e9).toString(36), parts = [];
-      let at = 0;
-      while (at < s.length) {   /* as much as fits one room message, quotes escaped */
-        let n = Math.min(400, s.length - at);
-        while (n > 20 && JSON.stringify({ Z: [id, 0, 0, s.slice(at, at + n)] }).length > 470) n -= 20;
-        parts.push(s.slice(at, at + n)); at += n;
+      for (const a of Array.from(dirty)) {
+        if (storeMode && !book.has(a)) { dirty.delete(a); continue; }
+        let sent = false;
+        for (const [id, r] of remotes) if (r.from.address === a && linked(id)) { sendBig({ R: book.of(a), to: id }, id); sent = true; }
+        if (sent) dirty.delete(a);   /* a player not linked yet gets it once they are */
       }
-      parts.forEach((c, i) => room.tell({ Z: [id, i, parts.length, c] }));
     }
-    const bigIn = new Map();
-    function bigPiece(from, z) {
-      if (!Array.isArray(z) || z.length < 4) return null;
-      const key = from.id + ':' + z[0], got = bigIn.get(key) || { n: +z[2], parts: [], at: performance.now() };
-      got.parts[+z[1]] = String(z[3]); bigIn.set(key, got);
-      for (const [k, v] of bigIn) if (performance.now() - v.at > 30000) bigIn.delete(k);
-      if (got.parts.filter(x => x != null).length < got.n) return null;
-      bigIn.delete(key);
-      try { return JSON.parse(got.parts.join('')); } catch (e) { return null; }
-    }
+    function sendBig(obj, to) { if (linked(to)) room.to([to], obj, true); }   /* whole, in one, surely, to that player only */
     /* "a raider", "an old boar" */
     const aName = (name, cap) => { const n = String(name).toLowerCase(), a = /^[aeiou]/.test(n) ? 'an ' : 'a '; return (cap ? a[0].toUpperCase() + a.slice(1) : a) + n; };
     function hurt(d, from) {
@@ -1050,7 +1030,7 @@
     }
 
     /* --- network ------------------------------------------------------------------------------------- */
-    let room = null, joinedAt = Date.now(), electReadyAt = 0;
+    let room = null, joinedAt = Date.now();
     const remotes = new Map();   /* id -> {from, j, name, buf: [{t, x, y, z, yaw}], heard, g (THREE.Group)} */
     /* who I am in the world: 'solo' until a room gives me an id, and that id from then on, also after the room has
        closed, so what I took stays mine (a key taken in the first seconds, or before a disconnect, is not lost) */
@@ -1063,9 +1043,9 @@
       drawInv();
     }
     /* THE HOUSE (tbuuol 2026-10-23: "a dedicated server"): the game's own account, kept in the room by a machine, keeps
-       the world whenever it is there. Its addresses come from the registry (inscribed by a publisher the page trusts),
-       and an address in a room is stamped by the arcade node, so nobody can pass for it. Without it, the first
-       player keeps the world as before. The house plays nobody: it draws nothing, is not drawn and is not counted. */
+       the world. Its addresses come from the registry (inscribed by a publisher the page trusts), and an address in a
+       room is stamped by the arcade node, so nobody can pass for it. Without it nobody plays (the world is offline).
+       The house plays nobody: it draws nothing, is not drawn and is not counted. */
     const HOUSE = (() => { try { const r = G.LWQ.get('$registry'); return Array.isArray(r && r.house) ? r.house.map(String) : []; } catch (e) { return []; } })();
     const isHouse = p => !!(p && p.address && HOUSE.includes(p.address));
     let iAmHouse = false;
@@ -1074,29 +1054,13 @@
       for (const [id, r] of remotes) if (isHouse(r.from)) return id;
       return null;
     }
-    function hostId() {
-      if (!room) return myId();
-      const h = houseId();
-      if (h) return h;
-      let best = { id: myId(), j: joinedAt };
-      for (const [id, r] of remotes) {
-        if (r.j == null) continue;
-        if (r.j < best.j || (r.j === best.j && id < best.id)) best = { id, j: r.j };
-      }
-      return best.id;
-    }
-    /* alone in the room you keep the world at once; with others, listen 1.5 s first to learn who came before you
-       (an intent sent in those first moments used to go to a host that did not exist yet, and was lost). With the
-       house there, it decides at once, and nobody else does. */
-    const amHost = () => {
-      if (iAmHouse || !room) return true;
-      if (houseId()) return false;
-      return remotes.size === 0 || (Date.now() >= electReadyAt && hostId() === myId());
-    };
+    /* only the house keeps the world */
+    const hostId = () => houseId();
+    const amHost = () => iAmHouse;
 
     function intent(op, id) {
       if (amHost()) { hostApply(op, id, myId()); return; }
-      room.tell({ I: op, o: id });
+      if (live()) sendIntent({ I: op, o: id });
     }
     function hostApply(op, id, by) {
       const N = { seq: W.seq + 1, open: Object.assign({}, W.open), taken: Object.assign({}, W.taken), dep: Object.assign({}, W.dep) };
@@ -1115,15 +1079,16 @@
       sendWorld();
     }
     let lastWorldSent = 0;
-    /* the world on the wire: only open doors and taken things (the rest is closed / free), so it stays well inside a
-       room message; j says when the host joined, so a newcomer knows whom to believe before it has seen them move */
-    function sendWorld() {
-      if (!room) return;
+    /* the world on the wire: only open doors and taken things (the rest is closed / free); to every player linked
+       directly, or to one (a newcomer) */
+    function sendWorld(to) {
+      if (!room || !iAmHouse) return;
       const open = {}, taken = {};
       for (const id in W.open) if (W.open[id]) open[id] = true;
       for (const id in W.taken) if (W.taken[id] != null) taken[id] = W.taken[id];
       const dep = {}; for (const id in W.dep) if (W.dep[id]) dep[id] = 1;
-      room.tell({ W: { seq: W.seq, open, taken, dep }, j: joinedAt }).then(ok => { if (!ok) console.warn('LWQ: the world is too big for one room message'); });
+      const ids = to ? [to].filter(linked) : directPlayers();
+      if (ids.length) room.to(ids, { W: { seq: W.seq, open, taken, dep } }, true);
       lastWorldSent = performance.now();
     }
     /* the world as the host says it is: what changed is said in the log, each change once */
@@ -1187,17 +1152,16 @@
       const r = remotes.get(id); if (!r) return;
       scene.remove(r.g); remotes.delete(id);
       if (storeMode && r.from.address) leaving.add(r.from.address);
-      log(r.house ? 'The house has gone; a player keeps the world now.' : label(r.from, r.name) + ' left.');
+      log(r.house ? 'The house has gone.' : label(r.from, r.name) + ' left.');
       drawNet();
     }
-    /* THE STAR (Etappe 4, arcade PR #36): where the viewer can, each player links with the house only and the house
-       with everybody (up to 60) -- one connection per player instead of one to every other player. Players then hear
-       each other through the house: it passes on to each player what the players within 80 m of them said, as soon
-       as it changed. With no house, or on a viewer that cannot, everybody links with everybody as before. */
+    /* THE STAR (arcade PR #36): each player links with the house only, the house with everybody (up to 60). Players
+       hear each other through the house: it passes on to each player what the players within 80 m of them said, as
+       soon as it changed. A player joins linked with nobody, and links with the house once it is there. */
     let starKey = '';
     function starTick() {
       if (!room || !room.star) return;
-      const want = iAmHouse ? null : (houseId() ? [houseId()] : null), key = want ? want.join() : 'all';
+      const want = iAmHouse ? null : (houseId() ? [houseId()] : []), key = want ? want.join() || 'none' : 'all';
       if (key === starKey) return;
       starKey = key;
       room.link(want, iAmHouse ? { max: 60 } : undefined);
@@ -1207,29 +1171,31 @@
       if (!iAmHouse || !room || !room.star || now - relayAt < 100) return;
       relayAt = now;
       for (const [to, r] of remotes) {
-        if (r.house || !r.g.visible) continue;
+        if (r.house || !r.g.visible || !linked(to)) continue;
         const rows = []; r.sentFrom = r.sentFrom || {};
         for (const [id, o] of remotes) {
-          if (id === to || o.house || !o.last || r.sentFrom[id] === o.lastN) continue;
+          if (id === to || o.house || !o.last || r.sentFrom[id] === o.lastN || !linked(id)) continue;
           if (Math.hypot(o.g.position.x - r.g.position.x, o.g.position.z - r.g.position.z) > 80) continue;
           r.sentFrom[id] = o.lastN; rows.push([id, o.last]);
         }
         if (rows.length) room.to([to], { F: rows }, false);
       }
     }
-    function heard({ from, data }) {
+    function heard({ from, data }, passed) {
+      /* game data only over a direct link: what comes through the room (the viewer's own way round for a pair that
+         is not linked) is not believed; players the house passes on (F) came to it directly */
+      if (!passed && !linked(from.id)) return;
       if (data instanceof ArrayBuffer) {   /* bytes: the fight's snapshot (type 1), from the house */
         const t = data.byteLength ? new Uint8Array(data)[0] : 0;
         if (t === 1 && fight && combat.decode && (from.id === hostId())) { const snap = combat.decode(data); if (snap) fight.apply(snap); }
         return;
       }
       const d = data && typeof data === 'object' ? data : {};
-      if (Array.isArray(d.Z)) { const whole = bigPiece(from, d.Z); if (whole) heard({ from, data: whole }); return; }   /* a big one, in pieces */
       if (Array.isArray(d.F) && from.id === hostId()) {   /* other players, passed on by the house */
         for (const row of d.F) {
           if (!Array.isArray(row) || String(row[0]) === myId()) continue;
           const id = String(row[0]), who = (room && room.members().find(x => x.id === id)) || (remotes.get(id) || {}).from || { id };
-          heard({ from: who, data: row[1] });
+          heard({ from: who, data: row[1] }, true);
         }
         return;
       }
@@ -1263,15 +1229,13 @@
     }
     function finishHeard(d, from, r) {
       if (d.I && amHost()) hostApply(String(d.I), String(d.o || ''), from.id);
-      /* the world only from the one who keeps it: during a handover, or from a client that lies, another's is ignored */
-      /* the house, just arrived, takes the world over from whoever kept it so far (a few seconds to hear it) */
-      const takingOver = iAmHouse && Date.now() < electReadyAt + 3000;
-      if (d.W && typeof d.W === 'object' && (from.id === hostId() || takingOver) && +d.W.seq > W.seq) applyWorld(d.W);
-      if (d.H && amHost()) sendWorld();
+      /* the world only from the house */
+      if (d.W && typeof d.W === 'object' && from.id === hostId() && +d.W.seq > W.seq) applyWorld(d.W);
+      if (d.H && amHost()) sendWorld(from.id);
       /* the fight: the host's picture of it, a player's blow for the host, and what the host says happened to me */
       if (fight) {
         const fromHost = from.id === hostId();
-        if (d.C && ((fromHost && !amHost()) || takingOver)) fight.apply(d.C);
+        if (d.C && fromHost && !amHost()) fight.apply(d.C);
         if (d.X != null && amHost() && freshBlow(from.id, d.n)) route(fight.damage(String(d.X), blowFor(from, String(d.X)), from.id));
         if (d.D != null && String(d.D) === myId() && fromHost) hurt(+d.d || 0, String(d.f || 'raider').slice(0, 30));
         if (Array.isArray(d.M) && String(d.M[0]) === myId() && fromHost) fight.missed(String(d.M[1]));
@@ -1319,47 +1283,82 @@
       /* no drawNet() here: positions come 15 times a second from each player, and rewriting the HUD that often
          was one of the stutters. The HUD is redrawn when somebody comes or goes, and once a second. */
     }
+    /* --- the gate: in only while linked directly with the house ------------------------------------------- */
+    let entered = false, lostAt = 0, kicked = false, gateSince = performance.now(), gateNow = '';
+    const live = () => iAmHouse || (entered && !lostAt && !kicked);
+    function gateSay(text, sub, button, soft) {
+      const g = $('.lwq-gate'), b = $('.lwq-gate-b');
+      g.style.display = 'flex'; g.classList.toggle('soft', !!soft);
+      if (gateNow !== text) { gateNow = text; $('.lwq-gate-t').textContent = text; }
+      $('.lwq-gate-s').textContent = sub || '';
+      b.style.display = button ? '' : 'none'; if (button) b.textContent = button;
+    }
+    function gateOff() { $('.lwq-gate').style.display = 'none'; gateNow = ''; }
+    on($('.lwq-gate-b'), 'click', () => keep.travel(LEVEL));   /* join again: this zone, from the start, in this page */
+    function kick(text, sub) {
+      if (kicked) return;
+      kicked = true; entered = false;
+      try { document.exitPointerLock(); } catch (e) { /* not locked */ }
+      if (room) { try { room.leave(); } catch (e) { /* gone */ } room = null; }
+      for (const id of Array.from(remotes.keys())) dropRemote(id);
+      gateSay(text, sub || '', 'Join again');
+      drawNet();
+    }
+    function gateTick(now) {
+      if (iAmHouse || kicked) return;
+      const h = room ? houseId() : null;
+      if (!entered) {
+        if (!room) return;   /* still joining (gateSay says so) */
+        if (!room.star) { kick('This arcade cannot link players directly yet.', 'It needs the arcade update of 2026-10-28 (the fast lane as a star). Open the game on an arcade that has it.'); return; }
+        const waited = now - gateSince;
+        if (!h) { gateSay(waited > 8000 ? 'The world is offline' : 'Looking for the world…', waited > 8000 ? 'Its house is not here right now. Waiting for it…' : ''); return; }
+        if (!linked(h)) {
+          gateSay('Linking directly with the world…', waited > 45000 ? 'No direct link yet. Some networks do not let browsers link directly (WebRTC); it keeps trying.' : '',
+            waited > 45000 ? 'Try again' : null);
+          return;
+        }
+        if (rpg && room.me.address && !rec) { gateSay('Loading your character…'); return; }
+        entered = true; gateOff();
+        sendIntent({ H: 1 }); sendState(true);
+        log('Linked directly with the world.');
+        drawNet();
+        return;
+      }
+      if (h && linked(h)) { if (lostAt) { lostAt = 0; gateOff(); } return; }
+      if (!lostAt) { lostAt = now; gateSay('The connection to the world is gone…', '', null, true); }
+      else if (now - lostAt > 2000) kick('You lost the direct connection to the world.', 'You play only while linked directly with its house, so you were taken out.');
+    }
     async function connect() {
-      log('Looking for other players…');
-      const res = await net.join(ROOM, { game: GAME, fast: true });
+      gateSay('Connecting to the arcade…');
+      const res = await net.join(ROOM, { game: GAME, fast: true, link: [] });   /* linked with nobody until the house is known */
       if (stopped) { if (res.online) res.room.leave(); return; }
-      if (!res.online) { log('Playing alone (' + (res.why || 'offline') + ').'); drawNet(); return; }
-      room = res.room; joinedAt = Date.now(); electReadyAt = Date.now() + 1500;   /* just joined: listen before deciding who keeps the world */
+      if (!res.online) { kick('No connection to the arcade.', String(res.why || 'offline')); return; }
+      room = res.room; joinedAt = Date.now(); gateSince = performance.now();
       becomeId(room.me.id);
       iAmHouse = isHouse(room.me);
       if (iAmHouse) {   /* the machine that keeps the world: it runs the world and the fight, and draws nothing */
-        drawing = false; renderer.setPixelRatio(0.25);
+        drawing = false; renderer.setPixelRatio(0.25); gateOff();
         if (fight && fight.quiet) fight.quiet(true);
         log('This is the house: it keeps the world.');
       }
       room.on('message', heard);
-      room.on('join', ({ from }) => {
-        const wasHost = amHost();
-        remote(from);
-        if (isHouse(from)) {   /* hand the world and the fight over to the house, which decides from now on */
-          log('The house keeps this world now.');
-          if (wasHost && !iAmHouse) { sendWorld(); if (fight) room.send({ C: fight.snapshot() }); }
-        } else {
-          log(label(from, '') + ' joined.');
-          if (amHost()) setTimeout(() => amHost() && sendWorld(), 500);
-        }
-        drawNet();
-      });
+      room.on('join', ({ from }) => { remote(from); log(isHouse(from) ? 'The house is here.' : label(from, '') + ' joined.'); drawNet(); });
       room.on('leave', ({ from }) => dropRemote(from.id));
       room.on('peer', () => drawNet());
-      room.on('closed', why => { log('Disconnected: ' + (why || 'the room closed') + '. Playing alone.'); for (const id of Array.from(remotes.keys())) dropRemote(id); room = null; drawNet(); });
-      room.on('reconnecting', () => { log('Connection lost, reconnecting…'); drawNet(); });
-      room.on('rejoined', ({ me: m }) => { if (m) becomeId(m.id); log('Back online.'); room.tell({ H: 1 }); sendState(true); drawNet(); });
+      room.on('closed', why => { if (iAmHouse) { log('Disconnected: ' + (why || 'the room closed') + '.'); room = null; drawNet(); } else kick('The arcade closed the connection.', String(why || '')); });
+      room.on('reconnecting', () => drawNet());
+      room.on('rejoined', ({ me: m }) => { if (m) becomeId(m.id); drawNet(); });
       for (const p of room.members()) if (p.id !== room.me.id) remote(p);
       if (room.me.tag) me.name = '@' + room.me.tag;
-      room.tell({ H: 1 });
-      log(room.fast ? 'Online (fast lane).' : 'Online (through the room).');
+      starTick();
       drawNet();
     }
-    let lastState = 0, lastKey = '', lastName = 0, lastBeat = 0, handsSent = '';
-    function sendState(force) {
-      if (!room || iAmHouse) return;
-      const now = performance.now(), every = room.fast ? 66 : 250;
+    let lastState = 0, lastKey = '', lastName = 0, handsSent = '';
+    function sendState(force) {   /* where I am, 15 times a second, to the house only (it passes it on to who is near) */
+      if (!room || iAmHouse || !entered) return;
+      const h = houseId();
+      if (!linked(h)) return;
+      const now = performance.now(), every = 66;
       if (!force && now - lastState < every) return;
       const key = [R2(me.x), R2(me.y), R2(me.z), R2(me.yaw), R2(me.pitch)].join(',');
       if (!force && key === lastKey && now - lastState < 1000) return;   /* standing still: a heartbeat is enough */
@@ -1372,12 +1371,7 @@
         if (rec) m.w = ['main', 'off'].map(sl => { const it = rec.eq[sl] && rpg.itemOf(rec, rec.eq[sl]); return it ? it.id : ''; });   /* what you hold, for your avatar */
       }
       if (P && fight) m.h = [Math.ceil(P.hp), P.max, P.dead ? 1 : 0];   /* the host's priest needs to know who is hurt */
-      room.state(m);
-      /* once a second the same through the room: whatever the fast lane is doing, everyone keeps seeing you */
-      if (room.fast) {
-        const st = Object.values(room.peers()), waiting = st.some(x => x !== 'direct');   /* 'connecting' carries nothing yet */
-        if (force || now - lastBeat > (waiting ? 330 : 3000)) { lastBeat = now; room.beat(m); }   /* all direct: presence only */
-      }
+      room.to([h], m, false);
     }
     let remotesT = performance.now();
     function drawRemotes() {
@@ -1471,14 +1465,10 @@
     function drawNet() {
       let n = iAmHouse ? 0 : 1;
       for (const r of remotes.values()) if (!r.house) n++;   /* the house is nobody */
-      let mode = 'solo';
-      if (room) {
-        const peers = room.peers(), states = Object.values(peers);
-        mode = !room.fast ? 'through the room' : !states.length ? 'fast lane' : states.every(s => s === 'direct') ? 'direct' : states.some(s => s === 'direct') ? 'direct + room' : 'through the room';
-      }
+      /* one way only: linked directly with the house, or not playing */
+      const mode = !room ? '' : iAmHouse ? 'the house' : linked(houseId()) ? 'direct' : 'not direct';
       $('.lwq-tr').innerHTML = room ? 'Online · ' + n + ' player' + (n === 1 ? '' : 's') + ' · ' + esc(mode) +
-        (iAmHouse ? '<br><small>the house: keeping this world</small>' : houseId() ? '<br><small>the house keeps this world</small>'
-          : amHost() ? '<br><small>you keep this world in sync</small>' : '') : 'Solo';
+        (iAmHouse ? '<br><small>the house: keeping this world</small>' : '') : 'Offline';
       if (showFps) $('.lwq-tr').innerHTML += '<br><small>' + fps + ' fps' + Array.from(remotes.values()).map(r => ' · ' + esc(label(r.from, r.name)) +
         ' ' + Math.round(r.delay || 0) + ' ms behind').join('') + '</small>';
     }
@@ -1496,7 +1486,6 @@
         if (store) store.set('progress', progress);
         sh.glow.material.color.set('#7CFC00'); if (sound) sound.blip('coin');
         log('Offering accepted' + (res.txid ? ' (tx ' + res.txid.slice(0, 10) + '…)' : '') + '.');
-        if (room) room.tell({ S: 'offered' });
         who = await wallet.who(); drawWho();
       } else {
         sh.glow.material.color.set('#777');
@@ -1506,7 +1495,7 @@
     }
 
     /* --- the loop ------------------------------------------------------------------------------------ */
-    let stepAcc = 0, drawing = true;
+    let stepAcc = 0, drawing = !keep.noDraw;
     /* RESOLUTION FOLLOWS THE FRAME RATE (tbuuol 2026-10-21: 22 fps): the picture is drawn at fewer pixels while the
        frames are slow, and at more again once they have been fast for a while; never above 1.5 per screen pixel */
     const maxPR = Math.min(1.5, G.devicePixelRatio || 1);
@@ -1520,33 +1509,26 @@
     }
     /* the fight each frame: the host runs it and says how it stands (5 a second over the fast lane, once a second
        through the room), everybody draws it; the sword swings; out of the fight, hit points come back slowly */
-    let fightSent = 0, fightBeat = 0, fightFull = 0;
+    let fightSent = 0, fightFull = 0;
     function fightTick(dt, now) {
       const host = amHost(), players = [];
       if (host) {
         if (!iAmHouse) players.push({ id: myId(), x: me.x, z: me.z, hp: P.hp, max: P.max, dead: P.dead });
-        for (const [id, r] of remotes) if (r.g.visible) players.push({ id, x: r.g.position.x, z: r.g.position.z, hp: r.hp ? r.hp[0] : 100, max: r.hp ? r.hp[1] : 100, dead: r.hp ? r.hp[2] : false });
+        for (const [id, r] of remotes) if (r.g.visible && linked(id)) players.push({ id, x: r.g.position.x, z: r.g.position.z, hp: r.hp ? r.hp[0] : 100, max: r.hp ? r.hp[1] : 100, dead: r.hp ? r.hp[2] : false });
       }
       /* the fight runs on real time in small steps: a house on a busy machine may get few frames, and one big step
          made raiders and guards jump (tbuuol 2026-10-23, as a client: "they stutter") */
       let rest = dt;
       do { const st = Math.min(rest, 0.1); route(fight.update(st, host, players)); rest -= st; } while (rest > 1e-6);
       if (host && room) {
-        /* how the fight stands: 10 a second over the fast lane; through the room 3 a second from the house (it sends
-           no position of its own, so the room's allowance is free), once a second from a player who keeps it */
-        /* TUNED (2026-10-27): over the fast lane only what changed (a whole picture once a second), and only the beasts
-           near somebody; through the room (whole, in pieces) only while somebody is not directly linked */
-        const near = players.map(q => [q.x, q.z]);
-        if (!iAmHouse) near.push([me.x, me.z]);
-        if (room.fast && now - fightSent > 100) {
+        /* how the fight stands, 10 a second, to the players linked directly: only what changed (a whole picture once a
+           second), only the beasts near somebody, as bytes */
+        const near = players.map(q => [q.x, q.z]), ids = directPlayers();
+        if (ids.length && now - fightSent > 100) {
           const full = now - fightFull > 1000; if (full) fightFull = now;
           fightSent = now;
           const snap = fight.snapshot({ near, delta: !full });
-          room.state(room.star && combat.encode ? combat.encode(snap) : { C: snap });   /* bytes where the viewer passes them */
-        }
-        if (!allDirect() && now - fightBeat > 330) {
-          const parts = fight.pieces(fight.snapshot({ near, mark: false }), 470);
-          if (now - fightBeat > (iAmHouse ? 330 : 1000) * parts.length) { fightBeat = now; for (const part of parts) room.send({ C: part }); }
+          room.to(ids, combat.encode ? combat.encode(snap) : { C: snap }, false);
         }
       }
       if (!P.dead && P.hp < P.max && now - lastHurt > 6000) { P.hp = Math.min(P.max, P.hp + dt * 3); drawStats(); }
@@ -1579,7 +1561,7 @@
       const t = now / 1000, fdt = Math.min(dt, 0.1);
       if (!iAmHouse) for (const fn of updates) fn(fdt, t);   /* flames, smoke, water: nothing the house needs */
       npcTick(fdt, t);
-      if (!iAmHouse) { portalTick(); zoneTick(); drawAbilities(); }
+      if (!iAmHouse) { gateTick(now); if (live()) portalTick(); zoneTick(); drawAbilities(); }
       if (env && !iAmHouse) env.update(fdt, t, camera.position);
       if (sound && !iAmHouse) {
         sound.listen(camera);
@@ -1596,7 +1578,7 @@
       if (now - netT > 1000) {
         netT = now; drawNet(); starTick();
         /* no record yet and the house is here: ask it for mine */
-        if (rpg && room && !iAmHouse && !rec && houseId() && now - askedRec > 5000) { askedRec = now; room.tell({ Q: 'me' }); }
+        if (rpg && room && !iAmHouse && !rec && linked(houseId()) && now - askedRec > 5000) { askedRec = now; sendIntent({ Q: 'me' }); }
       }
       const pr = playing() && !iAmHouse ? promptFor(aimed()) || (fight && !TOUCH && fight.pick(me.x, me.z, me.yaw, P.range) ? 'F / click: strike' : '') : '';
       if (pr !== promptNow) { promptNow = pr; $('.lwq-prompt').textContent = pr; }   /* only when it changes: a DOM write is not free */
@@ -1635,7 +1617,7 @@
       aimed() { camera.updateMatrixWorld(); return aimed(); },
       log: () => logLines.slice(),
       camZ: () => camera.position.z,
-      draw(on) { drawing = !!on; },   /* tests: everything runs, nothing is drawn (a machine without a GPU keeps up) */
+      draw(on) { drawing = !!on; keep.noDraw = !on; },   /* tests: everything runs, nothing is drawn (a machine without a GPU keeps up) */
       play() { if (TOUCH) startTouch(); else touchPlaying = keep.touch = true; },   /* tests: as if the view had been clicked */
       strike() { attack(); },
       netPeers() { return room ? room.peers() : null; },
@@ -1682,11 +1664,11 @@
       menu: on => { if (menu) { if (on === false) menu.close(); else { menu.open(); } } },
       player: () => P ? Object.assign({}, P) : null,
       stats: () => ({ fps, frameMs: Math.round(frameMs * 100) / 100, pixelRatio: pr, frozen, calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures }),
-      get state() { return { me: Object.assign({}, me), world: W, host: amHost(), house: iAmHouse ? 'me' : houseId() ? 'there' : null, players: Array.from(remotes.values()).filter(r => !r.house).length + (iAmHouse ? 0 : 1), online: !!room,
+      get state() { return { gate: iAmHouse ? '' : kicked ? 'kicked: ' + gateNow : entered ? (lostAt ? 'lost' : '') : gateNow, live: live(), me: Object.assign({}, me), world: W, host: amHost(), house: iAmHouse ? 'me' : houseId() ? 'there' : null, players: Array.from(remotes.values()).filter(r => !r.house).length + (iAmHouse ? 0 : 1), online: !!room,
                        others: Array.from(remotes.values()).map(r => ({ id: r.from.id, tag: r.from.tag, j: r.j, visible: r.g.visible, x: R2(r.g.position.x), y: R2(r.g.position.y), z: R2(r.g.position.z) })), fast: !!(room && room.fast), who, progress }; }
     };
   }
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 22, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, levels: 1 } },
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 23, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, levels: 1 } },
     D => ({ start: (el, opts) => start(D, el, opts) }));
 })(typeof globalThis !== 'undefined' ? globalThis : this);

@@ -15,7 +15,7 @@
      room.on('closed', fn(why)) / on('rejoined', fn({me})) / on('reconnecting', fn())
      room.members() -> [player]  ;  room.leave() -> Promise
    A player is {id, tag, address, guest}; the sender is stamped by the arcade node, never taken from the message.
-   Backends: the arcade realtime SDK (/r/realtime.js, window.arcade.realtime); otherwise {online:false} = solo.
+   Backends: the arcade realtime SDK (/r/realtime.js, window.arcade.realtime); otherwise {online:false} (the game waits).
    The dev harness (dev/viewer.html) answers the same postMessage protocol as the arcade viewer, so this module
    does not know it is being tested. */
 (function (G) {
@@ -116,11 +116,13 @@
       const RT = G.arcade && G.arcade.realtime;
       if (!RT || typeof RT.join !== 'function') return { online: false, why: 'solo', backend: 'none' };
       let r = null;
-      try { r = await RT.join(String(roomId).slice(0, 60), { game: opts.game || 'liteworldsquest', fast: opts.fast !== false }); }
+      const o = { game: opts.game || 'liteworldsquest', fast: opts.fast !== false };
+      if (opts.link !== undefined) o.link = opts.link;   /* the star: with whom to link from the start ([] = nobody yet) */
+      try { r = await RT.join(String(roomId).slice(0, 60), o); }
       catch (e) { r = { online: false, why: e && e.message }; }
       if (!r || r.online === false) return { online: false, why: (r && r.why) || 'unavailable', backend: 'arcade' };
       return { online: true, room: arcadeRoom(r, roomId), backend: 'arcade' };
     }
   };
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('net', { api: 1, v: 5 }, () => net);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('net', { api: 1, v: 6 }, () => net);
 })(typeof globalThis !== 'undefined' ? globalThis : this);

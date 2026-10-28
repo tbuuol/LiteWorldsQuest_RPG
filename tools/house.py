@@ -150,7 +150,32 @@ async def wallet_access(pg, game: str, password: str) -> bool:
     return await switch.count() > 0 and await switch.first.is_checked()
 
 
+#: ONE HOUSE AT A TIME THROUGH THE DOOR (2026-10-28, live v17): three zones' browsers unlocking the same account on the
+#: Apps page at once reloaded each other's pages ("execution context was destroyed", "our card is not on the Apps
+#: page") and only Blockshire came up. Each zone waits for the one before it until its game is in its zone.
+DOOR: asyncio.Lock | None = None
+
+
 async def session(p, level: str = "") -> None:
+    global DOOR
+    DOOR = DOOR or asyncio.Lock()
+    await DOOR.acquire()
+    try:
+        await _session(p, level)
+    finally:
+        if DOOR.locked() and getattr(DOOR, "held_by", None) == level:
+            DOOR.held_by = None
+            DOOR.release()
+
+
+def let_in_next(level: str) -> None:
+    if DOOR is not None and DOOR.locked() and getattr(DOOR, "held_by", None) == level:
+        DOOR.held_by = None
+        DOOR.release()
+
+
+async def _session(p, level: str = "") -> None:
+    DOOR.held_by = level
     cfg = json.loads((ROOT / "config.json").read_text())
     game = cfg["page_id"]
     password = json.loads((SECRET / "arcade-account.json").read_text())["password"]
@@ -247,6 +272,7 @@ async def session(p, level: str = "") -> None:
         elif PLAYERS.exists():   # every player's record, back into the house's book
             n = await frame.evaluate("json => window.LWQGAME.houseLoad ? window.LWQGAME.houseLoad(json) : 0", PLAYERS.read_text())
             log("players' records loaded:", n)
+        let_in_next(level)   # in its zone: the next house may come through the door
         log("started:", await frame.evaluate("(() => { const s = window.LWQGAME.state; return {online: s.online, house: s.house, players: s.players, seq: s.world.seq, engine: (window.LWQ.get('$report').find(r => r[0] === 'engine') || [])[1]}; })()"))
         worker = node_pid()
         while time.time() - started < FRESH_EVERY:

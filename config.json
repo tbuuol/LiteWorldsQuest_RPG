@@ -6,11 +6,10 @@
   "modules": {
     "net": {
       "file": "src/modules/net.js",
-      "v": 5,
+      "v": 6,
       "api": 1,
       "kind": "js",
-      "id": "f5197b99aff6b57d4c418035328b98cf17802edb1355115906b2ee395469c2c7",
-      "gz": "8d6d1302651c6bb5cc0a956ecf8fbb43c9e34370aef092e03c5020656317427d"
+      "id": null
     },
     "wallet": {
       "file": "src/modules/wallet.js",
@@ -61,11 +60,10 @@
     },
     "engine": {
       "file": "src/modules/engine.js",
-      "v": 22,
+      "v": 23,
       "api": 1,
       "kind": "js",
-      "id": null,
-      "gz": "01d78a333926d8d3bac4d89d824b2f3169d5f5124a5a1b4524151d1fd1e584e4"
+      "id": null
     }
   },
   "levels": {

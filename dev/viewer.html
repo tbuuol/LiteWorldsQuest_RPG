@@ -56,6 +56,13 @@
      only with those ids; a pair is linked only when both sides list each other (each message says whom its sender
      links with). A fast send may name whom it is for ({to}); bytes (an ArrayBuffer) go through as they are. */
   const linksTo = (R, id) => !R.link || R.link.includes(String(id));
+  /* devCut(true) (tests, 2026-10-28 only direct): this page's direct links break -- its peers say 'room' and nothing
+     goes over the fast lane either way -- until devCut(false) */
+  let CUT = false;
+  window.devCut = on => {
+    CUT = !!on;
+    for (const name in rooms) for (const [id, w] of rooms[name].members) if (rooms[name].fast && linksTo(rooms[name], id)) event(name, 'peer', w.p, { state: CUT ? 'room' : 'direct' });
+  };
   function joinRoom(name, game, fast, linkList) {
     const key = (game || 'game') + '/' + name;
     const bc = new BroadcastChannel('lwq-dev:' + key);
@@ -91,6 +98,7 @@
       else if (m.k === 'fast') {
         add(m.from);
         if (m.to && !m.to.includes(me.id)) return;                               /* for somebody else */
+        if (CUT) return;
         if (!linksTo(R, m.from.id) || (m.link && !m.link.includes(me.id))) return; /* not linked, one side or the other */
         if (fastOk(m.from)) event(name, 'fast', m.from, { data: m.data });
       }
@@ -122,7 +130,7 @@
     }
     const R = rooms[name];
     if (m.op === 'fast') {
-      if (!R) return;
+      if (!R || CUT) return;
       const data = m.data instanceof ArrayBuffer ? m.data : String(m.data == null ? '' : m.data);
       R.bc.postMessage({ k: 'fast', from: me, data, to: Array.isArray(m.to) ? m.to.map(String) : null, link: R.link });
       return;
