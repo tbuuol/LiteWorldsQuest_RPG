@@ -1,7 +1,7 @@
 {
   "name": "LiteWorldsQuest",
   "family": "liteworldsquest",
-  "registry_version": 16,
+  "registry_version": 17,
   "three_id": "374cfd2b2f114e9da4ade8add495fe8aa0b2b996a710fb538759a956f15f9539",
   "modules": {
     "net": {
@@ -24,14 +24,16 @@
       "v": 3,
       "api": 1,
       "kind": "js",
-      "id": null
+      "id": null,
+      "gz": "06884f1d994cbb84a02ddebfade1799b0209cbe0646acb1247b01b129064649d"
     },
     "art": {
       "file": "src/modules/art.js",
       "v": 10,
       "api": 1,
       "kind": "js",
-      "id": null
+      "id": null,
+      "gz": "44b032d0e6eef8de17881454e774453dc804fb97ccd2bdfb254e2629c02b878f"
     },
     "combat": {
       "file": "src/modules/combat.js",
@@ -62,7 +64,8 @@
       "v": 22,
       "api": 1,
       "kind": "js",
-      "id": null
+      "id": null,
+      "gz": "01d78a333926d8d3bac4d89d824b2f3169d5f5124a5a1b4524151d1fd1e584e4"
     }
   },
   "levels": {
@@ -164,12 +167,15 @@
     "13": "11d0489fe633be498d54ef5dc02db8897adb76cde8fb069a75e053abbc4f09c3 (publisher, loader 2)",
     "14": "df135324805d9836a1c8e5b330339b2c1124e6746685167add337887cf25762c (publisher, loader 2)",
     "15": "69dd25c1e3087ec80c4c1e2c8a043ce7d412f3127e450063d992708b79d33a86 (publisher, loader 2)",
-    "16": "b3a9d67b386d1609a0bad302cfc887c56ae2b9d8eef69451eaca1ba72cae90dd (publisher, loader 2)"
+    "16": "b3a9d67b386d1609a0bad302cfc887c56ae2b9d8eef69451eaca1ba72cae90dd (publisher, loader 2)",
+    "17": "7031fcb62047ccff2244233d9cf3b8309c1fc492f3c7e2a22c3377b6dd1ca9b0 (publisher, loader 2)"
   },
   "house": [
     "notHZVkLNJjG6ymtWGjM6rhBapuh3VU8eb"
   ],
   "house_levels": [
-    "blockshire"
+    "blockshire",
+    "beach",
+    "pirateship"
   ]
 }
