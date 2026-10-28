@@ -1,7 +1,7 @@
 {
   "name": "LiteWorldsQuest",
   "family": "liteworldsquest",
-  "registry_version": 15,
+  "registry_version": 16,
   "three_id": "374cfd2b2f114e9da4ade8add495fe8aa0b2b996a710fb538759a956f15f9539",
   "modules": {
     "net": {
@@ -10,7 +10,7 @@
       "api": 1,
       "kind": "js",
       "id": "f5197b99aff6b57d4c418035328b98cf17802edb1355115906b2ee395469c2c7",
-      "gz": null
+      "gz": "8d6d1302651c6bb5cc0a956ecf8fbb43c9e34370aef092e03c5020656317427d"
     },
     "wallet": {
       "file": "src/modules/wallet.js",
@@ -32,7 +32,7 @@
       "api": 1,
       "kind": "js",
       "id": null,
-      "gz": null
+      "gz": "3c75d6473d38fe2c7aa32286334891c43146e9cf8ed7db1f5265a3a8a2a2bb6f"
     },
     "combat": {
       "file": "src/modules/combat.js",
@@ -40,7 +40,7 @@
       "api": 1,
       "kind": "js",
       "id": null,
-      "gz": null
+      "gz": "a05657d7562946df743e3d5f592fa2beae952d3114b235c9489875eba4b923fc"
     },
     "rpg": {
       "file": "src/modules/rpg.js",
@@ -48,7 +48,7 @@
       "api": 1,
       "kind": "js",
       "id": null,
-      "gz": null
+      "gz": "703bffe96723b894cc93e887960cbe36698c01093168ca8801b1d6ca0ad36162"
     },
     "menu": {
       "file": "src/modules/menu.js",
@@ -56,7 +56,7 @@
       "api": 1,
       "kind": "js",
       "id": null,
-      "gz": null
+      "gz": "0bc0bfc129f488190bfd9bfae9cdc7ef36f8c0fd890b0cb73f9e551477fdff0a"
     },
     "engine": {
       "file": "src/modules/engine.js",
@@ -64,7 +64,7 @@
       "api": 1,
       "kind": "js",
       "id": null,
-      "gz": null
+      "gz": "a53a6bd99d3ef01ed087af7cf98505069e9f25ddedc43357b3751874e9eaa2cb"
     }
   },
   "levels": {
@@ -74,7 +74,7 @@
       "api": 1,
       "kind": "json",
       "id": null,
-      "gz": null
+      "gz": "eaf8769d9a6a9eece0241cc8ecfb5af86a52cb6e09e39ba48a9c43bb93096dcf"
     },
     "test": {
       "file": "src/levels/test.json",
@@ -95,14 +95,16 @@
       "v": 2,
       "api": 1,
       "kind": "json",
-      "id": null
+      "id": null,
+      "gz": "bd558efcefd9c426da8aecbbd601f69d3296c78e84bd0a122f4369f3c4bbbe59"
     },
     "pirateship": {
       "file": "src/levels/pirateship.json",
       "v": 1,
       "api": 1,
       "kind": "json",
-      "id": null
+      "id": null,
+      "gz": "d8191853dfe747c8fb08f7eb0e22753b439c237782bdc9dd1a83b5a15232d6c1"
     }
   },
   "page_id": "780e737befad5f1d5ee39f62a766940c67f40c43acdbfe3de6dea1be64d858c0",
@@ -163,7 +165,8 @@
     "12": "f4a5fd16aa33d2b33a1c6f47e0f727537a2219f4d1235198c9a82715a7af8bc6 (publisher, loader 2)",
     "13": "11d0489fe633be498d54ef5dc02db8897adb76cde8fb069a75e053abbc4f09c3 (publisher, loader 2)",
     "14": "df135324805d9836a1c8e5b330339b2c1124e6746685167add337887cf25762c (publisher, loader 2)",
-    "15": "69dd25c1e3087ec80c4c1e2c8a043ce7d412f3127e450063d992708b79d33a86 (publisher, loader 2)"
+    "15": "69dd25c1e3087ec80c4c1e2c8a043ce7d412f3127e450063d992708b79d33a86 (publisher, loader 2)",
+    "16": "b3a9d67b386d1609a0bad302cfc887c56ae2b9d8eef69451eaca1ba72cae90dd (publisher, loader 2)"
   },
   "house": [
     "notHZVkLNJjG6ymtWGjM6rhBapuh3VU8eb"
