@@ -196,6 +196,11 @@ async def _session(p, level: str = "") -> None:
               "--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--mute-audio",
               "--disable-background-timer-throttling", "--disable-renderer-backgrounding",
               "--disable-backgrounding-occluded-windows"])
+    # THE WEBSITE, NOT THE DESKTOP OR THE PHONE'S HOME SCREEN (2026-10-29): since that day's arcade update a browser
+    # goes to /desktop (wider than 640 px) or /home (the house's 320 px) unless "Website" is chosen under Themes, and
+    # the house never reached the Apps page ("our card is not on the Apps page" from 20:16 on).
+    await ctx.add_init_script("""try { localStorage.setItem('arcade.deskview', 'web');
+                                       localStorage.setItem('arcade.phoneview', 'web'); } catch (e) {}""")
     try:
         pg = ctx.pages[0] if ctx.pages else await ctx.new_page()
         if not await wallet_access(pg, game, password):
@@ -205,7 +210,10 @@ async def _session(p, level: str = "") -> None:
         # to the game off (2026-10-23, "interrupted by another navigation to /apps")
         apps, pg = pg, await ctx.new_page()
         await apps.close()
-        await pg.goto(f"{NODE}/play/{game}" + (f"?level={level}" if level else ""), timeout=120_000)
+        # straight to the game, not /play: since 2026-10-29 /play first measures the affiliated arcades and then moves
+        # itself on to /full, and the house's look at the page in between died ("Execution context was destroyed").
+        # The zone is reached by LWQGAME.travel below.
+        await pg.goto(f"{NODE}/inscriptions/{game}/full", timeout=120_000)
         # JOINING SIGNS WHO YOU ARE, once a day, and only this tab remembers it: the viewer asks for the password
         # ("Join this game as you?") -- for another node too -- and the game gives up asking after 20 s (2026-10-23
         # evening). So every ask is answered while the game joins, and a game left alone after one is loaded again:
