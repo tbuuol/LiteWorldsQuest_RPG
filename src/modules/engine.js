@@ -116,13 +116,19 @@
     const boxes = [];          /* collision: {min:[x,y,z], max:[x,y,z], on()} */
     const usable = [];         /* meshes the crosshair can use */
     const updates = [];        /* fn(dt, t) every frame: fire, water, ... */
+    /* THE WHOLE WORLD (2026-10-29): its ground from the terrain module (the same the map is painted with), drawn round
+       the eye in squares by art.land; how far the land reaches: further on a PC than on a phone */
+    const TR = LV.land && D.terrain ? D.terrain.create(LV.land) : null;
+    const PHONE = !!((G.matchMedia && G.matchMedia('(pointer: coarse)').matches) || (G.navigator && G.navigator.maxTouchPoints > 0 && 'ontouchstart' in G));
+    const REACH = PHONE ? 170 : 340;
+    if (TR) { camera.far = 4000; camera.updateProjectionMatrix(); if (scene.fog) { scene.fog.near = REACH * 0.35; scene.fog.far = REACH; } }
     const ctx = { THREE, scene, rng: art.rng,
                   solid: (min, max, on) => boxes.push({ min, max, on: on || (() => true) }),
                   usable: (m, data) => { m.userData = data; usable.push(m); },
                   every: fn => updates.push(fn),
                   /* the ground under any point: the village's hills or a coast (art.terrainAt) */
-                  height: !LV.real && LV.env && art.terrainAt ? art.terrainAt(LV.env) : null,
-                  floor: !LV.real && LV.env && art.floorAt ? art.floorAt(LV.env) : null };   /* the ground without ships' decks */
+                  height: TR ? TR.height : !LV.real && LV.env && art.terrainAt ? art.terrainAt(LV.env) : null,
+                  floor: TR ? TR.floor : !LV.real && LV.env && art.floorAt ? art.floorAt(LV.env) : null };   /* the ground without ships' decks */
     function box(def, mat) {
       const m = new THREE.Mesh(new THREE.BoxGeometry(def.size[0], def.size[1], def.size[2]),
         mat || new THREE.MeshLambertMaterial({ color: def.color || '#888' }));
@@ -132,10 +138,27 @@
       return m;
     }
     const aabb = (def, on) => ({ min: def.pos.map((p, i) => p - def.size[i] / 2), max: def.pos.map((p, i) => p + def.size[i] / 2), on: on || (() => true) });
+    /* the level's things, built by the art module; the engine keeps what can be used and what blocks the way */
+    const doors = {}, switches = {}, pickups = {}, shrines = {}, npcs = {}, resources = {}, portals = [];
+    const RES_NAME = { tree: 'oak', rock: 'ore boulder', herb: 'herbs' };
+    const yawTo = (dx, dz) => Math.atan2(-dx, -dz);
+    let forge = null, forgeDef = null;
+    const nearForge = (x, z) => !!forgeDef && Math.hypot(x - forgeDef.pos[0], z - forgeDef.pos[1]) < 5;
+    /* a piece of the real Earth (tools/realworld.py): the ground is its heights, the houses its footprints */
+    const realW = LV.real ? art.realworld(ctx, LV.real) : null;
+    const grid = new Map(), CELL = 25, cellKey = (i, j) => i + ',' + j;
+    if (realW) {   /* footprints and walls by 25 m cell, so a step only looks at what is near */
+      const file = (o, x0, z0, x1, z1) => { for (let i = Math.floor(x0 / CELL); i <= Math.floor(x1 / CELL); i++) for (let j = Math.floor(z0 / CELL); j <= Math.floor(z1 / CELL); j++) { const k = cellKey(i, j); if (!grid.has(k)) grid.set(k, []); grid.get(k).push(o); } };
+      for (const b of realW.polys) { const xs = b.pts.map(q => q[0]), zs = b.pts.map(q => q[1]); file({ poly: b }, Math.min(...xs), Math.min(...zs), Math.max(...xs), Math.max(...zs)); }
+      for (const sg of realW.segs) file({ seg: sg }, Math.min(sg.a[0], sg.b[0]) - 1, Math.min(sg.a[1], sg.b[1]) - 1, Math.max(sg.a[0], sg.b[0]) + 1, Math.max(sg.a[1], sg.b[1]) + 1);
+      if (!(LV.portals || []).length) portals.push(art.portal(ctx, { pos: [realW.spawn[0], realW.spawn[1]], y: realW.groundAt(realW.spawn[0], realW.spawn[1]) - 0.2, to: 'blockshire', label: 'Blockshire', rot: 0, color: '#ffc77f' }));
+    }
+    const many = v => v ? [].concat(v) : [];
+    /* a place's things: the level itself, or in the world each of its places (LV.places: Blockshire, Saltwind, ...) */
+    function buildPlace(LV, lift) {
+    const n0 = scene.children.length, b0 = boxes.length;
     for (const s of LV.solids || []) { if (!s.invisible) box(s); boxes.push(aabb(s)); }
 
-    /* the level's things, built by the art module; the engine keeps what can be used and what blocks the way */
-    const doors = {}, switches = {}, pickups = {}, shrines = {}, npcs = {};
     for (const d of LV.doors || []) {   /* a door that slides up (the test level) */
       const m = box(d); m.userData = { kind: 'door', id: d.id };
       doors[d.id] = { def: d, mesh: m, y0: d.pos[1] };
@@ -158,42 +181,32 @@
         boxes.push({ min: gd.box.min, max: gd.box.max, on: () => !W.open[gd.id] });
       }
     }
-    /* a piece of the real Earth (tools/realworld.py): the ground is its heights, the houses its footprints */
-    const realW = LV.real ? art.realworld(ctx, LV.real) : null;
-    const grid = new Map(), CELL = 25, cellKey = (i, j) => i + ',' + j;
-    if (realW) {   /* footprints and walls by 25 m cell, so a step only looks at what is near */
-      const file = (o, x0, z0, x1, z1) => { for (let i = Math.floor(x0 / CELL); i <= Math.floor(x1 / CELL); i++) for (let j = Math.floor(z0 / CELL); j <= Math.floor(z1 / CELL); j++) { const k = cellKey(i, j); if (!grid.has(k)) grid.set(k, []); grid.get(k).push(o); } };
-      for (const b of realW.polys) { const xs = b.pts.map(q => q[0]), zs = b.pts.map(q => q[1]); file({ poly: b }, Math.min(...xs), Math.min(...zs), Math.max(...xs), Math.max(...zs)); }
-      for (const sg of realW.segs) file({ seg: sg }, Math.min(sg.a[0], sg.b[0]) - 1, Math.min(sg.a[1], sg.b[1]) - 1, Math.max(sg.a[0], sg.b[0]) + 1, Math.max(sg.a[1], sg.b[1]) + 1);
-    }
-    /* portals to other levels; the real world gets one home, where you arrive (its data says nothing of portals) */
-    const portalDefs = (LV.portals || []).slice();
-    if (realW && !portalDefs.length) portalDefs.push({ pos: [realW.spawn[0], realW.spawn[1]], y: realW.groundAt(realW.spawn[0], realW.spawn[1]) - 0.2, to: 'blockshire', label: 'Blockshire', rot: 0, color: '#ffc77f' });
-    const portals = portalDefs.map(d => art.portal(ctx, d));
+    /* portals to other levels */
+    const portals0 = portals.length;
+    for (const d of LV.portals || []) portals.push(art.portal(ctx, d));
     /* zone 2: the sea, docks, ships (one of them the pirates' dungeon) */
     if (LV.water && art.water) art.water(ctx, LV.water);
     for (const dk of LV.docks || []) art.dock(ctx, dk);
     for (const sh of LV.ships || []) art.ship(ctx, sh);
     /* one of each in a zone, several in the world */
-    const many = v => v ? [].concat(v) : [];
-    for (const f of many(LV.fire)) { art.campfire(ctx, f); if (sound) sound.fire(f.pos[0], ctx.height ? ctx.height(f.pos[0], f.pos[1]) : 0, f.pos[1]); }
+    for (const f of many(LV.fire)) { art.campfire(ctx, f); if (sound) sound.fire(f.pos[0], lift || (ctx.height ? ctx.height(f.pos[0], f.pos[1]) : 0), f.pos[1]); }
     for (const f of many(LV.forest)) art.forest(ctx, f);
+    if (LV.forest_trees) {   /* a place's own few trees, placed by hand (they go up with it) */
+      art.trees(ctx, LV.forest_trees, () => 0);
+      for (const t of LV.forest_trees) ctx.solid([t[0] - 0.35, -1, t[1] - 0.35], [t[0] + 0.35, 3, t[1] + 0.35]);
+    }
     for (const g of many(LV.grass)) art.grass(ctx, g);
     for (const pa of many(LV.paths)) art.paths(ctx, pa);
     for (const pr of LV.props || []) art.prop(ctx, pr);
     /* THINGS TO GATHER around the camp (tbuuol 2026-10-23): an oak, an ore boulder, herbs. Which are spent is part of
        the shared world (W.dep); the house decides what gathering gives, and when a spent one grows back. */
-    const resources = {};
     for (const n of (LV.resources && LV.resources.nodes) || []) {
       const look = art.resource(ctx, n);
       look.use.userData = { kind: 'res', id: n.id }; usable.push(look.use);
       resources[n.id] = { def: n, look };
     }
-    const RES_NAME = { tree: 'oak', rock: 'ore boulder', herb: 'herbs' };
     /* THE FORGE: E opens the menu's Craft tab; making is asked of the house, which wants the player at the forge */
-    let forge = null;
-    if (LV.forge) { forge = art.forge(ctx, LV.forge); forge.use.userData = { kind: 'forge' }; usable.push(forge.use); }
-    const nearForge = (x, z) => !!LV.forge && Math.hypot(x - LV.forge.pos[0], z - LV.forge.pos[1]) < 5;
+    if (LV.forge) { forge = art.forge(ctx, LV.forge); forge.use.userData = { kind: 'forge' }; usable.push(forge.use); forgeDef = LV.forge; }
     for (const s of LV.switches || []) {
       const m = box(s); m.userData = { kind: 'switch', id: s.id };
       switches[s.id] = { def: s, mesh: m };
@@ -229,7 +242,6 @@
     /* --- the people of the level ----------------------------------------------------------------------- */
     /* each stands where the level puts them, turns to whoever comes close, and says their lines one at a time when
        spoken to (E). One with a "walk" goes round its points, stopping now and then, and stands still to talk. */
-    const yawTo = (dx, dz) => Math.atan2(-dx, -dz);
     for (const n of LV.npcs || []) {
       const c = art.character(ctx, n.look); c.setName(n.name, '#ffe9a8');
       const home = n.lookAt ? yawTo(n.lookAt[0] - n.pos[0], n.lookAt[1] - n.pos[1]) : (n.rot || 0) * Math.PI / 180;
@@ -237,8 +249,18 @@
       const hit = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.9, 0.8), new THREE.MeshBasicMaterial({ visible: false }));
       hit.position.set(n.pos[0], 0.95, n.pos[1]); hit.userData = { kind: 'npc', id: n.id }; scene.add(hit); usable.push(hit);
       if (!n.walk) ctx.solid([n.pos[0] - 0.3, 0, n.pos[1] - 0.3], [n.pos[0] + 0.3, 1.8, n.pos[1] + 0.3]);
-      npcs[n.id] = { def: n, c, hit, home, x: n.pos[0], z: n.pos[1], wp: 0, wait: 1 + Math.random() * 2, line: -1 };
+      npcs[n.id] = { def: n, c, hit, home, x: n.pos[0], z: n.pos[1], y: lift, wp: 0, wait: 1 + Math.random() * 2, line: -1 };
     }
+    /* A PLACE ON ITS GROUND (the world, 2026-10-29): its things are made standing on 0 -- now all of them go up to where
+       the place lies (Blockshire on its cliff, 14 m), what blocks the way with them */
+    if (lift) {
+      for (const ch of scene.children.slice(n0)) ch.position.y += lift;
+      for (const bx of boxes.slice(b0)) { bx.min[1] += lift; bx.max[1] += lift; }
+      for (const P of portals.slice(portals0)) P.y += lift;
+    }
+    }
+    if (LV.places) for (const pl of LV.places) buildPlace(pl, pl.lift || 0);
+    else buildPlace(LV, 0);
     /* THE ZONE'S NAME, as the old WoW showed it: big, golden, in the middle, when you come into it (Etappe 3) */
     let zoneNow = null, zoneEl = null;
     function zoneTick() {
@@ -284,7 +306,7 @@
         }
         if (dist < 4 && speed === 0) want = yawTo(dx, dz);   /* turn to whoever comes close */
         N.c.group.rotation.y = angLerp(N.c.group.rotation.y, want, Math.min(1, dt * 5));
-        N.c.group.position.set(N.x, 0, N.z); N.hit.position.set(N.x, 0.95, N.z);
+        N.c.group.position.set(N.x, N.y || 0, N.z); N.hit.position.set(N.x, (N.y || 0) + 0.95, N.z);
         N.c.animate(dt, speed);
         if (N.c.tag) N.c.tag.visible = dist < 9 || (talk && talk.id === id);   /* a name over a head only up close */
         if (talking && dist > 5) closeTalk();
@@ -344,6 +366,8 @@
     for (const id in doors) if (!doors[id].pivots) doors[id].mesh.userData.keep = true;
     for (const id in switches) switches[id].mesh.userData.keep = true;
     const frozen = art.freeze ? art.freeze(scene) : null;
+    /* the world's land, after the freeze: its squares come and go as you walk */
+    const land = TR && art.land ? art.land(ctx, TR, { radius: REACH }) : null;
     if (frozen) console.info('LWQ: ' + frozen.joined + ' still parts drawn in ' + frozen.calls + ' calls');
 
     /* --- the shared world --------------------------------------------------------------------------- */
@@ -358,6 +382,8 @@
     hud.innerHTML =
       '<div class="lwq-hurt"></div>' +
       '<div class="lwq-tl"></div><div class="lwq-tr"></div><div class="lwq-x">+</div><div class="lwq-prompt"></div>' +
+      '<button class="lwq-mute" type="button" title="Sound on / off">🔊</button>' +
+      (TR ? '<div class="lwq-compass"><div class="lwq-compass-in"></div><i></i></div><div class="lwq-map"><canvas></canvas><div class="lwq-map-t"></div></div>' : '') +
       '<div class="lwq-inv"></div><div class="lwq-log"></div><div class="lwq-talk"></div>' +
       (fight ? '<div class="lwq-abil"></div><div class="lwq-stats"><span class="lwq-lv"></span><div class="lwq-bar lwq-hp"><i></i><span></span></div>' +
                '<div class="lwq-bar lwq-xp"><i></i><span></span></div></div>' : '') +
@@ -365,10 +391,10 @@
       (TOUCH ? '<div class="lwq-touch"><div class="lwq-stick"><div class="lwq-knob"></div></div>' +
                '<button class="lwq-b lwq-b-atk" data-b="attack">⚔</button><button class="lwq-b lwq-b-use" data-b="use">E</button>' +
                '<button class="lwq-b lwq-b-jump" data-b="jump">▲</button><button class="lwq-b lwq-b-run" data-b="run">Run</button>' +
-               '<button class="lwq-b lwq-b-menu" data-b="menu">☰</button></div>' : '') +
+               '<button class="lwq-b lwq-b-menu" data-b="menu">☰</button>' + (TR ? '<button class="lwq-b lwq-b-map" data-b="map">🗺</button>' : '') + '</div>' : '') +
       '<div class="lwq-start"><b>' + esc(LV.title || 'LiteWorldsQuest') + '</b><br>' + (TOUCH ? 'Tap to play' : 'Click to play') + '<br>' +
       (TOUCH ? '<small>Left thumb: walk · right thumb: look · ⚔ strike · E use · ▲ jump</small></div>'
-             : '<small>WASD move · Shift run · Space jump · Mouse look · E use · F / click strike · M sound · F3 fps · Esc release mouse</small></div>');
+             : '<small>WASD move · Shift run · Space jump · Mouse look · E use · F / click strike · ' + (TR ? 'M map' : 'M sound') + ' · F3 fps · Esc release mouse</small></div>');
     /* THE GATE (only direct, tbuuol 2026-10-28): the loading screen until this player is linked directly with the house
        and has its character; and where you land when the link is lost for 2 s (kicked) */
     hud.insertAdjacentHTML('beforeend', '<div class="lwq-gate"><div class="lwq-gate-t">Connecting to the arcade…</div><small class="lwq-gate-s"></small>' +
@@ -385,6 +411,15 @@
       '.lwq-tl,.lwq-tr,.lwq-inv,.lwq-log,.lwq-prompt{position:absolute;font:13px/1.4 system-ui,sans-serif;color:#fff;' +
       'text-shadow:0 1px 2px #000;pointer-events:none}' +
       '.lwq-tl{left:12px;top:10px}.lwq-tr{right:12px;top:10px;text-align:right}.lwq-inv{left:12px;bottom:10px}' +
+      '.lwq-mute{position:absolute;right:12px;top:58px;z-index:6;width:34px;height:30px;border-radius:7px;border:1px solid rgba(255,255,255,.35);background:rgba(0,0,0,.35);color:#fff;font-size:16px;cursor:pointer;padding:0}' +
+      '.lwq-compass{position:absolute;left:50%;top:8px;transform:translateX(-50%);width:300px;height:26px;overflow:hidden;pointer-events:none;' +
+      'background:linear-gradient(90deg,rgba(0,0,0,0),rgba(20,14,6,.55) 20%,rgba(20,14,6,.55) 80%,rgba(0,0,0,0));border-radius:4px}' +
+      '.lwq-compass-in{position:absolute;top:0;left:0;height:26px;white-space:nowrap;font:bold 13px/26px Georgia,serif;color:#f3e3c3;text-shadow:0 1px 2px #000}' +
+      '.lwq-compass-in span{display:inline-block;width:30px;text-align:center}.lwq-compass-in span.c{color:#ffd96a;font-size:16px}' +
+      '.lwq-compass i{position:absolute;left:50%;top:0;width:2px;height:26px;margin-left:-1px;background:#ffd96a}' +
+      '.lwq-map{position:absolute;inset:0;z-index:15;display:none;align-items:center;justify-content:center;background:rgba(10,8,4,.72)}' +
+      '.lwq-map canvas{max-width:94%;max-height:88%;border:6px solid #3a2610;outline:2px solid #c9a04a;box-shadow:0 8px 30px #000}' +
+      '.lwq-map-t{position:absolute;bottom:3%;left:0;right:0;text-align:center;color:#f3e3c3;font:14px Georgia,serif;text-shadow:0 1px 2px #000}' +
       '.lwq-log{right:12px;bottom:10px;text-align:right;max-width:46%}' +
       '.lwq-x{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);color:#fff;font:18px monospace;' +
       'text-shadow:0 0 3px #000;pointer-events:none}' +
@@ -422,7 +457,7 @@
       'font:700 18px system-ui,sans-serif;touch-action:none;padding:0}.lwq-b.on{background:rgba(255,200,80,.55)}' +
       '.lwq-b-atk{right:28px;bottom:42px;width:84px;height:84px;font-size:34px;background:rgba(150,30,20,.5)}' +
       '.lwq-b-use{right:124px;bottom:30px;width:58px;height:58px}.lwq-b-jump{right:40px;bottom:140px;width:58px;height:58px}' +
-      '.lwq-b-run{right:124px;bottom:104px;width:52px;height:52px;font-size:13px}.lwq-b-menu{right:14px;top:120px;width:48px;height:48px;font-size:22px}' +
+      '.lwq-b-run{right:124px;bottom:104px;width:52px;height:52px;font-size:13px}.lwq-b-menu{right:14px;top:120px;width:48px;height:48px;font-size:22px}.lwq-b-map{right:70px;top:120px;width:48px;height:48px;font-size:22px}' +
       (TOUCH ? '.lwq-log{top:48px;bottom:auto;font-size:12px}.lwq-inv{bottom:auto;top:48px}' +
                /* held upright the buttons fill the bottom: the bars go to the top, the log below them */
                '@media (max-aspect-ratio:1/1){.lwq-stats{bottom:auto;top:52px;width:min(320px,64%)}.lwq-log{top:104px;max-width:70%}}' : '');
@@ -485,6 +520,80 @@
     }
     const move2 = { x: 0, y: 0 };   /* the joystick, -1..1 each way */
     let runOn = false;
+    /* SOUND ON AND OFF: a button (tbuuol 2026-10-29), and M where the level has no map */
+    function muteSound() { if (!sound) return; const off = sound.mute(); $('.lwq-mute').textContent = off ? '🔇' : '🔊'; log(off ? 'Sound off.' : 'Sound on.'); }
+    on($('.lwq-mute'), 'click', e => { e.stopPropagation(); muteSound(); });
+    /* THE COMPASS: the directions slide past a mark in the middle, as you turn (north is -z) */
+    let compassKey = '';
+    function compassTick() {
+      if (!TR) return;
+      const deg = ((-me.yaw * 180 / Math.PI) % 360 + 360) % 360, k = Math.round(deg);
+      if (k === compassKey) return; compassKey = k;
+      const inner = $('.lwq-compass-in');
+      if (!inner.childNodes.length) {
+        const L = ['N', '·', 'NE', '·', 'E', '·', 'SE', '·', 'S', '·', 'SW', '·', 'W', '·', 'NW', '·'], parts = [];
+        for (let r = 0; r < 3; r++) for (const t of L) parts.push('<span class="' + (t.length === 1 && t !== '·' ? 'c' : '') + '">' + (t === 'E' ? 'O' : t === 'SE' ? 'SO' : t === 'NE' ? 'NO' : t) + '</span>');
+        inner.innerHTML = parts.join('');
+      }
+      inner.style.transform = 'translateX(' + (150 - 15 - (16 + deg / 22.5) * 30) + 'px)';
+    }
+    /* THE MAP (M): the world drawn from the same terrain as the ground, once, the first time it is opened; you are
+       the arrow on it */
+    let mapDrawn = null;
+    function drawMap() {
+      const cv = $('.lwq-map canvas'), [ex0, ez0, ex1, ez1] = TR.EXT, W = 900, H = Math.round(W * (ez1 - ez0) / (ex1 - ex0));
+      cv.width = W; cv.height = H;
+      const x = cv.getContext('2d'), img = x.createImageData(W, H), d = img.data, sx = (ex1 - ex0) / W, sz = (ez1 - ez0) / H, Hh = new Float32Array(W * H);
+      for (let py = 0; py < H; py++) for (let px = 0; px < W; px++) Hh[py * W + px] = TR.floor(ex0 + px * sx, ez0 + py * sz);
+      const PAL = { green: [134, 185, 90], valley: [162, 200, 98], troll: [164, 144, 88], fey: [90, 168, 138], ruins: [154, 150, 126], cemetery: [124, 135, 108], swamp: [114, 124, 68], mountain: [143, 138, 128] };
+      for (let py = 0; py < H; py++) for (let px = 0; px < W; px++) {
+        const i = py * W + px, h = Hh[i], X = ex0 + px * sx, Z = ez0 + py * sz; let c;
+        if (h < TR.SEA) { const k = Math.min(1, (TR.SEA - h) / 6); c = [63 - 34 * k, 194 - 120 * k, 192 - 70 * k]; }
+        else {
+          const w = TR.weights(X, Z, h); c = [0, 0, 0]; let tw = 0;
+          for (const k in w) { const p2 = PAL[k]; c[0] += p2[0] * w[k]; c[1] += p2[1] * w[k]; c[2] += p2[2] * w[k]; tw += w[k]; }
+          c = c.map(v => v / tw);
+          if (h < 0.9 && TR.coast(X, Z) < 50 && w.swamp < 0.5) c = [226, 207, 152];
+          if (h > 150) c = [240, 242, 245];
+          const hx = Hh[i + (px < W - 1 ? 1 : 0)] - Hh[i - (px > 0 ? 1 : 0)], hz = Hh[i + (py < H - 1 ? W : 0)] - Hh[i - (py > 0 ? W : 0)];
+          const sh = Math.max(0.55, Math.min(1.3, 1 + (-hx - hz) * 0.08));
+          c = c.map(v => v * sh);
+        }
+        d[i * 4] = c[0]; d[i * 4 + 1] = c[1]; d[i * 4 + 2] = c[2]; d[i * 4 + 3] = 255;
+      }
+      x.putImageData(img, 0, 0);
+      const P = (X, Z) => [(X - ex0) / sx, (Z - ez0) / sz];
+      x.lineCap = x.lineJoin = 'round';
+      for (const r of TR.ROADS) { x.strokeStyle = '#6a4a26'; x.lineWidth = 3.5; x.beginPath(); r.pts.forEach((q, n) => { const [a, b] = P(q[0], q[1]); n ? x.lineTo(a, b) : x.moveTo(a, b); }); x.stroke(); x.strokeStyle = '#e2c27e'; x.lineWidth = 1.8; x.stroke(); }
+      x.font = 'bold 13px Georgia, serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
+      for (const zn of LV.zones || []) {
+        if (/Pirate Ship|^Beach$/.test(zn.name)) continue;
+        const [a, b] = P((zn.rect[0] + zn.rect[2]) / 2, (zn.rect[1] + zn.rect[3]) / 2);
+        x.lineWidth = 3; x.strokeStyle = 'rgba(255,248,230,.9)'; x.strokeText(zn.name, a, b); x.fillStyle = '#3a2610'; x.fillText(zn.name, a, b);
+      }
+      mapDrawn = x.getImageData(0, 0, W, H);
+      return { P };
+    }
+    let mapOpen = false, mapP = null;
+    function toggleMap() {
+      mapOpen = !mapOpen;
+      $('.lwq-map').style.display = mapOpen ? 'flex' : 'none';
+      if (!mapOpen) return;
+      try { document.exitPointerLock(); } catch (e) { /* not locked */ }
+      $('.lwq-map-t').textContent = 'The world — M to close';
+      if (!mapDrawn) mapP = drawMap().P;
+      mapTick(true);
+    }
+    if (TR) on($('.lwq-map'), 'click', () => { if (mapOpen) toggleMap(); });
+    function mapTick(force) {
+      if (!mapOpen || !mapDrawn) return;
+      const cv = $('.lwq-map canvas'), x = cv.getContext('2d');
+      x.putImageData(mapDrawn, 0, 0);
+      const [a, b] = mapP(me.x, me.z);
+      x.save(); x.translate(a, b); x.rotate(-me.yaw);
+      x.fillStyle = '#d02010'; x.strokeStyle = '#fff'; x.lineWidth = 2;
+      x.beginPath(); x.moveTo(0, -11); x.lineTo(7, 8); x.lineTo(0, 4); x.lineTo(-7, 8); x.closePath(); x.fill(); x.stroke(); x.restore();
+    }
     function startTouch() {
       touchPlaying = keep.touch = true;
       $('.lwq-start').style.display = 'none';
@@ -498,6 +607,7 @@
         const k = b.dataset.b;
         if (k === 'attack' && on) attack();
         else if (k === 'menu' && on) toggleMenu();
+        else if (k === 'map' && on) toggleMap();
         else if (k === 'use' && on) useAim();
         else if (k === 'jump') keys.Space = on;
         else if (k === 'run' && on) { runOn = !runOn; b.classList.toggle('on', runOn); }
@@ -553,7 +663,7 @@
       if (down && !e.repeat && /^Digit[1-6]$/.test(e.code)) { const k = +e.code.slice(5); if (k === 1) attack(); else ability(k - 2); }
       if (down && (e.code === 'KeyI' || e.code === 'Tab') && !e.repeat && menu) { e.preventDefault(); toggleMenu(); }
       if (down && e.code === 'F3') { showFps = !showFps; drawNet(); e.preventDefault(); }
-      if (down && e.code === 'KeyM' && sound) log(sound.mute() ? 'Sound off (M).' : 'Sound on (M).');
+      if (down && e.code === 'KeyM' && !e.repeat) { if (TR) toggleMap(); else if (sound) muteSound(); }
       if (down && e.code === 'Space') e.preventDefault();
     };
     on(document, 'keydown', onKey(true));
@@ -566,6 +676,9 @@
       const a = [x - HALF, y, z - HALF], b = [x + HALF, y + HEIGHT, z + HALF];
       for (const B of boxes) {
         if (!B.on()) continue;
+        if (a[0] < B.max[0] && b[0] > B.min[0] && a[1] < B.max[1] && b[1] > B.min[1] && a[2] < B.max[2] && b[2] > B.min[2]) return B;
+      }
+      if (land) for (const B of land.solids(x, z)) {   /* the trunks of the land near here */
         if (a[0] < B.max[0] && b[0] > B.min[0] && a[1] < B.max[1] && b[1] > B.min[1] && a[2] < B.max[2] && b[2] > B.min[2]) return B;
       }
       return null;
@@ -610,7 +723,7 @@
     const groundAt = realW ? realW.groundAt : ctx.floor || ctx.height;   /* a ship is walked on its solid decks, not grown out of the ground */
     const dry = { x: SPAWN[0], y: SPAWN[1], z: SPAWN[2] };
     /* under the level's water (its plane: pos, size); a dip in the hills elsewhere is only a dip */
-    const wet = (x, z) => { const w = LV.water; if (!w) return false; const [wx, wz] = w.pos || [0, 0], h = (w.size || 360) / 2; return Math.abs(x - wx) <= h && Math.abs(z - wz) <= h; };
+    const wet = (x, z) => { if (TR) return true; const w = LV.water; if (!w) return false; const [wx, wz] = w.pos || [0, 0], h = (w.size || 360) / 2; return Math.abs(x - wx) <= h && Math.abs(z - wz) <= h; };
     function inShape(e, x, z) {
       if (e.rect) return x >= e.rect[0] && x <= e.rect[2] && z >= e.rect[1] && z <= e.rect[3];
       if (e.c) return Math.hypot(x - e.c[0], z - e.c[1]) <= e.r;
@@ -633,6 +746,12 @@
       me.x += dx; if ((B = hits(me.x, me.y, me.z)) && !stepUp(B)) me.x = dx > 0 ? B.min[0] - HALF - 1e-4 : B.max[0] + HALF + 1e-4;
       me.z += dz; if ((B = hits(me.x, me.y, me.z)) && !stepUp(B)) me.z = dz > 0 ? B.min[2] - HALF - 1e-4 : B.max[2] + HALF + 1e-4;
       realPush();
+      /* NATURAL BORDERS (tbuuol 2026-10-29: no invisible walls): too steep a slope is not climbed -- cliffs, mountains */
+      if (TR && groundAt) {
+        const run = Math.hypot(me.x - x0, me.z - z0), g1 = groundAt(me.x, me.z), g0 = groundAt(x0, z0);
+        if (run > 1e-5 && g1 > me.y + 0.05 && (g1 - g0) / run > 1.0) { me.x = x0; me.z = z0; }
+        const [ex0, ez0, ex1, ez1] = TR.EXT; me.x = Math.max(ex0 + 4, Math.min(ex1 - 4, me.x)); me.z = Math.max(ez0 + 4, Math.min(ez1 - 4, me.z));
+      }
       me.vx = (me.x - x0) / dt; me.vz = (me.z - z0) / dt;   /* what was really walked (a wall stops it): sent to the others */
       const wasGround = me.ground;
       me.y += me.vy * dt; me.ground = false;
@@ -650,7 +769,7 @@
       /* OVERBOARD in the world (off the ship's rail): back where you last stood dry */
       if (me.ground && me.y > -0.2) { dry.x = me.x; dry.y = me.y; dry.z = me.z; }
       else if (wet(me.x, me.z) && me.y < -1.2) { me.x = prev.x = dry.x; me.y = prev.y = dry.y + 0.3; me.z = prev.z = dry.z; me.vy = 0; log('Overboard! You climb back out, soaked.'); }
-      if (!realW && LV.env) {   /* the edge of the world: the far side of the forest, before the mountains */
+      if (!realW && LV.env && !TR) {   /* the edge of the world: the far side of the forest, before the mountains */
         if (Array.isArray(LV.edge)) {   /* the world: inside one of its shapes ({c, r} circles, {a, b, r} paths) */
           if (!LV.edge.some(e => inShape(e, me.x, me.z))) { me.x = x0; me.z = z0; }
         } else {
@@ -1520,7 +1639,7 @@
     }
 
     /* --- the loop ------------------------------------------------------------------------------------ */
-    let stepAcc = 0, drawing = !keep.noDraw;
+    let stepAcc = 0, drawing = !keep.noDraw, mapT = 0;
     /* RESOLUTION FOLLOWS THE FRAME RATE (tbuuol 2026-10-21: 22 fps): the picture is drawn at fewer pixels while the
        frames are slow, and at more again once they have been fast for a while; never above 1.5 per screen pixel */
     const maxPR = Math.min(1.5, G.devicePixelRatio || 1);
@@ -1586,8 +1705,9 @@
       const t = now / 1000, fdt = Math.min(dt, 0.1);
       if (!iAmHouse) for (const fn of updates) fn(fdt, t);   /* flames, smoke, water: nothing the house needs */
       npcTick(fdt, t);
-      if (!iAmHouse) { gateTick(now); if (live()) portalTick(); zoneTick(); drawAbilities(); }
+      if (!iAmHouse) { gateTick(now); if (live()) portalTick(); zoneTick(); drawAbilities(); compassTick(); if (mapOpen && now - (mapT || 0) > 200) { mapT = now; mapTick(); } }
       if (env && !iAmHouse) env.update(fdt, t, camera.position);
+      if (land && !iAmHouse) land.update(camera.position);
       if (sound && !iAmHouse) {
         sound.listen(camera);
         const sp = Math.hypot(me.vx || 0, me.vz || 0);
@@ -1646,6 +1766,11 @@
       play() { if (TOUCH) startTouch(); else touchPlaying = keep.touch = true; },   /* tests: as if the view had been clicked */
       strike() { attack(); },
       netPeers() { return room ? room.peers() : null; },
+      landReady: () => !land || land.ready(), landCount: () => land ? land.count() : 0,
+      sceneStats() {   /* tests: what is drawn, by kind of thing */
+        const out = {}; scene.traverse(o => { if (!o.isMesh || !o.visible) return; let p = o, tag = 'top'; while (p.parent && p.parent !== scene) p = p.parent; tag = p === o ? (o.isInstancedMesh ? 'inst-top' : 'mesh-top') : (p.type + ':' + (p.userData && p.userData.kind || p.name || p.children.length)); out[tag] = (out[tag] || 0) + 1; });
+        return out;
+      }, landBuildMs: () => land ? land.buildMs() : 0,
       netStats(reset) { if (!room || !room.stats) return null; const st = room.stats(); if (reset) room.resetStats(); return st; },
       ability(i) { ability(i); },
       npcs() { return Object.keys(npcs).map(id => ({ id, x: R2(npcs[id].x), z: R2(npcs[id].z) })); },
@@ -1694,6 +1819,6 @@
     };
   }
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 24, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, levels: 1 } },
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 25, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
     D => ({ start: (el, opts) => start(D, el, opts) }));
 })(typeof globalThis !== 'undefined' ? globalThis : this);

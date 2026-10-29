@@ -75,6 +75,14 @@
     x.closePath();
   }
   const painters = {
+    ground(rnd) {   /* the world's ground (2026-10-29): painted, nearly white; the land's colour is in its vertices */
+      const [c, x] = canvas(256); x.fillStyle = '#e4e0d6'; x.fillRect(0, 0, 256, 256);
+      blots(x, 256, rnd, 70, ['#f2efe7', '#d4cfc2', '#ebe7dc', '#c9c3b4', '#faf8f2'], 22, 64, 0.4);
+      blots(x, 256, rnd, 200, ['#efebe2', '#cdc7b8', '#f6f3ec'], 5, 13, 0.32);
+      strokes(x, 256, rnd, 380, ['#ffffff', '#f4f1ea', '#fbf9f4'], 3, 7, 1.2, 2.2, 0.5, 0, 0.5);
+      strokes(x, 256, rnd, 160, ['#b8b2a2', '#c4bead'], 3, 6, 1.2, 2, 0.45, 0, 0.5);
+      return c;
+    },
     grass(rnd) {
       const [c, x] = canvas(256); x.fillStyle = '#5b8c2c'; x.fillRect(0, 0, 256, 256);
       blots(x, 256, rnd, 70, ['#6fa335', '#4c7e24', '#80b343', '#5f9030', '#93bd4c', '#467520'], 22, 64, 0.38);
@@ -648,7 +656,10 @@
     ctx.scene.add(g);
     /* solid where it is walked (the dungeon): in the level's frame, for rot 0 or 180 */
     if (def.walk) {
-      const flip = rot === 180 ? -1 : 1, S = (x0, y0, z0, x1, y1, z1) => ctx.solid([px + Math.min(x0 * flip, x1 * flip), y0, pz + Math.min(z0 * flip, z1 * flip)], [px + Math.max(x0 * flip, x1 * flip), y1, pz + Math.max(z0 * flip, z1 * flip)]);
+      /* the ship's own frame to the level's (the group turns by -rot): a quarter turn keeps every box a box */
+      const turn = (x, z) => rot === 90 ? [-z, x] : rot === 180 ? [-x, -z] : rot === 270 ? [z, -x] : [x, z];
+      const S = (x0, y0, z0, x1, y1, z1) => { const [ax, az] = turn(x0, z0), [bx, bz] = turn(x1, z1);
+        ctx.solid([px + Math.min(ax, bx), y0, pz + Math.min(az, bz)], [px + Math.max(ax, bx), y1, pz + Math.max(az, bz)]); };
       for (let z = -L / 2; z < AFT; z += 1) { const w = half(z + 0.5); S(-w, D - 1, z, w, D, z + 1); }
       S(-W / 2, D + Q - 1, AFT, W / 2, D + Q, L / 2);                      /* the quarterdeck */
       S(-W / 2 + 1.6, D, AFT - 0.1, W / 2 - 1.6, D + Q, AFT + 0.1);        /* its front wall (the stairs left free) */
@@ -745,13 +756,73 @@
     }
     return (palmGeo = { trunk, crown: merge(fronds), coco: new T.SphereGeometry(0.14, 7, 5) });
   }
+  const TREEGEO = {};
+  /* A TREE FAR OFF (the world, 2026-10-29): a few dozen triangles, coloured in its vertices -- one draw call a kind */
+  const FARTREE = {};
+  function farTree(kind) {
+    if (FARTREE[kind]) return FARTREE[kind];
+    const C = { pine: ['#3d5a34', '#6a4a2e'], oak: ['#4f7a34', '#6a4a2e'], palm: ['#6a9a40', '#9a7a50'], fey: ['#58c8b0', '#bfeee0'], swamp: ['#6a7a40', '#5a4a30'], dead: ['#6a6258', '#6a6258'] }[kind] || ['#4f7a34', '#6a4a2e'];
+    const parts = [];
+    const add = (geo, col, y) => { geo.translate(0, y, 0); const n = geo.attributes.position.count, cc = new T.Color(col), a = new Float32Array(n * 3);
+      for (let i = 0; i < n; i++) { const k = 0.8 + 0.4 * Math.max(0, geo.attributes.position.getY(i) - y) / 3; a[i * 3] = cc.r * k; a[i * 3 + 1] = cc.g * k; a[i * 3 + 2] = cc.b * k; }
+      geo.setAttribute('color', new T.BufferAttribute(a, 3)); parts.push(geo); };
+    add(new T.CylinderGeometry(0.15, 0.3, kind === 'pine' ? 2 : 2.6, 5), C[1], kind === 'pine' ? 1 : 1.3);
+    if (kind === 'pine') add(new T.ConeGeometry(1.7, 5.2, 7), C[0], 4.0);
+    else if (kind === 'palm') add(new T.ConeGeometry(2.2, 1.0, 7), C[0], 4.6);
+    else if (kind !== 'dead') add(new T.IcosahedronGeometry(2.1, 0), C[0], 3.6);
+    const g = mergeColoured(parts);
+    return (FARTREE[kind] = g);
+  }
+  function mergeColoured(geos) {
+    const P = [], N = [], Cc = [], I = []; let base = 0;
+    for (const g0 of geos) { const g = g0.index ? g0.toNonIndexed() : g0; g.computeVertexNormals();
+      const pos = g.attributes.position, nor = g.attributes.normal, col = g.attributes.color || g0.attributes.color;
+      for (let i = 0; i < pos.count; i++) { P.push(pos.getX(i), pos.getY(i), pos.getZ(i)); N.push(nor.getX(i), nor.getY(i), nor.getZ(i)); Cc.push(col.getX(i % col.count), col.getY(i % col.count), col.getZ(i % col.count)); I.push(base + i); }
+      base += pos.count; }
+    const out = new T.BufferGeometry();
+    out.setAttribute('position', new T.Float32BufferAttribute(P, 3)); out.setAttribute('normal', new T.Float32BufferAttribute(N, 3)); out.setAttribute('color', new T.Float32BufferAttribute(Cc, 3)); out.setIndex(I);
+    return out;
+  }
+  let farTreeM = null;
+  art.farTrees = function (ctx, list, height) {
+    farTreeM = farTreeM || new T.MeshLambertMaterial({ vertexColors: true });
+    const group = new T.Group(), M = new T.Matrix4(), Q = new T.Quaternion(), S = new T.Vector3(), P = new T.Vector3(), up = new T.Vector3(0, 1, 0);
+    const by = {}; for (const t of list) (by[t[3] || 'pine'] = by[t[3] || 'pine'] || []).push(t);
+    for (const kind in by) {
+      const items = by[kind], im = new T.InstancedMesh(farTree(kind), farTreeM, items.length);
+      items.forEach((t, i) => { P.set(t[0], height(t[0], t[1]), t[1]); Q.setFromAxisAngle(up, (t[0] * 13.7 + t[1] * 7.1) % 6.28); S.set(t[2], t[2], t[2]); M.compose(P, Q, S); im.setMatrixAt(i, M); });
+      im.computeBoundingSphere(); group.add(im);
+    }
+    ctx.scene.add(group); return group;
+  };
   art.trees = function (ctx, list, height) {
     const pines = list.filter(t => (t[3] || 'pine') === 'pine'), oaks = list.filter(t => t[3] === 'oak'), palms = list.filter(t => t[3] === 'palm');
     const M = new T.Matrix4(), Q = new T.Quaternion(), S = new T.Vector3(), P = new T.Vector3(), up = new T.Vector3(0, 1, 0);
+    const group = new T.Group(); ctx.scene.add(group);   /* all of them in one group: a stretch of land takes its trees away with it */
     function instanced(geo, material, items, place) {
+      if (!items.length) return null;
       const im = new T.InstancedMesh(geo, material, items.length); im.castShadow = true; im.receiveShadow = true;
       items.forEach((it, i) => { place(it, P, S); Q.setFromAxisAngle(up, (it[0] * 13.7 + it[1] * 7.1) % 6.28); M.compose(P, Q, S); im.setMatrixAt(i, M); });
-      ctx.scene.add(im); return im;
+      group.add(im); return im;
+    }
+    /* the world's other woods: the Unicorn Forest's glowing teal, the Swamp's drab crowns, the Cemetery's dead trees */
+    const g = TREEGEO;
+    g.trunk = g.trunk || new T.CylinderGeometry(0.24, 0.5, 2.6, 8); g.crown = g.crown || new T.IcosahedronGeometry(1.6, 2);
+    for (const [kind, col, tint] of [['fey', '#7fe8d2', '#bfeee0'], ['swamp', '#8a9a5a', '#a09a70']]) {
+      const these = list.filter(t => t[3] === kind); if (!these.length) continue;
+      instanced(g.trunk, mat('bark', { m: { color: tint } }), these, (t, p, s) => { p.set(t[0], height(t[0], t[1]) + 1.3 * t[2], t[1]); s.set(t[2], t[2] * 1.2, t[2]); });
+      for (const [dx, dy, dz, k] of [[0, 3.6, 0, 1.15], [0.9, 3.0, 0.5, 0.8], [-0.8, 3.1, -0.5, 0.85]]) {
+        instanced(g.crown, mat('leaves', { m: { color: col, emissive: kind === 'fey' ? '#0a3a30' : '#000000' } }), these, (t, p, s) => { p.set(t[0] + dx * t[2], height(t[0], t[1]) + dy * t[2], t[1] + dz * t[2]); s.set(t[2] * k, t[2] * k * 0.8, t[2] * k); });
+      }
+    }
+    const dead = list.filter(t => t[3] === 'dead');
+    if (dead.length) {
+      g.branch = g.branch || new T.CylinderGeometry(0.05, 0.1, 1.6, 5);
+      instanced(g.trunk, mat('bark', { m: { color: '#7a7268' } }), dead, (t, p, s) => { p.set(t[0], height(t[0], t[1]) + 1.3 * t[2], t[1]); s.set(t[2] * 0.7, t[2] * 1.3, t[2] * 0.7); });
+      for (const [ax, ay, rz] of [[0.4, 2.6, -0.8], [-0.4, 2.9, 0.9], [0.1, 3.3, 0.2]]) {
+        const geo = g.branch.clone(); geo.rotateZ(rz); geo.translate(ax, 0, 0);
+        instanced(geo, mat('bark', { m: { color: '#6a6258' } }), dead, (t, p, s) => { p.set(t[0], height(t[0], t[1]) + ay * t[2], t[1]); s.set(t[2], t[2], t[2]); });
+      }
     }
     const bark = mat('bark'), leaves = mat('leaves'), pineLeaves = mat('leaves', { m: { color: '#a9c7a0' } });
     instanced(new T.CylinderGeometry(0.12, 0.24, 3.4, 7), bark, pines, (t, p, s) => { p.set(t[0], height(t[0], t[1]) + 1.7 * t[2], t[1]); s.set(t[2], t[2], t[2]); });
@@ -765,10 +836,141 @@
       instanced(pg.crown, frondM, palms, (t, p, s) => { p.set(t[0], height(t[0], t[1]) - 0.1, t[1]); s.set(t[2], t[2], t[2]); });
     }
     instanced(new T.CylinderGeometry(0.24, 0.5, 2.6, 8), bark, oaks, (t, p, s) => { p.set(t[0], height(t[0], t[1]) + 1.3 * t[2], t[1]); s.set(t[2], t[2], t[2]); });
-    const crown = new T.IcosahedronGeometry(1.6, 2);
+    const crown = TREEGEO.oakCrown || (TREEGEO.oakCrown = new T.IcosahedronGeometry(1.6, 1));
     for (const [dx, dy, dz, k] of [[0, 3.4, 0, 1.1], [1.0, 2.9, 0.4, 0.8], [-0.9, 3.0, -0.5, 0.85], [0.2, 4.2, -0.2, 0.75], [-0.3, 2.8, 1.0, 0.7]]) {
       instanced(crown, leaves, oaks, (t, p, s) => { p.set(t[0] + dx * t[2], height(t[0], t[1]) + dy * t[2], t[1] + dz * t[2]); s.set(t[2] * k, t[2] * k * 0.85, t[2] * k); });
     }
+    return group;
+  };
+
+  /* THE WHOLE WORLD'S LAND (tbuuol 2026-10-29: the map, 3 x 2 km): it cannot all be drawn at once, so it is built in
+     128 m squares round the eye -- ground, sea and river, trees -- and taken down again behind; beyond them one coarse
+     mesh of the whole world keeps the mountains on the horizon. TR is a terrain (the terrain module). o.radius: how far
+     the near land reaches (a PC further than a phone). Returns {update(eye), solids(x, z), count()}. */
+  art.land = function (ctx, TR, o) {
+    o = o || {};
+    const CH = o.chunk || 128, STEP = o.step || 2, R = o.radius || 320, SEA = TR.SEA, N = CH / STEP + 1, NEAR = o.near || 150;
+    const hexC = h => new T.Color(h);
+    const COL = { green: [hexC('#86b95a'), hexC('#4f7c36')], valley: [hexC('#a2c862'), hexC('#6f9a40')], troll: [hexC('#a49058'), hexC('#7a6a44')],
+                  fey: [hexC('#5aa88a'), hexC('#2f6f5a')], ruins: [hexC('#9a967e'), hexC('#706c5c')], cemetery: [hexC('#7c876c'), hexC('#5a6452')],
+                  swamp: [hexC('#727c44'), hexC('#4f5832')], mountain: [hexC('#8f8a80'), hexC('#6e6a64')] };
+    const SAND = hexC('#e2cf98'), ROCK = hexC('#87827a'), SNOW = hexC('#f1f3f6'), DIRT = hexC('#a8845a'), tmp = new T.Color(), acc = new T.Color();
+    function colour(x, z, h, slope, out) {
+      const w = TR.weights(x, z, h), t = Math.min(1, Math.max(0, (h - 2) / 40)); let tw = 0; acc.setRGB(0, 0, 0);
+      for (const k in w) { if (!w[k]) continue; tmp.copy(COL[k][0]).lerp(COL[k][1], t); acc.r += tmp.r * w[k]; acc.g += tmp.g * w[k]; acc.b += tmp.b * w[k]; tw += w[k]; }
+      out.setRGB(acc.r / tw, acc.g / tw, acc.b / tw);
+      if (h < 0.9 && TR.coast(x, z) < 50 && w.swamp < 0.5) out.lerp(SAND, Math.min(1, (0.9 - h) * 2));
+      const rd = TR.road(x, z); if (rd > 0) out.lerp(DIRT, rd * 0.85);
+      if (slope > 0.75) out.lerp(ROCK, Math.min(1, (slope - 0.75) * 1.5));
+      if (h > 150) out.lerp(SNOW, Math.min(1, (h - 150) / 15));
+      return out;
+    }
+    const groundM = mat('ground', { m: { vertexColors: true } });
+    const time = { value: 0 };
+    const waterM = new T.MeshStandardMaterial({ vertexColors: true, roughness: 0.5, metalness: 0, transparent: true, opacity: 0.86 });
+    waterM.onBeforeCompile = sh => {
+      sh.uniforms.uTime = time;
+      sh.vertexShader = 'uniform float uTime;\n' + sh.vertexShader.replace('#include <begin_vertex>',
+        '#include <begin_vertex>\n vec4 wp = modelMatrix * vec4(position, 1.0); transformed.y += sin(wp.x * 0.35 + uTime * 1.1) * 0.05 + cos(wp.z * 0.27 + uTime * 0.8) * 0.05;');
+    };
+    ctx.every((dt, t) => { time.value = t; });
+    const DEEP = hexC('#1d5f9c'), SHALLOW = hexC('#3fc2c0'), FOAM = hexC('#f4fbf6');
+    const chunks = new Map(), key = (i, j) => i + ',' + j;
+    function build(i, j) {
+      const x0 = i * CH, z0 = j * CH, group = new T.Group(), H = new Float32Array(N * N);
+      for (let b = 0; b < N; b++) for (let a = 0; a < N; a++) H[b * N + a] = TR.floor(x0 + a * STEP, z0 + b * STEP);
+      /* the ground */
+      const g = new T.PlaneGeometry(CH, CH, N - 1, N - 1); g.rotateX(-Math.PI / 2); g.translate(x0 + CH / 2, 0, z0 + CH / 2);
+      const pos = g.attributes.position, uv = g.attributes.uv, col = new Float32Array(pos.count * 3), c = new T.Color();
+      let low = 1e9;
+      for (let n = 0; n < pos.count; n++) {
+        const a = Math.round((pos.getX(n) - x0) / STEP), b = Math.round((pos.getZ(n) - z0) / STEP), h = H[b * N + a];
+        const hx = H[b * N + Math.min(N - 1, a + 1)] - H[b * N + Math.max(0, a - 1)], hz = H[Math.min(N - 1, b + 1) * N + a] - H[Math.max(0, b - 1) * N + a];
+        pos.setY(n, h); uv.setXY(n, pos.getX(n) / 6, -pos.getZ(n) / 6); low = Math.min(low, h);
+        colour(pos.getX(n), pos.getZ(n), h, Math.hypot(hx, hz) / (2 * STEP), c); col[n * 3] = c.r; col[n * 3 + 1] = c.g; col[n * 3 + 2] = c.b;
+      }
+      g.setAttribute('color', new T.BufferAttribute(col, 3)); g.computeVertexNormals();
+      const ground = new T.Mesh(g, groundM); ground.receiveShadow = true; group.add(ground);
+      /* the sea and the river: the water's level everywhere the ground is below it */
+      if (low < SEA) {
+        const M2 = CH / 8 + 1, wg = new T.PlaneGeometry(CH, CH, M2 - 1, M2 - 1); wg.rotateX(-Math.PI / 2); wg.translate(x0 + CH / 2, SEA, z0 + CH / 2);
+        const wp = wg.attributes.position, wc = new Float32Array(wp.count * 3);
+        for (let n = 0; n < wp.count; n++) {
+          const d = SEA - TR.floor(wp.getX(n), wp.getZ(n));
+          c.copy(SHALLOW).lerp(DEEP, Math.max(0, Math.min(1, d / 3.5))); if (d < 0.35) c.lerp(FOAM, Math.max(0, 1 - d / 0.35) * 0.85);
+          wc[n * 3] = c.r; wc[n * 3 + 1] = c.g; wc[n * 3 + 2] = c.b;
+        }
+        wg.setAttribute('color', new T.BufferAttribute(wc, 3));
+        const water = new T.Mesh(wg, waterM); water.renderOrder = 2; water.receiveShadow = true; group.add(water);
+      }
+      /* the trees (full near the eye, a few triangles further off), and their trunks in the way */
+      const list = TR.trees(x0, z0, x0 + CH, z0 + CH), solids = [];
+      for (const t of list) { const y = TR.floor(t[0], t[1]); solids.push({ min: [t[0] - 0.35, y - 1, t[1] - 0.35], max: [t[0] + 0.35, y + 3, t[1] + 0.35], on: () => true }); }
+      ctx.scene.add(group);
+      return { group, solids, i, j, list, trees: null, near: null };
+    }
+    function treesFor(ch, near) {   /* (re)dress a square's trees for how far it is */
+      if (ch.near === near) return;
+      if (ch.trees) { ch.group.remove(ch.trees); free(ch.trees); }
+      ch.near = near;
+      ch.trees = !ch.list.length ? null : near ? art.trees(Object.assign({}, ctx, { scene: ch.group }), ch.list, TR.floor) : art.farTrees(Object.assign({}, ctx, { scene: ch.group }), ch.list, TR.floor);
+    }
+    function free(group) {   /* a square's meshes off the graphics card; the tree shapes made once are kept */
+      const shared = new Set(Object.values(TREEGEO).concat(Object.values(FARTREE), palmGeo ? [palmGeo.trunk, palmGeo.crown, palmGeo.coco] : []));
+      group.traverse(m => { if (m.geometry && !shared.has(m.geometry)) m.geometry.dispose(); if (m.isInstancedMesh) m.dispose(); });
+    }
+    function drop(ch) { ctx.scene.remove(ch.group); free(ch.group); }
+    /* the far land: the whole world, coarse, drawn only beyond the near squares (and through no fog: the mountains far off) */
+    const [ex0, ez0, ex1, ez1] = TR.EXT, FS = 24, fw = Math.round((ex1 - ex0) / FS), fd = Math.round((ez1 - ez0) / FS);
+    const fg = new T.PlaneGeometry(ex1 - ex0, ez1 - ez0, fw, fd); fg.rotateX(-Math.PI / 2); fg.translate((ex0 + ex1) / 2, 0, (ez0 + ez1) / 2);
+    { const fp = fg.attributes.position, fc = new Float32Array(fp.count * 3), c = new T.Color();
+      for (let n = 0; n < fp.count; n++) {
+        const x = fp.getX(n), z = fp.getZ(n), h = TR.floor(x, z);
+        if (h < SEA) { fp.setY(n, SEA - 0.2); c.copy(DEEP); } else { fp.setY(n, h - 0.8); colour(x, z, h, 0, c); }
+        fc[n * 3] = c.r; fc[n * 3 + 1] = c.g; fc[n * 3 + 2] = c.b;
+      }
+      fg.setAttribute('color', new T.BufferAttribute(fc, 3)); fg.computeVertexNormals(); }
+    const eyeU = { value: new T.Vector3() }, inner = { value: R - CH * 0.75 };
+    const farM = new T.MeshLambertMaterial({ vertexColors: true, fog: false });
+    farM.onBeforeCompile = sh => {
+      sh.uniforms.uEye = eyeU; sh.uniforms.uInner = inner;
+      sh.vertexShader = 'varying vec3 vWorld;\n' + sh.vertexShader.replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\n vWorld = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+      sh.fragmentShader = 'uniform vec3 uEye; uniform float uInner; varying vec3 vWorld;\n' + sh.fragmentShader
+        .replace('void main() {', 'void main() {\n if (distance(vWorld.xz, uEye.xz) < uInner) discard;')
+        .replace('#include <dithering_fragment>', '#include <dithering_fragment>\n float far = smoothstep(uInner, uInner + 1400.0, distance(vWorld.xz, uEye.xz));\n gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(0.74, 0.83, 0.86), 0.35 + 0.45 * far);');
+    };
+    const far = new T.Mesh(fg, farM); far.userData.keep = true; ctx.scene.add(far);
+    let pending = [], buildMs = 0;
+    return {
+      buildMs: () => Math.round(buildMs),
+      /* each frame: what is near is built (one square a frame, the nearest first), what is far is taken down */
+      update(eye) {
+        eyeU.value.copy(eye);
+        const ci = Math.floor(eye.x / CH), cj = Math.floor(eye.z / CH), rr = Math.ceil(R / CH) + 1, want = new Set();
+        pending = [];
+        for (let dj = -rr; dj <= rr; dj++) for (let di = -rr; di <= rr; di++) {
+          const i = ci + di, j = cj + dj, cxm = i * CH + CH / 2, czm = j * CH + CH / 2, d = Math.hypot(cxm - eye.x, czm - eye.z);
+          if (d > R + CH * 0.71 || cxm < ex0 - CH || cxm > ex1 + CH || czm < ez0 - CH || czm > ez1 + CH) continue;
+          want.add(key(i, j)); if (!chunks.has(key(i, j))) pending.push([d, i, j]);
+        }
+        for (const [k, ch] of Array.from(chunks)) if (!want.has(k) && Math.hypot(ch.i * CH + CH / 2 - eye.x, ch.j * CH + CH / 2 - eye.z) > R + CH * 1.3) { drop(ch); chunks.delete(k); }
+        pending.sort((a, b) => a[0] - b[0]);
+        if (pending.length) { const [, i, j] = pending[0], t0 = performance.now(); chunks.set(key(i, j), build(i, j)); buildMs = performance.now() - t0; }
+        /* full trees within NEAR of the eye, far trees beyond (one square changed a frame, so walking does not stutter) */
+        for (const ch of chunks.values()) {
+          const near = Math.hypot(ch.i * CH + CH / 2 - eye.x, ch.j * CH + CH / 2 - eye.z) < NEAR;
+          if (ch.near !== near) { treesFor(ch, near); break; }
+        }
+      },
+      /* the trunks near a point, for walking */
+      solids(x, z) {
+        const out = [], i0 = Math.floor((x - 4) / CH), i1 = Math.floor((x + 4) / CH), j0 = Math.floor((z - 4) / CH), j1 = Math.floor((z + 4) / CH);
+        for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) { const ch = chunks.get(key(i, j)); if (ch) for (const b of ch.solids) out.push(b); }
+        return out;
+      },
+      ready: () => pending.length === 0,
+      count: () => chunks.size
+    };
   };
 
   art.forest = function (ctx, def) {
@@ -1761,5 +1963,5 @@
     return { groundAt, polys, segs, half, spawn, inside, stats: { buildings: buildings.length, trees: trees.length } };
   };
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('art', { api: 1, v: 11 }, () => art);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('art', { api: 1, v: 12 }, () => art);
 })(typeof globalThis !== 'undefined' ? globalThis : this);

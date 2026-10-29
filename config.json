@@ -1,7 +1,7 @@
 {
   "name": "LiteWorldsQuest",
   "family": "liteworldsquest",
-  "registry_version": 18,
+  "registry_version": 19,
   "three_id": "374cfd2b2f114e9da4ade8add495fe8aa0b2b996a710fb538759a956f15f9539",
   "modules": {
     "net": {
@@ -29,7 +29,7 @@
     },
     "art": {
       "file": "src/modules/art.js",
-      "v": 11,
+      "v": 12,
       "api": 1,
       "kind": "js",
       "id": null
@@ -39,7 +39,8 @@
       "v": 14,
       "api": 1,
       "kind": "js",
-      "id": null
+      "id": null,
+      "gz": "434df9bcf695df46cc66e1add6c8ffd36e78a5b05d5daf68abb6a4eb332b87a9"
     },
     "rpg": {
       "file": "src/modules/rpg.js",
@@ -57,9 +58,16 @@
       "id": null,
       "gz": "0bc0bfc129f488190bfd9bfae9cdc7ef36f8c0fd890b0cb73f9e551477fdff0a"
     },
+    "terrain": {
+      "file": "src/modules/terrain.js",
+      "v": 1,
+      "api": 1,
+      "kind": "js",
+      "id": null
+    },
     "engine": {
       "file": "src/modules/engine.js",
-      "v": 24,
+      "v": 25,
       "api": 1,
       "kind": "js",
       "id": null
@@ -106,7 +114,7 @@
     },
     "world": {
       "file": "src/levels/world.json",
-      "v": 1,
+      "v": 2,
       "api": 1,
       "kind": "json",
       "id": null
@@ -173,7 +181,8 @@
     "15": "69dd25c1e3087ec80c4c1e2c8a043ce7d412f3127e450063d992708b79d33a86 (publisher, loader 2)",
     "16": "b3a9d67b386d1609a0bad302cfc887c56ae2b9d8eef69451eaca1ba72cae90dd (publisher, loader 2)",
     "17": "7031fcb62047ccff2244233d9cf3b8309c1fc492f3c7e2a22c3377b6dd1ca9b0 (publisher, loader 2)",
-    "18": "15872127afb02d3b9cb0b1e8ccf1b3b204a371a2b0496472e3ca5cc40a36f3e6 (publisher, loader 2)"
+    "18": "15872127afb02d3b9cb0b1e8ccf1b3b204a371a2b0496472e3ca5cc40a36f3e6 (publisher, loader 2)",
+    "19": "fdf4207188787827b1578e0978eca1adcae51e0457fa2e9f31930ab27aa157ed (publisher, loader 2)"
   },
   "house": [
     "notHZVkLNJjG6ymtWGjM6rhBapuh3VU8eb"
