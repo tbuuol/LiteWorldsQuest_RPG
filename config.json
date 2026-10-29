@@ -1,7 +1,7 @@
 {
   "name": "LiteWorldsQuest",
   "family": "liteworldsquest",
-  "registry_version": 20,
+  "registry_version": 21,
   "three_id": "374cfd2b2f114e9da4ade8add495fe8aa0b2b996a710fb538759a956f15f9539",
   "modules": {
     "net": {
@@ -32,7 +32,8 @@
       "v": 13,
       "api": 1,
       "kind": "js",
-      "id": null
+      "id": null,
+      "gz": "5c1915b1264057c70dc5811cf19bc409cd0a43cf5d356917e3dae8f133d4f05d"
     },
     "combat": {
       "file": "src/modules/combat.js",
@@ -63,14 +64,16 @@
       "v": 2,
       "api": 1,
       "kind": "js",
-      "id": null
+      "id": null,
+      "gz": "779caa7efd79c3fd0ae62455c46d72cc1733c336cc7b6f9863ba8a3dea276e1c"
     },
     "engine": {
       "file": "src/modules/engine.js",
       "v": 26,
       "api": 1,
       "kind": "js",
-      "id": null
+      "id": null,
+      "gz": "2933398ebda5b1d492803431c8b8d4efa02f6242af37ccb1c54b93297537f5a1"
     }
   },
   "levels": {
@@ -117,7 +120,8 @@
       "v": 3,
       "api": 1,
       "kind": "json",
-      "id": null
+      "id": null,
+      "gz": "b81bc5c4b2ff9f1627bc49c36104ccfbbdb8a4df2324ab98dc89d2c95675e263"
     }
   },
   "page_id": "780e737befad5f1d5ee39f62a766940c67f40c43acdbfe3de6dea1be64d858c0",
@@ -183,7 +187,8 @@
     "17": "7031fcb62047ccff2244233d9cf3b8309c1fc492f3c7e2a22c3377b6dd1ca9b0 (publisher, loader 2)",
     "18": "15872127afb02d3b9cb0b1e8ccf1b3b204a371a2b0496472e3ca5cc40a36f3e6 (publisher, loader 2)",
     "19": "fdf4207188787827b1578e0978eca1adcae51e0457fa2e9f31930ab27aa157ed (publisher, loader 2)",
-    "20": "41dae388a02504a13a2e0cab088620cdb524cc57794689c3fd18953ccd3af6f4 (publisher, loader 2, batch)"
+    "20": "41dae388a02504a13a2e0cab088620cdb524cc57794689c3fd18953ccd3af6f4 (publisher, loader 2, batch)",
+    "21": "9f93f9242146e57aa4da0d4dbf859f19501f775e7b279287fddd52e7bda32b2f (publisher, loader 2, batch)"
   },
   "house": [
     "notHZVkLNJjG6ymtWGjM6rhBapuh3VU8eb"
