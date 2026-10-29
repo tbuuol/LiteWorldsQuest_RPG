@@ -187,7 +187,13 @@ async def _session(p, level: str = "") -> None:
     ctx = await p.chromium.launch_persistent_context(
         str(profile), headless=True, viewport={"width": 320, "height": 180},
         # a window nobody looks at must not be slowed down: the house's frames are the fight's clock
-        args=["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--mute-audio",
+        # THE PAGES HOST STRAIGHT FROM HERE, NOT THROUGH CLOUDFLARE (2026-10-29, v21): Cloudflare kept a 404 for a module
+        # asked for before its pieces were confirmed (for sandboxed pages, Origin: null), so the house got the baked
+        # engine 8 and the world stayed offline. The house asks this machine's Caddy instead, trusting only Cloudflare's
+        # origin certificate that Caddy shows (by its key's hash), nothing else.
+        args=["--host-resolver-rules=MAP pages.pepecoinarcade.com 127.0.0.1",
+              "--ignore-certificate-errors-spki-list=rWK9EWAd2JSz2aW6Ui5GeaZ84p5BUdiCkguPheNH3iw=",
+              "--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--mute-audio",
               "--disable-background-timer-throttling", "--disable-renderer-backgrounding",
               "--disable-backgrounding-occluded-windows"])
     try:
