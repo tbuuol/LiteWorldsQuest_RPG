@@ -48,6 +48,10 @@ STANDIN = "0" * 64
 #: a bigger one waits one block for its split, then sends every piece (tbuuol 2026-10-29: "kleine sofort, große nach
 #: den Regeln").
 PACKAGE_MAX = 95_000
+#: Where players' pages fetch the modules from. A page that finds the new registry but not yet its modules falls back
+#: to the copies baked into it -- an old engine (2026-10-29, v21: the house came up with engine 8 and the world stayed
+#: offline): the registry goes out only once every one of these serves every module, byte for byte.
+SERVED_BY = ["http://127.0.0.1:8420", "https://pages.pepecoinarcade.com", "https://pages.dogecoinarcade.com"]
 
 
 def say(*parts) -> None:
@@ -187,14 +191,37 @@ def main() -> int:
             say("the split is in a block")
         else:
             say(f"the package is {package // 1000} kB: every piece goes now")
-        for name, pieces in ready.items():
+        def send_all(name):
             done = J["pieces"].setdefault(name, {})
-            for n, raw, txid, unsigned in pieces:
+            for n, raw, txid, unsigned in ready[name]:
                 if str(n) in done:
                     continue
                 done[str(n)] = send(raw, unsigned, txid)
                 save()
             say(f"{name} -> {done['0']}")
+        for it in items:
+            send_all(it["name"])
+        # 4. the registry only once the players' pages can fetch every module (else they fall back to old ones)
+        want = {it["name"]: (ROOT / "dist/release" / it["name"]).read_bytes() for it in items}
+        t0 = time.time()
+        while True:
+            missing = []
+            for name in want:
+                for host in SERVED_BY:
+                    try:
+                        with urllib.request.urlopen(f"{host}/content/{J['pieces'][name]['0']}", timeout=30) as r:
+                            if r.read() != want[name]:
+                                missing.append(f"{name}@{host} (other bytes)")
+                    except Exception:   # noqa: BLE001 -- not there yet
+                        missing.append(f"{name}@{host}")
+            if not missing:
+                say("every module is served everywhere")
+                break
+            if time.time() - t0 > 3600:
+                raise PublishError("modules still not served after an hour: " + ", ".join(missing) + " -- run again to resume")
+            say(f"waiting for {len(missing)} to be served: " + ", ".join(m.split('@')[0] + '@' + m.split('@')[1].split('//')[-1] for m in missing[:4]))
+            time.sleep(30)
+        send_all(reg_name)
         for it in items:
             J["ids"][it["path"]] = ids[it["path"]]
         save()
