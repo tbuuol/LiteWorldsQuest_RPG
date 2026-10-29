@@ -35,7 +35,7 @@ sys.path.insert(0, str(ARCADE / "src"))
 
 from arcade import fees, funding                                     # noqa: E402
 from arcade import inscribe as inscribelib                           # noqa: E402
-from arcade.publish import Key, Publisher, build, payload_outputs, _rpc, PublishError   # noqa: E402
+from arcade.publish import Key, Publisher, build, payload_outputs, _rpc, _txid_of, PublishError   # noqa: E402
 from arcade.config import TESTNET                                    # noqa: E402
 from arcade.txbuild import p2pkh_script                              # noqa: E402
 
@@ -43,6 +43,11 @@ PUB = ROOT / ".publisher"
 NODE = "http://127.0.0.1:8420"
 CREATOR = "nb6X4wxqMGq93oE477CiwCvYZYevxTg9R7"
 STANDIN = "0" * 64
+#: What the chain's relay carries under one unconfirmed transaction, itself and all its descendants: about 101 kB
+#: (arcade/accountparts.py). An update whose split and pieces stay below this (with room to spare) goes out at once;
+#: a bigger one waits one block for its split, then sends every piece (tbuuol 2026-10-29: "kleine sofort, große nach
+#: den Regeln").
+PACKAGE_MAX = 95_000
 
 
 def say(*parts) -> None:
@@ -111,6 +116,18 @@ def main() -> int:
         pub.coins.watch()
         address = pub.address
 
+        def sign(unsigned):
+            sigs = [key.sign(bytes.fromhex(h)).hex() for h in unsigned.sighashes]
+            raw = funding.assemble(unsigned, sigs, key.pubkey)
+            return raw, _txid_of(raw)
+
+        def send(raw, unsigned, txid):
+            got = str(rpc.call("sendrawtransaction", raw))
+            if got != txid:
+                raise PublishError(f"the node named {got} for a transaction signed as {txid}")
+            pub.coins.note(unsigned, got)
+            return got
+
         # 1. one split for all
         if not J["split"] or pub._confirmations(J["split"]) is None:
             outputs, layout, at = [], {}, 0
@@ -128,42 +145,60 @@ def main() -> int:
                 return 0
             J["layout"] = layout
             J["pieces"] = {}
-            J["split"] = pub._send(unsigned)
+            raw, txid = sign(unsigned)
+            J["split_bytes"] = len(raw) // 2
+            J["split"] = send(raw, unsigned, txid)
             save()
             say("split:", J["split"])
-        say("waiting one block for the split …")
-        pub.wait_for(J["split"])
-        say("the split is in a block")
 
-        def send_pieces(name: str, pl) -> str:
+        def prepare(name: str, pl) -> list:
+            """Every piece of a file signed, not sent yet: [(n, raw, txid, unsigned)]; a piece sent before keeps its txid."""
             lay, done = J["layout"][name], J["pieces"].setdefault(name, {})
             if lay["n"] != pl.chunks:
                 raise PublishError(f"{name}: planned {lay['n']} pieces, now {pl.chunks}")
+            out = []
             for n, body in enumerate(pl.payloads):
                 if str(n) in done:
+                    out.append((n, None, done[str(n)], None))
                     continue
                 coin = {"txid": J["split"], "vout": lay["at"] + n, "value": lay["piece"], "address": address}
                 outs = payload_outputs(params, address, key.pubkey, body)
                 unsigned = funding.build_one(params, address, coin, outs, pub.rate, f"piece {n + 1} of {pl.chunks} of {name}")
-                done[str(n)] = pub._send(unsigned)
-                save()
-            return done["0"]
+                raw, txid = sign(unsigned)
+                out.append((n, raw, txid, unsigned))
+            return out
 
-        # 2. every file's pieces, all at once
-        ids = {}
+        # 2. every piece signed: the files', then the registry's with the files' ids (a piece's id is its txid)
+        ready, ids = {}, {}
         for it in items:
-            ids[it["path"]] = J["ids"].get(it["path"]) or send_pieces(it["name"], it["plan"])
-            J["ids"][it["path"]] = ids[it["path"]]
-            save()
-            say(f"{it['name']} -> {ids[it['path']]}")
-        # 3. the registry with the real ids, from the same split
+            ready[it["name"]] = prepare(it["name"], it["plan"])
+            ids[it["path"]] = ready[it["name"]][0][2]
         real = registry_bytes(V, ids)
         if len(real) != len(standin):
             raise PublishError("the registry changed size with the real ids; publish it with publish_update.sh")
         rplan = inscribelib.plan(real, "application/json", real.decode(), inscription_id=bytes.fromhex(rtag))
         (ROOT / f"dist/release/registry-v{V}.min.json").write_bytes(real)
-        rid = send_pieces(reg_name, rplan)
-        say("registry", V, "->", rid)
+        ready[reg_name] = prepare(reg_name, rplan)
+        # 3. at once if the whole package fits under the unconfirmed split; else after its block
+        package = J.get("split_bytes", 0) + sum(len(raw) // 2 for pieces in ready.values() for _, raw, _, _ in pieces if raw)
+        if package > PACKAGE_MAX and pub._confirmations(J["split"]) < 1:
+            say(f"the package is {package // 1000} kB, more than the {PACKAGE_MAX // 1000} kB the relay carries under an unconfirmed split: waiting one block …")
+            pub.wait_for(J["split"])
+            say("the split is in a block")
+        else:
+            say(f"the package is {package // 1000} kB: every piece goes now")
+        for name, pieces in ready.items():
+            done = J["pieces"].setdefault(name, {})
+            for n, raw, txid, unsigned in pieces:
+                if str(n) in done:
+                    continue
+                done[str(n)] = send(raw, unsigned, txid)
+                save()
+            say(f"{name} -> {done['0']}")
+        for it in items:
+            J["ids"][it["path"]] = ids[it["path"]]
+        save()
+        rid = J["pieces"][reg_name]["0"]
         txids = [t for d in J["pieces"].values() for t in d.values()]
 
     subprocess.run(["timeout", "200", "python3", "tools/relay_mempool.py", *txids], cwd=ROOT,
