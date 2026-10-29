@@ -367,7 +367,7 @@
     for (const id in switches) switches[id].mesh.userData.keep = true;
     const frozen = art.freeze ? art.freeze(scene) : null;
     /* the world's land, after the freeze: its squares come and go as you walk */
-    const land = TR && art.land ? art.land(ctx, TR, { radius: REACH }) : null;
+    const land = TR && art.land ? art.land(ctx, TR, { radius: REACH, haze: scene.fog ? '#' + scene.fog.color.getHexString() : null }) : null;
     if (frozen) console.info('LWQ: ' + frozen.joined + ' still parts drawn in ' + frozen.calls + ' calls');
 
     /* --- the shared world --------------------------------------------------------------------------- */
@@ -720,7 +720,7 @@
       }
     }
     /* the ground to walk on: the real world's, or the level's hills (flat where the village is) */
-    const groundAt = realW ? realW.groundAt : ctx.floor || ctx.height;   /* a ship is walked on its solid decks, not grown out of the ground */
+    const groundAt = realW ? realW.groundAt : TR ? TR.walk : ctx.floor || ctx.height;   /* the ground and bridges; a ship is walked on its solid decks */
     const dry = { x: SPAWN[0], y: SPAWN[1], z: SPAWN[2] };
     /* under the level's water (its plane: pos, size); a dip in the hills elsewhere is only a dip */
     const wet = (x, z) => { if (TR) return true; const w = LV.water; if (!w) return false; const [wx, wz] = w.pos || [0, 0], h = (w.size || 360) / 2; return Math.abs(x - wx) <= h && Math.abs(z - wz) <= h; };
@@ -764,11 +764,15 @@
         /* down a slope too, not in hops -- but not off a dock or a deck onto the sand just under it */
         if (me.y <= g || (wasGround && me.vy <= 0 && me.y - g < 0.45 && !hits(me.x, me.y - 0.06, me.z))) { me.y = Math.max(me.y, g); me.vy = 0; me.ground = true; }
       }
-      if (groundAt && wet(me.x, me.z) && groundAt(me.x, me.z) < -1.1 && me.y < 0.1) { me.x = x0; me.z = z0; }   /* no swimming: the sea stops you at chest height */
+      /* no swimming: deep water stops you at its edge (from a bank above it too); a dock or a deck under you is not water */
+      if (groundAt && wet(me.x, me.z)) { const g = groundAt(me.x, me.z); if (g < -1.1 && g < me.y - 0.05 && !hits(me.x, me.y - 0.06, me.z)) { me.x = x0; me.z = z0; } }
       if (LV.env && LV.env.terrain === 'ship' && me.y < -1.5) { me.x = prev.x = SPAWN[0]; me.y = prev.y = SPAWN[1] + 0.5; me.z = prev.z = SPAWN[2]; me.vy = 0; log('Overboard! The crew hauls you back on deck.'); }
       /* OVERBOARD in the world (off the ship's rail): back where you last stood dry */
       if (me.ground && me.y > -0.2) { dry.x = me.x; dry.y = me.y; dry.z = me.z; }
-      else if (wet(me.x, me.z) && me.y < -1.2) { me.x = prev.x = dry.x; me.y = prev.y = dry.y + 0.3; me.z = prev.z = dry.z; me.vy = 0; log('Overboard! You climb back out, soaked.'); }
+      else if (wet(me.x, me.z) && me.y < -1.2) {
+        me.x = prev.x = dry.x; me.y = prev.y = dry.y + 0.3; me.z = prev.z = dry.z; me.vy = 0;
+        if (performance.now() - (dry.said || -1e9) > 10000) { dry.said = performance.now(); log('Overboard! You climb back out, soaked.'); }
+      }
       if (!realW && LV.env && !TR) {   /* the edge of the world: the far side of the forest, before the mountains */
         if (Array.isArray(LV.edge)) {   /* the world: inside one of its shapes ({c, r} circles, {a, b, r} paths) */
           if (!LV.edge.some(e => inShape(e, me.x, me.z))) { me.x = x0; me.z = z0; }
@@ -890,7 +894,20 @@
       if (off && off.model === 'shield') left.children[0].rotation.set(0.1, 0.5, 0);
     }
     if (fight) { dressHands(); camera.add(hands); scene.add(camera); }
+    let placed = false;
     function myRecord(r) {
+      /* WHERE YOU LEFT OFF (tbuuol 2026-10-29): the house keeps where you were; the first record after joining puts you
+         there -- unless that is deep water or out of the world, then at the nearest place that takes the fallen in */
+      if (!placed && TR && Array.isArray(r.pos) && r.pos.length >= 3) {
+        placed = true;
+        const [x, y, z, yaw] = r.pos.map(Number), [ex0, ez0, ex1, ez1] = TR.EXT;
+        if (isFinite(x) && isFinite(z) && x > ex0 && x < ex1 && z > ez0 && z < ez1 && TR.height(x, z) > TR.SEA - 0.3) {
+          me.x = prev.x = x; me.z = prev.z = z; me.y = prev.y = Math.max(isFinite(y) ? y : 0, TR.walk(x, z)) + 0.2; me.vy = 0;
+          if (isFinite(yaw)) me.yaw = yaw;
+          dry.x = me.x; dry.y = me.y; dry.z = me.z;
+        }
+      }
+      placed = true;
       rec = r; mine = rpg.stats(r);
       P.max = mine.hp; P.hp = Math.min(P.hp, P.max);
       dressHands(); drawStats();
@@ -1023,10 +1040,14 @@
       sendIntent(msg);
     }
     const charges = {}, growAt = {};
+    /* where a player is, as they last said (not where the house draws them, a little behind: after a quick move that was
+       metres away, and gathering was refused without a word -- tbuuol 2026-10-29) */
+    const whereIs = r => r && r.last && Array.isArray(r.last.p) ? [+r.last.p[0], +r.last.p[2]] : r ? [r.g.position.x, r.g.position.z] : null;
     function houseGather(from, id) {
       const res = resources[id], a = addrOf(from), r = remotes.get(from.id);
       if (!res || !a || W.dep[id] || !ready(a)) return;
-      if (r && Math.hypot(r.g.position.x - res.def.pos[0], r.g.position.z - res.def.pos[1]) > 4.5) return;   /* from afar: no */
+      const at = whereIs(r);
+      if (at && Math.hypot(at[0] - res.def.pos[0], at[1] - res.def.pos[1]) > 5) { notice(from.id, 'You are too far away to reach it.'); return; }   /* from afar: no */
       const kind = res.def.kind, conf = LV.resources || {};
       if (charges[id] == null) charges[id] = (conf.charges && conf.charges[kind]) || 3;
       const out = book.gather(a, kind);
@@ -1292,8 +1313,23 @@
       }
       return r;
     }
+    /* THE HOUSE KEEPS WHERE EVERYBODY IS: into each player's record, every 5 s (only into the database, not sent back) */
+    let posSaved = 0;
+    function savePos(r) {
+      const a = r.from && r.from.address;
+      if (!iAmHouse || !TR || !book || !a || !book.has(a) || !r.last || !Array.isArray(r.last.p)) return;
+      const R1 = v => Math.round(v * 10) / 10, rec2 = book.of(a), np = [R1(+r.last.p[0]), R1(+r.last.p[1]), R1(+r.last.p[2]), R1(Array.isArray(r.last.r) ? +r.last.r[0] : 0)];
+      if (!np.every(isFinite) || (rec2.pos && rec2.pos.join() === np.join())) return;
+      rec2.pos = np; saveDirty.add(a);
+    }
+    function savePositions(now) {
+      if (!iAmHouse || now - posSaved < 5000) return;
+      posSaved = now;
+      for (const r of remotes.values()) if (!r.house) savePos(r);
+    }
     function dropRemote(id) {
       const r = remotes.get(id); if (!r) return;
+      savePos(r);   /* where they were as they went */
       scene.remove(r.g); remotes.delete(id);
       if (storeMode && r.from.address) leaving.add(r.from.address);
       log(r.house ? 'The house has gone.' : label(r.from, r.name) + ' left.');
@@ -1396,7 +1432,7 @@
         else if (d.Q === 'quest') {
           const q = (LV.quests || []).find(x => x.id === String(d.q)), r = remotes.get(from.id), N = q && npcs[q.npc];
           if (!q) return;
-          if (!r || !N || Math.hypot(r.g.position.x - N.x, r.g.position.z - N.z) > 6) notice(from.id, 'You are too far away to talk.');
+          if (!r || !N || Math.hypot(whereIs(r)[0] - N.x, whereIs(r)[1] - N.z) > 6) notice(from.id, 'You are too far away to talk.');
           else if (d.x === 'take') { const res = book.questTake(a, q); notice(from.id, res.ok ? 'Quest accepted: ' + q.title + '.' : 'Quest: ' + res.why + '.'); }
           else { const res = book.questTurn(a, q); if (!res.ok) notice(from.id, 'Quest: ' + res.why + '.'); else { notice(from.id, 'Quest done: ' + q.title + '! You get ' + res.got.join(', ') + '.'); for (const u of res.up) notice(from.id, u + '!'); } }
         }
@@ -1407,7 +1443,7 @@
         }
         else if (d.Q === 'craft') {
           const r = remotes.get(from.id);
-          if (r && !nearForge(r.g.position.x, r.g.position.z)) notice(from.id, 'You are not at the forge.');
+          if (r && !nearForge(whereIs(r)[0], whereIs(r)[1])) notice(from.id, 'You are not at the forge.');
           else {
             const res = book.craft(a, String(d.r));
             if (!res.ok) notice(from.id, 'Cannot make that: ' + res.why + '.');
@@ -1718,7 +1754,7 @@
       sendState(false);
       relay(now);
       drawRemotes();
-      if (amHost()) growBack(now);
+      if (amHost()) { growBack(now); savePositions(now); }
       if (room && amHost() && now - worldT > 3000) { worldT = now; if (now - lastWorldSent > 2500) sendWorld(); }
       if (now - netT > 1000) {
         netT = now; drawNet(); starTick();
@@ -1766,6 +1802,8 @@
       play() { if (TOUCH) startTouch(); else touchPlaying = keep.touch = true; },   /* tests: as if the view had been clicked */
       strike() { attack(); },
       netPeers() { return room ? room.peers() : null; },
+      resourcesAt: () => Object.keys(resources).map(id => [id, resources[id].def.pos[0], resources[id].def.pos[1], !!W.dep[id]]),
+      bridges: () => TR ? TR.bridges.map(b => ({ a: b.a.map(Math.round), b: b.b.map(Math.round), ya: Math.round(b.ya * 10) / 10, yb: Math.round(b.yb * 10) / 10 })) : [],
       landReady: () => !land || land.ready(), landCount: () => land ? land.count() : 0,
       sceneStats() {   /* tests: what is drawn, by kind of thing */
         const out = {}; scene.traverse(o => { if (!o.isMesh || !o.visible) return; let p = o, tag = 'top'; while (p.parent && p.parent !== scene) p = p.parent; tag = p === o ? (o.isInstancedMesh ? 'inst-top' : 'mesh-top') : (p.type + ':' + (p.userData && p.userData.kind || p.name || p.children.length)); out[tag] = (out[tag] || 0) + 1; });
@@ -1819,6 +1857,6 @@
     };
   }
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 25, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 26, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
     D => ({ start: (el, opts) => start(D, el, opts) }));
 })(typeof globalThis !== 'undefined' ? globalThis : this);

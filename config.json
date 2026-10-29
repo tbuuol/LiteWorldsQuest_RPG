@@ -29,11 +29,10 @@
     },
     "art": {
       "file": "src/modules/art.js",
-      "v": 12,
+      "v": 13,
       "api": 1,
       "kind": "js",
-      "id": null,
-      "gz": "197e610a3502e72336c5ecba09032ef49cebb74b85afeae8300ec760d1f633a4"
+      "id": null
     },
     "combat": {
       "file": "src/modules/combat.js",
@@ -61,19 +60,17 @@
     },
     "terrain": {
       "file": "src/modules/terrain.js",
-      "v": 1,
+      "v": 2,
       "api": 1,
       "kind": "js",
-      "id": null,
-      "gz": "1d98439c2d0db4fd977fe4cc4d23abf381f1198def539760011ac7b75170f0b9"
+      "id": null
     },
     "engine": {
       "file": "src/modules/engine.js",
-      "v": 25,
+      "v": 26,
       "api": 1,
       "kind": "js",
-      "id": null,
-      "gz": "204822375f2f4f2eb08f96bb027bf04eb4594d5b789b146f11350ff089511b36"
+      "id": null
     }
   },
   "levels": {
@@ -117,11 +114,10 @@
     },
     "world": {
       "file": "src/levels/world.json",
-      "v": 2,
+      "v": 3,
       "api": 1,
       "kind": "json",
-      "id": null,
-      "gz": "e7d088efd5e5d92ef121ffc128415fc7cea7c1558cea1440a64cb5951c3efd8b"
+      "id": null
     }
   },
   "page_id": "780e737befad5f1d5ee39f62a766940c67f40c43acdbfe3de6dea1be64d858c0",

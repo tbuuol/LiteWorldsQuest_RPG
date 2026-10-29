@@ -867,7 +867,7 @@
     }
     const groundM = mat('ground', { m: { vertexColors: true } });
     const time = { value: 0 };
-    const waterM = new T.MeshStandardMaterial({ vertexColors: true, roughness: 0.5, metalness: 0, transparent: true, opacity: 0.86 });
+    const waterM = new T.MeshStandardMaterial({ vertexColors: true, roughness: 0.8, metalness: 0, transparent: true, opacity: 0.88 });   /* matte: no blinding sun on it */
     waterM.onBeforeCompile = sh => {
       sh.uniforms.uTime = time;
       sh.vertexShader = 'uniform float uTime;\n' + sh.vertexShader.replace('#include <begin_vertex>',
@@ -893,11 +893,11 @@
       const ground = new T.Mesh(g, groundM); ground.receiveShadow = true; group.add(ground);
       /* the sea and the river: the water's level everywhere the ground is below it */
       if (low < SEA) {
-        const M2 = CH / 8 + 1, wg = new T.PlaneGeometry(CH, CH, M2 - 1, M2 - 1); wg.rotateX(-Math.PI / 2); wg.translate(x0 + CH / 2, SEA, z0 + CH / 2);
+        const M2 = CH / 4 + 1, wg = new T.PlaneGeometry(CH, CH, M2 - 1, M2 - 1); wg.rotateX(-Math.PI / 2); wg.translate(x0 + CH / 2, SEA, z0 + CH / 2);
         const wp = wg.attributes.position, wc = new Float32Array(wp.count * 3);
         for (let n = 0; n < wp.count; n++) {
           const d = SEA - TR.floor(wp.getX(n), wp.getZ(n));
-          c.copy(SHALLOW).lerp(DEEP, Math.max(0, Math.min(1, d / 3.5))); if (d < 0.35) c.lerp(FOAM, Math.max(0, 1 - d / 0.35) * 0.85);
+          c.copy(SHALLOW).lerp(DEEP, Math.max(0, Math.min(1, d / 3.5))); if (d < 0.15) c.lerp(FOAM, Math.max(0, 1 - d / 0.15) * 0.45);   /* a thin line of foam */
           wc[n * 3] = c.r; wc[n * 3 + 1] = c.g; wc[n * 3 + 2] = c.b;
         }
         wg.setAttribute('color', new T.BufferAttribute(wc, 3));
@@ -926,20 +926,40 @@
     { const fp = fg.attributes.position, fc = new Float32Array(fp.count * 3), c = new T.Color();
       for (let n = 0; n < fp.count; n++) {
         const x = fp.getX(n), z = fp.getZ(n), h = TR.floor(x, z);
-        if (h < SEA) { fp.setY(n, SEA - 0.2); c.copy(DEEP); } else { fp.setY(n, h - 0.8); colour(x, z, h, 0, c); }
+        if (h < SEA) { fp.setY(n, SEA - 0.6); c.copy(DEEP); } else { fp.setY(n, h - 2.5); colour(x, z, h, 0, c); }
         fc[n * 3] = c.r; fc[n * 3 + 1] = c.g; fc[n * 3 + 2] = c.b;
       }
       fg.setAttribute('color', new T.BufferAttribute(fc, 3)); fg.computeVertexNormals(); }
-    const eyeU = { value: new T.Vector3() }, inner = { value: R - CH * 0.75 };
+    /* only where the near land is all fog (the fog ends at R), in the fog's own colour: no seam, no slanted planes */
+    const eyeU = { value: new T.Vector3() }, inner = { value: R - 4 }, haze = { value: new T.Color(o.haze || '#bcd5dc') };
     const farM = new T.MeshLambertMaterial({ vertexColors: true, fog: false });
     farM.onBeforeCompile = sh => {
-      sh.uniforms.uEye = eyeU; sh.uniforms.uInner = inner;
+      sh.uniforms.uEye = eyeU; sh.uniforms.uInner = inner; sh.uniforms.uHaze = haze;
       sh.vertexShader = 'varying vec3 vWorld;\n' + sh.vertexShader.replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\n vWorld = (modelMatrix * vec4(transformed, 1.0)).xyz;');
-      sh.fragmentShader = 'uniform vec3 uEye; uniform float uInner; varying vec3 vWorld;\n' + sh.fragmentShader
+      sh.fragmentShader = 'uniform vec3 uEye; uniform float uInner; uniform vec3 uHaze; varying vec3 vWorld;\n' + sh.fragmentShader
         .replace('void main() {', 'void main() {\n if (distance(vWorld.xz, uEye.xz) < uInner) discard;')
-        .replace('#include <dithering_fragment>', '#include <dithering_fragment>\n float far = smoothstep(uInner, uInner + 1400.0, distance(vWorld.xz, uEye.xz));\n gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(0.74, 0.83, 0.86), 0.35 + 0.45 * far);');
+        .replace('#include <dithering_fragment>', '#include <dithering_fragment>\n float d = distance(vWorld.xz, uEye.xz), far = smoothstep(uInner, uInner + 1600.0, d);\n gl_FragColor.rgb = mix(gl_FragColor.rgb, uHaze, max(0.55 + 0.3 * far, 1.0 - smoothstep(uInner, uInner + 60.0, d)));');
     };
     const far = new T.Mesh(fg, farM); far.userData.keep = true; ctx.scene.add(far);
+    /* the bridges: planks along an arch, rails, posts down into the river */
+    for (const br of TR.bridges || []) {
+      const [ax, az] = br.a, [bx, bz] = br.b, L = Math.hypot(bx - ax, bz - az), ux = (bx - ax) / L, uz = (bz - az) / L, n = Math.max(8, Math.round(L / 1.2));
+      const g = new T.Group(), plank = mat('planks', { m: { color: '#c9a274' } }), dark = mat('bark', { m: { color: '#8a6440' } });
+      for (let k = 0; k < n; k++) {
+        const t0 = k / n, t1 = (k + 1) / n, xa = ax + (bx - ax) * t0, za = az + (bz - az) * t0, xb = ax + (bx - ax) * t1, zb = az + (bz - az) * t1;
+        const ya = TR.deckAt(br, xa + ux * 0.01, za + uz * 0.01), yb = TR.deckAt(br, xb - ux * 0.01, zb - uz * 0.01), seg = Math.hypot(xb - xa, zb - za, (yb || 0) - (ya || 0));
+        const p = mesh(boxM(br.w, 0.18, seg + 0.05, 1), plank); p.position.set((xa + xb) / 2, (ya + yb) / 2 - 0.09, (za + zb) / 2);
+        p.rotation.order = 'YXZ'; p.rotation.y = Math.atan2(ux, uz); p.rotation.x = -Math.atan2(yb - ya, Math.hypot(xb - xa, zb - za)); g.add(p);
+        for (const side of [-1, 1]) {
+          const rx = -uz * side * (br.w / 2 - 0.1), rz = ux * side * (br.w / 2 - 0.1);
+          const rail = mesh(boxM(0.12, 0.12, seg + 0.05, 1), dark); rail.position.set((xa + xb) / 2 + rx, (ya + yb) / 2 + 0.85, (za + zb) / 2 + rz);
+          rail.rotation.order = 'YXZ'; rail.rotation.y = p.rotation.y; rail.rotation.x = p.rotation.x; g.add(rail);
+          if (k % 2 === 0) { const post = mesh(new T.CylinderGeometry(0.08, 0.1, 1.0, 6), dark); post.position.set(xa + rx, ya + 0.4, za + rz); g.add(post); }
+          if (k % 4 === 2 && ya > TR.floor(xa, za) + 1.5) { const pile = mesh(new T.CylinderGeometry(0.16, 0.2, ya + 3.5, 7), dark); pile.position.set(xa + rx, (ya - 3.5) / 2, za + rz); g.add(pile); }
+        }
+      }
+      g.userData.keep = true; ctx.scene.add(g);
+    }
     let pending = [], buildMs = 0;
     return {
       buildMs: () => Math.round(buildMs),
@@ -1963,5 +1983,5 @@
     return { groundAt, polys, segs, half, spawn, inside, stats: { buildings: buildings.length, trees: trees.length } };
   };
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('art', { api: 1, v: 12 }, () => art);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('art', { api: 1, v: 13 }, () => art);
 })(typeof globalThis !== 'undefined' ? globalThis : this);

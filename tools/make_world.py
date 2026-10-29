@@ -19,7 +19,7 @@ import pathlib
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 LEVELS = ROOT / "src" / "levels"
 OUT = LEVELS / "world.json"
-VERSION = 2
+VERSION = 3
 
 
 def I(px, py):
@@ -73,7 +73,8 @@ def main() -> None:
 
     # ---- Blockshire: where it was, on its cliff ------------------------------------------------------------------
     LIFT = 14.0
-    blockshire = {k: blk[k] for k in ("solids", "huts", "fence", "fire", "grass", "paths", "props", "resources", "forge", "well", "npcs") if k in blk}
+    # no fence any more, and no raids (tbuuol 2026-10-29): the village is open to the Greenwood
+    blockshire = {k: blk[k] for k in ("solids", "huts", "fire", "grass", "paths", "props", "resources", "forge", "well", "npcs") if k in blk}
     if blk.get("forest", {}).get("trees"):   # the village's own few trees, placed by hand
         blockshire["forest_trees"] = blk["forest"]["trees"]
     blockshire["lift"] = LIFT
@@ -167,7 +168,7 @@ def main() -> None:
                           {"at": [SW.at[0] + 6, SW.at[1]], "r": 24, "y": 0.25, "rim": 14, "landOnly": True}],
                  "decks": [deck]},
         "places": [blockshire, saltwind],
-        "defense": blk.get("defense"),
+        "defense": {k: v for k, v in (blk.get("defense") or {}).items() if k != "spawns"},   # the guards and the priest; no raider waves
         "wild": wild, "quests": quests, "zones": zones,
         "revives": [
             {"at": [0, 0], "spawn": spawn, "yaw": blk.get("spawnYaw", 0)},

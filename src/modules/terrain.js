@@ -37,12 +37,12 @@
   const RIVER = px([[615, 0], [596, 80], [598, 160], [648, 245], [688, 318], [645, 372], [552, 382], [468, 418], [452, 478], [502, 526],
                     [600, 548], [700, 572], [782, 632], [848, 690], [888, 778], [880, 880], [872, 960]]);
   const ARM = px([[645, 372], [690, 405], [702, 450], [680, 505], [640, 540], [600, 548]]);
-  const ROUTE = px([[300, 790], [322, 735], [350, 668], [395, 608], [392, 545], [352, 505], [318, 440], [330, 370], [395, 300], [470, 255],
+  const ROUTE = px([[300, 790], [322, 735], [352, 668], [425, 612], [430, 562], [422, 505], [392, 462], [362, 420], [345, 370], [395, 300], [470, 255],
                     [560, 225], [612, 205], [680, 225], [745, 280], [790, 330], [850, 395], [930, 470], [1010, 430], [1080, 360], [1150, 300], [1210, 270]]);
   const ROADS = [{ pts: ROUTE, w: 6 }].concat([
     [[930, 470], [1060, 500], [1180, 520], [1290, 540]], [[1290, 540], [1320, 620], [1340, 700], [1350, 790]],
     [[1350, 790], [1260, 800], [1170, 790], [1080, 780]], [[745, 280], [790, 230], [760, 175], [800, 135], [780, 100], [815, 75]],
-    [[395, 608], [450, 560], [502, 526], [560, 470], [590, 425]], [[300, 790], [400, 800], [520, 790], [640, 775], [680, 765]]
+    [[425, 612], [465, 560], [502, 526], [560, 470], [590, 425]], [[300, 790], [400, 800], [520, 790], [640, 775], [680, 765]]
   ].map((p, i) => ({ pts: px(p), w: [5, 4, 4, 3, 3, 5][i] })));
   const EXT = [...I(0, 0), ...I(1536, 1024)];
 
@@ -88,19 +88,53 @@
         const d = Math.hypot(x - p.at[0], z - p.at[1]), k = 1 - smooth((d - p.r) / (p.rim || 30));
         if (k > 0) h = h * (1 - k) + p.y * k;
       }
-      /* the river and its arm: carved below the sea's level, banks falling to it */
+      /* the river and its arm: a deep bed, a steep bank of 3 m to a strip just above the water, then the land (the
+         first world's 14 m of gentle bank let you walk down into the water and climb out again and again) */
       for (const [R, w0, w1] of [[RIVER, 5, 10], [ARM, 5, 6]]) {
         const [d, t] = segDist(x, z, R), w = w0 + (w1 - w0) * t;
-        if (d < w + 14) { const k = smooth((d - w) / 14); h = h * k + -2.4 * (1 - k); }
+        if (d < w + 18) {
+          const edge = 0.15;
+          if (d < w) h = -2.6;
+          else if (d < w + 3) h = -2.6 + (edge + 2.6) * smooth((d - w) / 3);
+          else { const k = smooth((d - w - 3) / 15); h = edge + (Math.max(h, edge) - edge) * k; }
+        }
       }
       return h;
     }
-    function height(x, z) {
+    /* BRIDGES: wherever a road crosses the river, a wooden deck from bank to bank (it is walked; the ground under it
+       stays the river's) */
+    const bridges = [];
+    for (const r of ROADS) for (let i = 0; i < r.pts.length - 1; i++) for (const [R, w0, w1] of [[RIVER, 5, 10], [ARM, 5, 6]]) for (let j = 0; j < R.length - 1; j++) {
+      const [ax, az] = r.pts[i], [bx, bz] = r.pts[i + 1], [cx, cz] = R[j], [dx, dz] = R[j + 1];
+      const den = (bx - ax) * (dz - cz) - (bz - az) * (dx - cx); if (Math.abs(den) < 1e-9) continue;
+      const u = ((cx - ax) * (dz - cz) - (cz - az) * (dx - cx)) / den, v = ((cx - ax) * (bz - az) - (cz - az) * (bx - ax)) / den;
+      if (u < 0 || u > 1 || v < 0 || v > 1) continue;
+      const mx = ax + (bx - ax) * u, mz = az + (bz - az) * u, L = Math.hypot(bx - ax, bz - az), ux = (bx - ax) / L, uz = (bz - az) / L;
+      const w = w0 + (w1 - w0) * ((j + v) / (R.length - 1));
+      let half = w + 4;
+      while (half < w + 30 && (floor(mx - ux * half, mz - uz * half) < 0.4 || floor(mx + ux * half, mz + uz * half) < 0.4)) half += 1;
+      const A = [mx - ux * half, mz - uz * half], B = [mx + ux * half, mz + uz * half];
+      if (bridges.some(o => Math.hypot((o.a[0] + o.b[0]) / 2 - mx, (o.a[1] + o.b[1]) / 2 - mz) < 15)) continue;   /* one bridge a crossing (where two bends of the river meet the road) */
+      bridges.push({ a: A, b: B, ya: floor(A[0], A[1]), yb: floor(B[0], B[1]), w: Math.max(4, r.w) });
+    }
+    function deckAt(br, x, z) {   /* the bridge's deck here, or null: a gentle arch from bank to bank, well above the water */
+      const [ax, az] = br.a, [bx, bz] = br.b, vx = bx - ax, vz = bz - az, L2 = vx * vx + vz * vz;
+      const t = ((x - ax) * vx + (z - az) * vz) / L2; if (t < 0 || t > 1) return null;
+      if (Math.abs((x - ax) * vz - (z - az) * vx) / Math.sqrt(L2) > br.w / 2) return null;
+      return Math.max(br.ya + (br.yb - br.ya) * t + 0.9 * Math.sin(Math.PI * t), SEA + 1.1 * Math.sin(Math.PI * t) + 0.2 * (1 - Math.abs(2 * t - 1)));
+    }
+    /* what is walked on: the ground, and the bridges over it */
+    function walk(x, z) {
+      const f = floor(x, z);
+      for (const br of bridges) { const y = deckAt(br, x, z); if (y != null && y > f) return y; }
+      return f;
+    }
+    function height(x, z) {   /* what creatures stand on: the ground, bridges and ships' decks */
       for (const d of decks) {
         const r = d.rect; if (x < r[0] || x > r[2] || z < r[1] || z > r[3]) continue;
         return d.aftAt != null && (d.aftSign > 0 ? (d.axis === 'z' ? z : x) >= d.aftAt : (d.axis === 'z' ? z : x) <= d.aftAt) ? d.quarter : d.y;
       }
-      return floor(x, z);
+      return walk(x, z);
     }
     function weights(x, z, h) {
       const wx = x + 120 * fbm(x * 0.003 + 3, z * 0.003), wz = z + 120 * fbm(z * 0.003, x * 0.003 + 7);
@@ -141,10 +175,10 @@
       }
       return out;
     }
-    return { height, floor, weights, road, nearRoad, trees, coast, EXT, SEA, I, ROADS, RIVER, ARM };
+    return { height, floor, walk, deckAt, bridges, weights, road, nearRoad, trees, coast, EXT, SEA, I, ROADS, RIVER, ARM };
   }
 
   const terrain = { api: 1, create, I, EXT, SEA };
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('terrain', { api: 1, v: 1 }, () => terrain);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('terrain', { api: 1, v: 2 }, () => terrain);
   if (typeof module !== 'undefined') module.exports = terrain;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

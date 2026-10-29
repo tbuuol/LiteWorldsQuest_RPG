@@ -2,7 +2,7 @@
  "lwq": "module",
  "name": "level.world",
  "api": 1,
- "v": 2,
+ "v": 3,
  "data": {
   "id": "world",
   "title": "LiteWorldsQuest",
@@ -224,22 +224,6 @@
       }
      }
     ],
-    "fence": {
-     "rect": [
-      -20,
-      -20,
-      20,
-      20
-     ],
-     "gate": [
-      -2.5,
-      2.5
-     ],
-     "sign": "Blockshire",
-     "gateId": "gate",
-     "gateLabel": "Gate",
-     "gateOpen": true
-    },
     "fire": {
      "pos": [
       0,
@@ -1232,26 +1216,6 @@
      "heal": 40,
      "dmg": 35
     }
-   },
-   "spawns": {
-    "points": [
-     [
-      -10,
-      40
-     ],
-     [
-      0,
-      43
-     ],
-     [
-      10,
-      40
-     ]
-    ],
-    "every": 5,
-    "max": 30,
-    "first": 5,
-    "count": 3
    },
    "raider": {
     "name": "Raider",
