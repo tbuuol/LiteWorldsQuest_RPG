@@ -2,7 +2,7 @@
  "lwq": "module",
  "name": "level.world",
  "api": 1,
- "v": 4,
+ "v": 5,
  "data": {
   "id": "world",
   "title": "LiteWorldsQuest",
@@ -1209,8 +1209,8 @@
       "beam": 8,
       "gaps": [
        [
-        -4,
-        -1,
+        -7,
+        2,
         -1
        ]
       ]
@@ -2972,6 +2972,7 @@
        60
       ]
      ],
+     "maxMat": 0,
      "center": [
       207.2,
       -2.2
@@ -3011,6 +3012,7 @@
        175
       ]
      ],
+     "maxMat": 0,
      "center": [
       7.3,
       137.7
@@ -3175,6 +3177,7 @@
        -190
       ]
      ],
+     "maxMat": 1,
      "center": [
       255.0,
       -234.2
@@ -3308,6 +3311,7 @@
        -625
       ]
      ],
+     "maxMat": 1,
      "center": [
       118.2,
       -599.0
@@ -3531,6 +3535,7 @@
        -420
       ]
      ],
+     "maxMat": 1,
      "center": [
       441.2,
       -442.7
@@ -3612,7 +3617,7 @@
     "id": "boars",
     "npc": "mara",
     "title": "A Boar for the Pot",
-    "offer": "The stew wants meat. Four boars roam the Greenwood west of the fence. Bring them down, and I will stitch you a jerkin from the hides.",
+    "offer": "The stew wants meat. Four boars roam the meadows east and south of the village. Bring them down, and I will stitch you a jerkin from the hides.",
     "done": "That will feed the whole village! Here is your jerkin, still warm.",
     "need": {
      "kill": {
@@ -3634,7 +3639,7 @@
     "npc": "bram",
     "title": "Steel for the Gate",
     "after": "wood",
-    "offer": "Raiders test our gate every night. Go to the forge east of the square and make a weapon with your own hands.",
+    "offer": "The wilds grow bolder every night. Go to the forge east of the square and make a weapon with your own hands.",
     "done": "A fine first piece. The village is stronger for it. Take this shield; you will need it.",
     "need": {
      "make": "weapon"
@@ -3654,7 +3659,7 @@
     "npc": "pip",
     "title": "Wolves at Night",
     "after": "boars",
-    "offer": "I heard wolves howling east of the village! Three of them! Can you make them stop? Please?",
+    "offer": "I heard wolves howling in the Greenwood north of the village! Three of them! Can you make them stop? Please?",
     "done": "It is quiet now! You can have my lucky coin. It is very lucky. Mostly.",
     "need": {
      "kill": {
@@ -3676,7 +3681,7 @@
     "npc": "bram",
     "title": "The Spider Nest",
     "after": "wolves",
-    "offer": "North of the village the forest grows dark. Spiders nest there and take our herb gatherers. Kill three and bring peace back.",
+    "offer": "West of the village, deep in the Greenwood, the forest grows dark. Spiders nest there and take our herb gatherers. Kill three and bring peace back.",
     "done": "You have done Blockshire a great service. These gloves were woven from their own silk -- wear them with pride.",
     "need": {
      "kill": {
@@ -3701,7 +3706,7 @@
     "npc": "marisol",
     "giver": "Marisol",
     "title": "Crab Stew",
-    "offer": "Six shore crabs, that's all I need. West along the sand, where the cove starts. They pinch, so mind your fingers.",
+    "offer": "Six shore crabs, that's all I need. South along the sand from here, where the shore bends towards Blockshire. They pinch, so mind your fingers.",
     "done": "Look at these! Stew for the whole harbour. Here, take some sea salt for your trouble -- and a pearl I found in one.",
     "need": {
      "kill": {
@@ -3724,7 +3729,7 @@
     "giver": "Harbourmaster Ysolde",
     "title": "Songs in the Shallows",
     "after": "crabs",
-    "offer": "Sirens sing in the cove and our fishermen walk into the sea. Silence four of them before we lose another boat.",
+    "offer": "Sirens sing on the shoal off the north strand, knee-deep in the cove, and our fishermen walk into the sea. Silence four of them before we lose another boat.",
     "done": "Quiet at last. Their charms are said to sharpen the mind. Wear this one.",
     "need": {
      "kill": {
@@ -3745,7 +3750,7 @@
     "npc": "finn",
     "giver": "Old Finn",
     "title": "Rest for the Drowned",
-    "offer": "My old crew lies out by the wreck. Something won't let them rest. Put four of them back in the sand, will you?",
+    "offer": "My old crew lies on the north strand, west of the black ship's dock. Something won't let them rest. Put four of them back in the sand, will you?",
     "done": "Thank you. Here, my old sea boots. They've seen more storms than you have.",
     "need": {
      "kill": {
@@ -3767,7 +3772,7 @@
     "giver": "Harbourmaster Ysolde",
     "title": "The Black Sails",
     "after": "sirens",
-    "offer": "That ship out past the dock flies black sails. Captain Blackgill raids our boats every week. Row out with friends, board her and end him.",
+    "offer": "That ship at the old dock on the north shore flies black sails. Captain Blackgill raids our boats every week. Take the shore path with friends, board her and end him.",
     "done": "Blackgill is gone? Then Saltwind can fish in peace. Take his coat -- it suits a hero better than a thief.",
     "need": {
      "kill": {
@@ -3955,8 +3960,8 @@
     ],
     "spawn": [
      -40,
-     0.4,
-     -655
+     0.6,
+     -664
     ],
     "yaw": 3.141592653589793,
     "text": "You wake on the pirates' dock, soaked. The sea spat you back."

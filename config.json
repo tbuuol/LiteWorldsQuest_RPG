@@ -29,19 +29,19 @@
     },
     "art": {
       "file": "src/modules/art.js",
-      "v": 14,
-      "api": 1,
-      "kind": "js",
-      "id": null,
-      "gz": "39a40ecca00e55e31805c6652cdf41127560e0ceafc866be4102773c3e8f0bd6"
-    },
-    "combat": {
-      "file": "src/modules/combat.js",
       "v": 15,
       "api": 1,
       "kind": "js",
       "id": null,
-      "gz": "8e6f55ea386ccb32cb2f150fe6a3a44945501ef5c0e145474ae738a019456388"
+      "gz": null
+    },
+    "combat": {
+      "file": "src/modules/combat.js",
+      "v": 16,
+      "api": 1,
+      "kind": "js",
+      "id": null,
+      "gz": null
     },
     "rpg": {
       "file": "src/modules/rpg.js",
@@ -61,11 +61,11 @@
     },
     "terrain": {
       "file": "src/modules/terrain.js",
-      "v": 3,
+      "v": 4,
       "api": 1,
       "kind": "js",
       "id": null,
-      "gz": "8a839b139bd5b4e2624dfa215000290819140f790fc47c49f8e3de1c2d2cb8e5"
+      "gz": null
     },
     "engine": {
       "file": "src/modules/engine.js",
@@ -117,11 +117,11 @@
     },
     "world": {
       "file": "src/levels/world.json",
-      "v": 4,
+      "v": 5,
       "api": 1,
       "kind": "json",
       "id": null,
-      "gz": "5163aeb9e61de2f11efbe8b2576c1d30fecfcb6b9110fc3dc7412af0ff748e19"
+      "gz": null
     }
   },
   "page_id": "780e737befad5f1d5ee39f62a766940c67f40c43acdbfe3de6dea1be64d858c0",

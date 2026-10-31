@@ -221,6 +221,6 @@
   }
 
   const terrain = { api: 1, create, I, EXT, SEA };
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('terrain', { api: 1, v: 3 }, () => terrain);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('terrain', { api: 1, v: 4 }, () => terrain);
   if (typeof module !== 'undefined') module.exports = terrain;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

@@ -50,6 +50,7 @@
   function create(o) {
     const T = o.THREE, art = o.art, ctx = o.ctx, def = o.def || {}, scene = ctx.scene, wild = o.wild || null;
     const height = o.height || (() => 0);   /* the ground under a unit (the hills outside the village) */
+    const eyeOf = o.eye || null, FAR = o.far || 140;   /* where the camera is: creatures further than FAR are not drawn */
     const units = new Map();
     let raiderNo = 0, spawnIn = (def.spawns && def.spawns.first) || 6, seq = 0;
     /* a kind's numbers: the defaults, with what the level says over them (a raider's hp and xp) */
@@ -161,7 +162,12 @@
     function step(u, tx, tz, speed, dt, keep) {
       const dx = tx - u.x, dz = tz - u.z, d = Math.hypot(dx, dz);
       if (d <= keep) return false;
-      const k = Math.min(1, speed * dt / d); u.x += dx * k; u.z += dz * k; u.tyaw = yawTo(dx, dz);
+      const k = Math.min(1, speed * dt / d), nx = u.x + dx * k, nz = u.z + dz * k;
+      u.tyaw = yawTo(dx, dz);
+      /* a beast that does not swim stops at deep water (2026-10-31: the pirates walked off their ship over the sea and
+         onto the dock); it is still on its way, so it does not strike from where it stands */
+      if (u.beast && !u.beast.spec.swim) { const wet = (wild && wild.waterY != null ? wild.waterY : -0.75) - 0.4, h = height(nx, nz); if (h < wet && h < height(u.x, u.z)) return true; }
+      u.x = nx; u.z = nz;
       return true;
     }
     function simulate(dt, players, events) {
@@ -302,6 +308,7 @@
       const a = wild.areas[ai], r = Math.random(); let m = 0, acc = 0;
       for (let i = 0; i < MAT_ODDS.length; i++) { acc += MAT_ODDS[i]; if (r < acc) { m = i; break; } }
       if (a.mat != null) m = a.mat;   /* an area that always has the same one (a boss, a guard post) */
+      if (a.maxMat != null) m = Math.min(m, a.maxMat);   /* the first fields: young ones only (2026-10-31) */
       const at = spotIn(a);
       const u = make('b.' + a.species + '.' + m + '.' + (++beastNo % 10000), 'beast', at[0], at[1]);
       if (u) { u.area = ai; u.wt = Math.random() * 4; }
@@ -411,6 +418,8 @@
         u.c.group.position.set(u.x, y + (u.beast && u.beast.spec.swim ? Math.max(gy, wild && wild.waterY != null ? wild.waterY : -0.75) : gy), u.z);
         let d = u.tyaw - u.yaw; d = Math.atan2(Math.sin(d), Math.cos(d)); u.yaw += d * Math.min(1, dt * 8);
         u.c.group.rotation.y = u.yaw;
+        /* far off it is not drawn at all (2026-10-31: a figure is some 30 draw calls, and a hundred are out there) */
+        if (eyeOf) { const e = eyeOf(), vis = Math.hypot(u.x - e.x, u.z - e.z) < FAR; u.c.group.visible = vis; if (!vis) continue; }
         const speed = dt > 0 ? Math.hypot(u.x - ox, u.z - oz) / dt : 0;
         if (u.state === 'dead' || u.state === 'down') u.c.hold('die');
         else { u.c.hold(null); if (u.atk !== u.shown.atk) u.c.emote(u.kind === 'priest' ? 'interact-right' : 'attack-melee-right'); u.c.animate(dt, speed > 0.4 ? speed : 0); }
@@ -617,5 +626,5 @@
     return snap;
   }
   const combat = { api: 1, player, gain, nextXp, create, encode, decode };
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('combat', { api: 1, v: 15, needs: { three: 160, art: 1 } }, () => combat);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('combat', { api: 1, v: 16, needs: { three: 160, art: 1 } }, () => combat);
 })(typeof globalThis !== 'undefined' ? globalThis : this);

@@ -26,7 +26,7 @@ import subprocess
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 LEVELS = ROOT / "src" / "levels"
 OUT = LEVELS / "world.json"
-VERSION = 4
+VERSION = 5
 
 
 def probe(land: dict, points: list) -> list:
@@ -139,7 +139,7 @@ def main() -> None:
     sxl, szl = -OUT_, round(-1.2 - B / 2 - 0.2, 2)
     dock_l = {"from": [3, 0], "to": [-30, 0], "width": 2.4, "y": 0.35}
     ship_l = dict(shp["ships"][0])
-    ship_l.update({"pos": [sxl, szl], "rot": 90, "deck": D, "length": L, "beam": B, "walk": True, "gaps": [[-4, -1, -1]]})
+    ship_l.update({"pos": [sxl, szl], "rot": 90, "deck": D, "length": L, "beam": B, "walk": True, "gaps": [[-7, 2, -1]]})
     ship = BERTH.thing(ship_l)
     sx, sz = ship["pos"]
     r = BERTH.rect([sxl - L / 2, szl - B / 2, sxl + L / 2, szl + B / 2])
@@ -201,7 +201,9 @@ def main() -> None:
         cell = (x1 - x0) * (z1 - z0) / 576
         n = max(2, min(18, round(len(ok) * cell * RATE[dens])))
         home = min(ok, key=lambda q: math.hypot(q[0] - sum(p[0] for p in poly) / len(poly), q[1] - sum(p[1] for p in poly) / len(poly)))
-        areas.append({"name": name, "species": species, "density": dens, "poly": poly, "center": [round(home[0], 1), round(home[1], 1)],
+        # the first fields a new player walks into have young ones only; elsewhere where few live, no old or elder ones
+        cap = 0 if name in ("Blockshire Meadows", "South Fields") else 1 if dens == "low" else None
+        areas.append({"name": name, "species": species, "density": dens, "poly": poly, **({"maxMat": cap} if cap is not None else {}), "center": [round(home[0], 1), round(home[1], 1)],
                       "count": n, "respawn": RESPAWN[dens], "_dry": round(len(ok) / max(1, len(pts)), 2), "_m2": round(len(ok) * cell)})
     for a in shp["wild"]["areas"]:   # the crew, where they stood on their ship
         areas.append(dict(a, center=ship_xz(a["center"]), respawn=shp["wild"].get("respawn", 120)))
@@ -271,6 +273,22 @@ def main() -> None:
                 seen.add(q["id"])
                 quests.append(q)
 
+    # where things are now (2026-10-31): the quests told of the old fence, raiders at the gate, a ship out past
+    # Saltwind's dock
+    WHERE = {
+        "boars": "The stew wants meat. Four boars roam the meadows east and south of the village. Bring them down, and I will stitch you a jerkin from the hides.",
+        "forge": "The wilds grow bolder every night. Go to the forge east of the square and make a weapon with your own hands.",
+        "wolves": "I heard wolves howling in the Greenwood north of the village! Three of them! Can you make them stop? Please?",
+        "spiders": "West of the village, deep in the Greenwood, the forest grows dark. Spiders nest there and take our herb gatherers. Kill three and bring peace back.",
+        "crabs": "Six shore crabs, that's all I need. South along the sand from here, where the shore bends towards Blockshire. They pinch, so mind your fingers.",
+        "sirens": "Sirens sing on the shoal off the north strand, knee-deep in the cove, and our fishermen walk into the sea. Silence four of them before we lose another boat.",
+        "drowned": "My old crew lies on the north strand, west of the black ship's dock. Something won't let them rest. Put four of them back in the sand, will you?",
+        "captain": "That ship at the old dock on the north shore flies black sails. Captain Blackgill raids our boats every week. Take the shore path with friends, board her and end him.",
+    }
+    for q in quests:
+        if q["id"] in WHERE:
+            q["offer"] = WHERE[q["id"]]
+
     def zone(name, a, b):
         (x0, z0), (x1, z1) = I(*a), I(*b)
         return {"name": name, "rect": [min(x0, x1), min(z0, z1), max(x0, x1), max(z0, z1)]}
@@ -308,7 +326,7 @@ def main() -> None:
         "revives": [
             {"at": [0, 0], "spawn": spawn, "yaw": blk.get("spawnYaw", 0)},
             {"at": SW.at, "spawn": SW.p3(bch["spawn"]), "yaw": 0, "text": bch.get("revive")},
-            {"at": [sx, sz], "spawn": BERTH.p3([7, 0.4, 0]), "yaw": math.pi, "text": "You wake on the pirates' dock, soaked. The sea spat you back."},
+            {"at": [sx, sz], "spawn": BERTH.p3([16, 0.6, 0]), "yaw": math.pi, "text": "You wake on the pirates' dock, soaked. The sea spat you back."},
         ],
     }
     OUT.write_text(json.dumps({"lwq": "module", "name": "level.world", "api": 1, "v": VERSION, "data": world}, indent=1,

@@ -363,7 +363,7 @@
     /* --- the fight at the gate (combat module): guards, a priest, raiders out of the forest ------------------ */
     const combat = D.combat || null;
     const fight = (LV.defense || LV.wild) && combat ? combat.create({ THREE, art, ctx, def: LV.defense || {}, wild: LV.wild || null,
-      height: ctx.height }) : null;
+      height: ctx.height, eye: () => camera.position, far: PHONE ? 90 : 140 }) : null;   /* creatures beyond far are not drawn */
 
     /* everything that never moves, merged by material: hundreds of parts become a few dozen draw calls */
     for (const id in doors) if (!doors[id].pivots) doors[id].mesh.userData.keep = true;
@@ -1187,8 +1187,10 @@
     function sendBig(obj, to) { if (linked(to)) room.to([to], obj, true); }   /* whole, in one, surely, to that player only */
     /* "a raider", "an old boar" */
     const aName = (name, cap) => { const n = String(name).toLowerCase(), a = /^[aeiou]/.test(n) ? 'an ' : 'a '; return (cap ? a[0].toUpperCase() + a.slice(1) : a) + n; };
+    let wokeAt = 0;
     function hurt(d, from) {
       if (!P || P.dead || !d) return;
+      if (d > 0 && performance.now() - wokeAt < 1500) return;   /* a blow sent before you fell lands late: not on the one who just woke */
       P.hp = Math.max(0, Math.min(P.max, P.hp - d));
       if (d > 0) {
         lastHurt = performance.now();
@@ -1202,7 +1204,7 @@
         const back = rv ? rv.spawn : SPAWN;
         log((from ? aName(from, true) + ' strikes you down.' : 'You fall.') + ' ' + ((rv && rv.text) || LV.revive || 'Brother Anselm carries you back inside.'));
         setTimeout(() => {
-          P.dead = false; P.hp = P.max;
+          P.dead = false; P.hp = P.max; wokeAt = performance.now();
           me.x = prev.x = back[0]; me.y = prev.y = back[1]; me.z = prev.z = back[2]; me.vy = 0; me.yaw = rv && rv.yaw != null ? rv.yaw : LV.spawnYaw || 0;
           drawStats();
         }, 3000);

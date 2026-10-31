@@ -1253,6 +1253,34 @@
   /* A THING TO GATHER (tbuuol 2026-10-23: wood, ore and plants around Blockshire): an oak to fell, a boulder with
      copper and iron in it, a patch of herbs. Returns {use: the mesh the crosshair finds, set(spent)}: spent, the oak
      is a stump, the boulder a dull stone, the herbs gone, until it grows back. */
+  /* a group's meshes of one material made one (position, normal, uv): a thing of fifteen parts drawn in three calls */
+  function joinByMaterial(group) {
+    const by = new Map();
+    for (const m of group.children.slice()) {
+      if (!m.isMesh || m.isInstancedMesh) continue;
+      m.updateMatrix();
+      const g = (m.geometry.index ? m.geometry.toNonIndexed() : m.geometry.clone()).applyMatrix4(m.matrix);
+      if (!by.has(m.material)) by.set(m.material, { geos: [], shadow: m.castShadow });
+      by.get(m.material).geos.push(g); group.remove(m); m.geometry.dispose();
+    }
+    for (const [material, { geos, shadow }] of by) {
+      let n = 0; for (const g of geos) n += g.attributes.position.count;
+      const coloured = geos.some(g => g.attributes.color);   /* painted light (litFromAbove): kept, white where a part had none */
+      const P = new Float32Array(n * 3), N = new Float32Array(n * 3), U = new Float32Array(n * 2), C = coloured ? new Float32Array(n * 3).fill(1) : null; let at = 0;
+      for (const g of geos) {
+        const c = g.attributes.position.count;
+        P.set(g.attributes.position.array.subarray(0, c * 3), at * 3);
+        if (g.attributes.normal) N.set(g.attributes.normal.array.subarray(0, c * 3), at * 3);
+        if (g.attributes.uv) U.set(g.attributes.uv.array.subarray(0, c * 2), at * 2);
+        if (C && g.attributes.color) C.set(g.attributes.color.array.subarray(0, c * 3), at * 3);
+        at += c; g.dispose();
+      }
+      const geo = new T.BufferGeometry();
+      geo.setAttribute('position', new T.BufferAttribute(P, 3)); geo.setAttribute('normal', new T.BufferAttribute(N, 3)); geo.setAttribute('uv', new T.BufferAttribute(U, 2));
+      if (C) geo.setAttribute('color', new T.BufferAttribute(C, 3));
+      const m = new T.Mesh(geo, material); m.castShadow = shadow; m.receiveShadow = true; group.add(m);
+    }
+  }
   art.resource = function (ctx, def) {   /* def.y: the ground it stands on (out in the world's land; 0 in a place) */
     const [x, z] = def.pos, y0 = def.y || 0, g = new T.Group(), rnd = art.rng(Math.round(x * 31 + z * 17)), full = new T.Group(), left = new T.Group();
     g.add(full, left);
@@ -1284,6 +1312,7 @@
       const dirt = mesh(new T.CylinderGeometry(0.55, 0.6, 0.04, 12), plain('#5a4632')); dirt.position.y = 0.02; left.add(dirt);
       use = mesh(new T.SphereGeometry(0.7, 8, 6), new T.MeshBasicMaterial({ visible: false })); use.position.y = 0.3;
     }
+    joinByMaterial(full); joinByMaterial(left);
     g.add(use);
     g.position.set(x, y0, z); g.rotation.y = rnd() * Math.PI * 2; g.userData.keep = true; ctx.scene.add(g);
     left.visible = false;
@@ -1647,6 +1676,8 @@
                      part(new T.SphereGeometry(0.245, 14, 4, 0, Math.PI * 2, 0, Math.PI * 0.3), look.hood, head, 0, 0.17, 0.03).scale.set(1.02, 1.1, 1.1);
                      part(new T.CylinderGeometry(0.2, 0.33 * sw, 0.16, 12, 1, true), look.hood, spine, 0, 0.53, 0.01); }
     g.scale.setScalar(s);
+    /* each joint's parts of one material drawn as one (2026-10-31: a figure was some 30 draw calls); only joints move */
+    { const joints = []; g.traverse(o => { if (o.isGroup || o === g) joints.push(o); }); for (const j of joints) joinByMaterial(j); }
     const root = new T.Group(); root.add(g); root.userData.keep = true;   /* the engine places root; g moves inside it */
     /* a name over the head */
     const [nc, nx] = canvas(256); nc.height = 48; const ntex = new T.CanvasTexture(nc); ntex.colorSpace = T.SRGBColorSpace;
@@ -2094,5 +2125,5 @@
     return { groundAt, polys, segs, half, spawn, inside, stats: { buildings: buildings.length, trees: trees.length } };
   };
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('art', { api: 1, v: 14 }, () => art);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('art', { api: 1, v: 15 }, () => art);
 })(typeof globalThis !== 'undefined' ? globalThis : this);
