@@ -389,7 +389,7 @@
       '<div class="lwq-hurt"></div>' +
       '<div class="lwq-tl"></div><div class="lwq-tr"></div><div class="lwq-x">+</div><div class="lwq-prompt"></div>' +
       '<button class="lwq-mute" type="button" title="Sound on / off">🔊</button>' +
-      (TR ? '<div class="lwq-compass"><div class="lwq-compass-in"></div><i></i></div><div class="lwq-map"><canvas></canvas><div class="lwq-map-t"></div></div>' : '') +
+      (TR ? '<div class="lwq-pos"></div><div class="lwq-compass"><div class="lwq-compass-in"></div><i></i></div><div class="lwq-map"><canvas></canvas><div class="lwq-map-t"></div></div>' : '') +
       '<div class="lwq-inv"></div><div class="lwq-log"></div><div class="lwq-talk"></div>' +
       (fight ? '<div class="lwq-abil"></div><div class="lwq-stats"><span class="lwq-lv"></span><div class="lwq-bar lwq-hp"><i></i><span></span></div>' +
                '<div class="lwq-bar lwq-xp"><i></i><span></span></div></div>' : '') +
@@ -400,7 +400,7 @@
                '<button class="lwq-b lwq-b-menu" data-b="menu">☰</button>' + (TR ? '<button class="lwq-b lwq-b-map" data-b="map">🗺</button>' : '') + '</div>' : '') +
       '<div class="lwq-start"><b>' + esc(LV.title || 'LiteWorldsQuest') + '</b><br>' + (TOUCH ? 'Tap to play' : 'Click to play') + '<br>' +
       (TOUCH ? '<small>Left thumb: walk · right thumb: look · ⚔ strike · E use · ▲ jump</small></div>'
-             : '<small>WASD move · Shift run · Space jump · Mouse look · E use · F / click strike · ' + (TR ? 'M map' : 'M sound') + ' · F3 fps · Esc release mouse</small></div>');
+             : '<small>WASD move · Shift run · Space jump · Mouse look · E use · F / click strike · ' + (TR ? 'M map · P position' : 'M sound') + ' · F3 fps · Esc release mouse</small></div>');
     /* THE GATE (only direct, tbuuol 2026-10-28): the loading screen until this player is linked directly with the house
        and has its character; and where you land when the link is lost for 2 s (kicked) */
     hud.insertAdjacentHTML('beforeend', '<div class="lwq-gate"><div class="lwq-gate-t">Connecting to the arcade…</div><small class="lwq-gate-s"></small>' +
@@ -422,6 +422,7 @@
       'background:linear-gradient(90deg,rgba(0,0,0,0),rgba(20,14,6,.55) 20%,rgba(20,14,6,.55) 80%,rgba(0,0,0,0));border-radius:4px}' +
       '.lwq-compass-in{position:absolute;top:0;left:0;height:26px;white-space:nowrap;font:bold 13px/26px Georgia,serif;color:#f3e3c3;text-shadow:0 1px 2px #000}' +
       '.lwq-compass-in span{display:inline-block;width:30px;text-align:center}.lwq-compass-in span.c{color:#ffd96a;font-size:16px}' +
+      '.lwq-pos{position:absolute;left:50%;top:36px;transform:translateX(-50%);pointer-events:none;font:bold 12px/16px Georgia,serif;color:#f3e3c3;text-shadow:0 1px 2px #000;white-space:nowrap}' +
       '.lwq-compass i{position:absolute;left:50%;top:0;width:2px;height:26px;margin-left:-1px;background:#ffd96a}' +
       '.lwq-map{position:absolute;inset:0;z-index:15;display:none;align-items:center;justify-content:center;background:rgba(10,8,4,.72)}' +
       '.lwq-map canvas{max-width:94%;max-height:88%;border:6px solid #3a2610;outline:2px solid #c9a04a;box-shadow:0 8px 30px #000}' +
@@ -543,6 +544,21 @@
       }
       inner.style.transform = 'translateX(' + (150 - 15 - (16 + deg / 22.5) * 30) + 'px)';
     }
+    /* WHERE YOU ARE (tbuuol 2026-10-31: "ein Koordinatensystem damit ich dir Stellen nennen kann"): the map's squares
+       of 200 m like a chessboard -- letters west to east, numbers north to south -- and the metres (x east, z south,
+       Blockshire's middle 0 / 0) under the compass; P writes it into the log, the map (M) has the squares */
+    const SQ = 200;
+    function square(x, z) {
+      const c = Math.floor((x - TR.EXT[0]) / SQ), r = Math.floor((z - TR.EXT[1]) / SQ);
+      return String.fromCharCode(65 + Math.max(0, Math.min(25, c))) + (r + 1);
+    }
+    const whereText = () => square(me.x, me.z) + ' · ' + Math.round(me.x) + ' / ' + Math.round(me.z);
+    let posKey = '';
+    function posTick() {
+      if (!TR) return;
+      const k = whereText(); if (k === posKey) return; posKey = k;
+      $('.lwq-pos').textContent = k;
+    }
     /* THE MAP (M): the world drawn from the same terrain as the ground, once, the first time it is opened; you are
        the arrow on it */
     let mapDrawn = null;
@@ -569,6 +585,11 @@
       }
       x.putImageData(img, 0, 0);
       const P = (X, Z) => [(X - ex0) / sx, (Z - ez0) / sz];
+      /* the squares, faint, named along the top and the left */
+      x.strokeStyle = 'rgba(40,24,8,.28)'; x.lineWidth = 1; x.font = 'bold 11px Georgia, serif'; x.fillStyle = '#3a2610'; x.textAlign = 'center'; x.textBaseline = 'top';
+      for (let c = 0; ex0 + c * SQ < ex1; c++) { const [a] = P(ex0 + c * SQ, 0); x.beginPath(); x.moveTo(a, 0); x.lineTo(a, H); x.stroke(); x.fillText(String.fromCharCode(65 + c), P(ex0 + (c + 0.5) * SQ, 0)[0], 3); }
+      x.textAlign = 'left'; x.textBaseline = 'middle';
+      for (let r = 0; ez0 + r * SQ < ez1; r++) { const b = P(0, ez0 + r * SQ)[1]; x.beginPath(); x.moveTo(0, b); x.lineTo(W, b); x.stroke(); x.fillText(String(r + 1), 4, P(0, ez0 + (r + 0.5) * SQ)[1]); }
       x.lineCap = x.lineJoin = 'round';
       for (const r of TR.ROADS) { x.strokeStyle = '#6a4a26'; x.lineWidth = 3.5; x.beginPath(); r.pts.forEach((q, n) => { const [a, b] = P(q[0], q[1]); n ? x.lineTo(a, b) : x.moveTo(a, b); }); x.stroke(); x.strokeStyle = '#e2c27e'; x.lineWidth = 1.8; x.stroke(); }
       x.font = 'bold 13px Georgia, serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
@@ -586,7 +607,7 @@
       $('.lwq-map').style.display = mapOpen ? 'flex' : 'none';
       if (!mapOpen) return;
       try { document.exitPointerLock(); } catch (e) { /* not locked */ }
-      $('.lwq-map-t').textContent = 'The world — M to close';
+      $('.lwq-map-t').textContent = 'The world — you are at ' + whereText() + ' — M to close';
       if (!mapDrawn) mapP = drawMap().P;
       mapTick(true);
     }
@@ -670,6 +691,7 @@
       if (down && (e.code === 'KeyI' || e.code === 'Tab') && !e.repeat && menu) { e.preventDefault(); toggleMenu(); }
       if (down && e.code === 'F3') { showFps = !showFps; drawNet(); e.preventDefault(); }
       if (down && e.code === 'KeyM' && !e.repeat) { if (TR) toggleMap(); else if (sound) muteSound(); }
+      if (down && e.code === 'KeyP' && !e.repeat && TR) log('You are at ' + whereText() + (zoneNow ? ', ' + zoneNow : '') + '.');
       if (down && e.code === 'Space') e.preventDefault();
     };
     on(document, 'keydown', onKey(true));
@@ -1747,7 +1769,7 @@
       const t = now / 1000, fdt = Math.min(dt, 0.1);
       if (!iAmHouse) for (const fn of updates) fn(fdt, t);   /* flames, smoke, water: nothing the house needs */
       npcTick(fdt, t);
-      if (!iAmHouse) { gateTick(now); if (live()) portalTick(); zoneTick(); drawAbilities(); compassTick(); if (mapOpen && now - (mapT || 0) > 200) { mapT = now; mapTick(); } }
+      if (!iAmHouse) { gateTick(now); if (live()) portalTick(); zoneTick(); drawAbilities(); compassTick(); posTick(); if (mapOpen && now - (mapT || 0) > 200) { mapT = now; mapTick(); } }
       if (env && !iAmHouse) env.update(fdt, t, camera.position);
       if (land && !iAmHouse) land.update(camera.position);
       /* things to gather out in the land are drawn near you only: there are a hundred and more, each a few meshes */
@@ -1865,6 +1887,6 @@
     };
   }
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 27, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 28, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
     D => ({ start: (el, opts) => start(D, el, opts) }));
 })(typeof globalThis !== 'undefined' ? globalThis : this);

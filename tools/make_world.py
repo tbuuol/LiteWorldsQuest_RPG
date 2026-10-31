@@ -110,6 +110,10 @@ def main() -> None:
     if blk.get("forest", {}).get("trees"):   # the village's own few trees, placed by hand
         blockshire["forest_trees"] = blk["forest"]["trees"]
     blockshire["lift"] = LIFT
+    # the old zone's ground was an invisible slab of 300 x 300 m; lifted with the village it became a floor at 14 m
+    # over everything round Blockshire, under the land and above it (2026-10-31: walking on air, invisible steps).
+    # The terrain is the ground now.
+    blockshire["solids"] = [s for s in blockshire.get("solids", []) if max((s.get("size") or [0])[0], (s.get("size") or [0, 0, 0])[2]) < 60]
 
     # ---- Saltwind: the Beach's village turned so its sea lies west, on the bay's east shore ---------------------
     SW = Place([242, -460], turn=90)   # the Beach's shore (its z -18) falls on the bay's shore (x 224)

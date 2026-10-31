@@ -48,7 +48,7 @@
   const ROADS = [{ pts: ROUTE, w: 6 }].concat([
     [[930, 470], [1060, 500], [1180, 520], [1290, 540]], [[1290, 540], [1320, 620], [1340, 700], [1350, 790]],
     [[1350, 790], [1260, 800], [1170, 790], [1080, 780]], [[745, 280], [790, 230], [760, 175], [800, 135], [780, 100], [815, 75]],
-    [[458, 628], [478, 570], [502, 526], [560, 470], [590, 425]], [[300, 790], [400, 800], [520, 790], [640, 775], [680, 765]],
+    [[458, 628], [478, 570], [540, 560], [548, 500], [560, 470], [590, 425]], [[300, 790], [400, 800], [520, 790], [640, 775], [680, 765]],
     [[392, 462], [350, 474], [310, 470], [282, 464]]   /* down to the Pirate Ship's dock (2026-10-31) */
   ].map((p, i) => ({ pts: px(p), w: [5, 4, 4, 3, 3, 5, 3][i] })));
   const EXT = [...I(0, 0), ...I(1536, 1024)];
@@ -146,13 +146,18 @@
       const den = (bx - ax) * (dz - cz) - (bz - az) * (dx - cx); if (Math.abs(den) < 1e-9) continue;
       const u = ((cx - ax) * (dz - cz) - (cz - az) * (dx - cx)) / den, v = ((cx - ax) * (bz - az) - (cz - az) * (bx - ax)) / den;
       if (u < 0 || u > 1 || v < 0 || v > 1) continue;
-      const mx = ax + (bx - ax) * u, mz = az + (bz - az) * u, L = Math.hypot(bx - ax, bz - az), ux = (bx - ax) / L, uz = (bz - az) / L;
+      /* straight across the river, not along the road: a road that bends at the water left the bridge pointing one way
+         and the road the other, over the water (2026-10-31: no way onto the Goblin Island) */
+      const mx = ax + (bx - ax) * u, mz = az + (bz - az) * u, RL = Math.hypot(dx - cx, dz - cz);
+      let ux = -(dz - cz) / RL, uz = (dx - cx) / RL;
+      if (ux * (bx - ax) + uz * (bz - az) < 0) { ux = -ux; uz = -uz; }
       const w = w0 + (w1 - w0) * ((j + v) / (R.length - 1));
       let half = w + 4;
       while (half < w + 30 && (floor(mx - ux * half, mz - uz * half) < 0.4 || floor(mx + ux * half, mz + uz * half) < 0.4)) half += 1;
+      half += 3;   /* onto the land a little, so a step off the middle is on the bridge or on dry ground, never in the water */
       const A = [mx - ux * half, mz - uz * half], B = [mx + ux * half, mz + uz * half];
       if (bridges.some(o => Math.hypot((o.a[0] + o.b[0]) / 2 - mx, (o.a[1] + o.b[1]) / 2 - mz) < 15)) continue;   /* one bridge a crossing (where two bends of the river meet the road) */
-      bridges.push({ a: A, b: B, ya: floor(A[0], A[1]), yb: floor(B[0], B[1]), w: Math.max(4, r.w) });
+      bridges.push({ a: A, b: B, ya: floor(A[0], A[1]), yb: floor(B[0], B[1]), w: Math.max(6, r.w + 2) });
     }
     function deckAt(br, x, z) {   /* the bridge's deck here, or null: a gentle arch from bank to bank, well above the water */
       const [ax, az] = br.a, [bx, bz] = br.b, vx = bx - ax, vz = bz - az, L2 = vx * vx + vz * vz;

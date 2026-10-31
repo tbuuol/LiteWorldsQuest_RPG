@@ -154,22 +154,7 @@
   },
   "places": [
    {
-    "solids": [
-     {
-      "pos": [
-       0,
-       -0.25,
-       0
-      ],
-      "size": [
-       300,
-       0.5,
-       300
-      ],
-      "invisible": true,
-      "floor": true
-     }
-    ],
+    "solids": [],
     "huts": [
      {
       "id": "elder",
@@ -2203,13 +2188,22 @@
        "id": "w.tree.108",
        "kind": "tree",
        "pos": [
+        460.3,
+        -580.3
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.tree.109",
+       "kind": "tree",
+       "pos": [
         661.2,
         -578.1
        ],
        "ground": true
       },
       {
-       "id": "w.tree.109",
+       "id": "w.tree.110",
        "kind": "tree",
        "pos": [
         422.4,
@@ -2218,7 +2212,7 @@
        "ground": true
       },
       {
-       "id": "w.tree.110",
+       "id": "w.tree.111",
        "kind": "tree",
        "pos": [
         429.3,
@@ -2227,20 +2221,11 @@
        "ground": true
       },
       {
-       "id": "w.tree.111",
+       "id": "w.tree.112",
        "kind": "tree",
        "pos": [
         600.0,
         -748.6
-       ],
-       "ground": true
-      },
-      {
-       "id": "w.tree.112",
-       "kind": "tree",
-       "pos": [
-        521.6,
-        -637.5
        ],
        "ground": true
       },
