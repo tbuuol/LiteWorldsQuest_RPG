@@ -172,11 +172,11 @@ def main() -> None:
         ["Greenwood South-West", "wolf", "mid", [[-420, 110], [-260, 90], [-170, 120], [-200, 190], [-330, 210], [-430, 170]]],
         ["Greenwood Deep", "spider", "high", [[-470, -100], [-330, -160], [-220, -140], [-180, -40], [-240, 60], [-380, 90], [-480, 30]]],
         ["Roadside Woods", "wolf", "low", [[130, -130], [250, -160], [340, -230], [370, -330], [310, -330], [250, -260], [140, -190]]],
-        # the beach: crabs along the shores, sirens in the cove, the drowned on the far strand
+        # the beach: crabs along the shores, sirens on the cove's shoal (knee-deep: terrain.js SHOAL), the drowned on the strand
         ["Saltwind Shore", "crab", "mid", [[95, -265], [140, -215], [190, -240], [245, -300], [260, -400], [230, -415], [210, -365], [150, -300]]],
         ["Bay Shore", "crab", "mid", [[-300, -225], [-80, -245], [100, -280], [115, -240], [-80, -185], [-300, -170]]],
         ["North Shore", "crab", "low", [[20, -690], [120, -650], [200, -600], [225, -520], [190, -500], [130, -570], [60, -610], [20, -625]]],
-        ["Mermaid Cove", "siren", "mid", [[-200, -480], [-80, -500], [-20, -440], [-50, -370], [-170, -360], [-220, -420]]],
+        ["Mermaid Cove", "siren", "mid", [[round(-170 + 52 * math.cos(k * math.pi / 5), 1), round(-622 + 46 * math.sin(k * math.pi / 5), 1)] for k in range(10)]],
         ["Drowned Strand", "drowned", "mid", [[-270, -740], [-150, -725], [-80, -700], [-90, -655], [-160, -668], [-270, -690]]],
         # the Goblin Village's island, its camp, and scouts across the bridge
         ["Goblin Island", "goblin", "mid", [[500, -790], [380, -735], [350, -630], [420, -560], [600, -525], [700, -545], [760, -605], [775, -700], [735, -780], [650, -805]]],

@@ -52,6 +52,7 @@
     [[392, 462], [350, 474], [310, 470], [282, 464]]   /* down to the Pirate Ship's dock (2026-10-31) */
   ].map((p, i) => ({ pts: px(p), w: [5, 4, 4, 3, 3, 5, 3][i] })));
   const EXT = [...I(0, 0), ...I(1536, 1024)];
+  const SHOAL = [-170, -630, 70];   /* [x, z, radius]: Mermaid Cove's shallows */
 
   function create(opts) {
     opts = opts || {};
@@ -71,6 +72,9 @@
       const c = coast(x, z);
       let h;
       if (c < 0) h = -0.5 - 9 * Math.min(1, -c / 70);
+      /* MERMAID COVE's shoal (tbuuol 2026-10-31: the sirens must be reachable): knee-deep sand off the north strand,
+         walked on from the beach, falling away to the bay over its last 20 m */
+      if (c < 0) { const k = smooth((SHOAL[2] - Math.hypot(x - SHOAL[0], z - SHOAL[1])) / 20); if (k > 0) h = h * (1 - k) - 0.75 * k; }
       else {
         h = 8 + 4 * Math.sin(x * 0.005 + 1) * Math.cos(z * 0.006) + 3 * fbm(x * 0.03, z * 0.03);
         const v = near(x, z, 470, 240, 170); h = h * (1 - v) + (4 + 1.5 * fbm(x * 0.02, z * 0.02)) * v;   /* the Valley */
@@ -208,7 +212,7 @@
       }
       return out;
     }
-    return { height, floor, ground, river, walk, deckAt, bridges, weights, road, nearRoad, trees, coast, EXT, SEA, I, ROADS, RIVER, ARM };
+    return { height, floor, ground, river, walk, SHOAL, deckAt, bridges, weights, road, nearRoad, trees, coast, EXT, SEA, I, ROADS, RIVER, ARM };
   }
 
   const terrain = { api: 1, create, I, EXT, SEA };
