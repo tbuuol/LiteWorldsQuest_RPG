@@ -2,7 +2,9 @@
    the map is painted with (design/mapgen/world2.js), so the map and the game can never disagree.
      const T = terrain.create({pads, decks})
      T.height(x, z)    the ground, and a ship's decks where they are (what creatures stand on)
-     T.floor(x, z)     the ground alone (what the ground mesh, trees and players use; decks are solid boxes)
+     T.floor(x, z)     the ground alone, exact (what the ground mesh is made of, at its 2 m grid's points)
+     T.ground(x, z)    the ground as the mesh draws it, between those points too (what is walked on and stood on)
+     T.walk(x, z)      the ground and the bridges
      T.weights(x,z,h)  how much of each kind of land is here: {green, valley, troll, fey, ruins, cemetery, swamp, mountain}
      T.road(x, z)      0..1, how much of a road is here
      T.trees(x0, z0, x1, z1)   the trees of a rectangle, the same for everybody: [[x, z, scale, kind], ...]
@@ -37,12 +39,15 @@
   const RIVER = px([[615, 0], [596, 80], [598, 160], [648, 245], [688, 318], [645, 372], [552, 382], [468, 418], [452, 478], [502, 526],
                     [600, 548], [700, 572], [782, 632], [848, 690], [888, 778], [880, 880], [872, 960]]);
   const ARM = px([[645, 372], [690, 405], [702, 450], [680, 505], [640, 540], [600, 548]]);
-  const ROUTE = px([[300, 790], [322, 735], [352, 668], [425, 612], [430, 562], [422, 505], [392, 462], [362, 420], [345, 370], [395, 300], [470, 255],
+  const WATERS = [[RIVER, 5, 10], [ARM, 5, 6]];   /* [line, half width at its start, at its end] */
+  /* the road from Blockshire to the beach keeps well inland (tbuuol 2026-10-31: it ran through the sea) and comes to
+     Saltwind from the land side */
+  const ROUTE = px([[300, 790], [332, 738], [380, 700], [428, 668], [458, 628], [452, 590], [432, 562], [436, 528], [422, 505], [392, 462], [362, 420], [345, 370], [395, 300], [470, 255],
                     [560, 225], [612, 205], [680, 225], [745, 280], [790, 330], [850, 395], [930, 470], [1010, 430], [1080, 360], [1150, 300], [1210, 270]]);
   const ROADS = [{ pts: ROUTE, w: 6 }].concat([
     [[930, 470], [1060, 500], [1180, 520], [1290, 540]], [[1290, 540], [1320, 620], [1340, 700], [1350, 790]],
     [[1350, 790], [1260, 800], [1170, 790], [1080, 780]], [[745, 280], [790, 230], [760, 175], [800, 135], [780, 100], [815, 75]],
-    [[425, 612], [465, 560], [502, 526], [560, 470], [590, 425]], [[300, 790], [400, 800], [520, 790], [640, 775], [680, 765]]
+    [[458, 628], [478, 570], [502, 526], [560, 470], [590, 425]], [[300, 790], [400, 800], [520, 790], [640, 775], [680, 765]]
   ].map((p, i) => ({ pts: px(p), w: [5, 4, 4, 3, 3, 5][i] })));
   const EXT = [...I(0, 0), ...I(1536, 1024)];
 
@@ -89,22 +94,48 @@
         if (k > 0) h = h * (1 - k) + p.y * k;
       }
       /* the river and its arm: a deep bed, a steep bank of 3 m to a strip just above the water, then the land (the
-         first world's 14 m of gentle bank let you walk down into the water and climb out again and again) */
-      for (const [R, w0, w1] of [[RIVER, 5, 10], [ARM, 5, 6]]) {
+         first world's 14 m of gentle bank let you walk down into the water and climb out again and again). Each cuts
+         the land as it was, and the lowest cut wins: the arm's bank used to fill the river back up where the two
+         meet, two dams across it (tbuuol 2026-10-31: "Stellen an denen der Fluss unterbrochen ist") */
+      let cut = null;
+      for (const [R, w0, w1] of WATERS) {
         const [d, t] = segDist(x, z, R), w = w0 + (w1 - w0) * t;
-        if (d < w + 18) {
-          const edge = 0.15;
-          if (d < w) h = -2.6;
-          else if (d < w + 3) h = -2.6 + (edge + 2.6) * smooth((d - w) / 3);
-          else { const k = smooth((d - w - 3) / 15); h = edge + (Math.max(h, edge) - edge) * k; }
-        }
+        if (d >= w + 18) continue;
+        const edge = 0.15;
+        let k;
+        if (d < w) k = -2.6;
+        else if (d < w + 3) k = -2.6 + (edge + 2.6) * smooth((d - w) / 3);
+        else k = edge + (Math.max(h, edge) - edge) * smooth((d - w - 3) / 15);
+        cut = cut == null ? k : Math.min(cut, k);
       }
+      if (cut != null) h = cut;
       return h;
+    }
+    /* THE GROUND AS IT IS DRAWN (tbuuol 2026-10-31: "map und Collider sollten 1:1 gleich sein"): the land's mesh is
+       floor() on a 2 m grid, two triangles a square (three.js' PlaneGeometry: the diagonal from the square's south-west
+       corner to its north-east one), so walking reads the very same triangles. floor() between the grid's points was
+       up to 8 m off the mesh on a cliff: steps nobody could see. */
+    const GRID = 2, nodes = new Map();
+    function node(ix, iz) {
+      const k = ix * 65536 + iz; let h = nodes.get(k);
+      if (h === undefined) { if (nodes.size > 250000) nodes.clear(); h = floor(ix * GRID, iz * GRID); nodes.set(k, h); }
+      return h;
+    }
+    function ground(x, z) {
+      const ix = Math.floor(x / GRID), iz = Math.floor(z / GRID), u = x / GRID - ix, v = z / GRID - iz;
+      if (u + v <= 1) { const a = node(ix, iz); return a + (node(ix + 1, iz) - a) * u + (node(ix, iz + 1) - a) * v; }
+      const c = node(ix + 1, iz + 1); return c + (node(ix, iz + 1) - c) * (1 - u) + (node(ix + 1, iz) - c) * (1 - v);
+    }
+    /* metres from the river's or the arm's water (- in it): the far land paints the river from it */
+    function river(x, z) {
+      let best = 1e9;
+      for (const [R, w0, w1] of WATERS) { const [d, t] = segDist(x, z, R); best = Math.min(best, d - (w0 + (w1 - w0) * t)); }
+      return best;
     }
     /* BRIDGES: wherever a road crosses the river, a wooden deck from bank to bank (it is walked; the ground under it
        stays the river's) */
     const bridges = [];
-    for (const r of ROADS) for (let i = 0; i < r.pts.length - 1; i++) for (const [R, w0, w1] of [[RIVER, 5, 10], [ARM, 5, 6]]) for (let j = 0; j < R.length - 1; j++) {
+    for (const r of ROADS) for (let i = 0; i < r.pts.length - 1; i++) for (const [R, w0, w1] of WATERS) for (let j = 0; j < R.length - 1; j++) {
       const [ax, az] = r.pts[i], [bx, bz] = r.pts[i + 1], [cx, cz] = R[j], [dx, dz] = R[j + 1];
       const den = (bx - ax) * (dz - cz) - (bz - az) * (dx - cx); if (Math.abs(den) < 1e-9) continue;
       const u = ((cx - ax) * (dz - cz) - (cz - az) * (dx - cx)) / den, v = ((cx - ax) * (bz - az) - (cz - az) * (bx - ax)) / den;
@@ -125,7 +156,7 @@
     }
     /* what is walked on: the ground, and the bridges over it */
     function walk(x, z) {
-      const f = floor(x, z);
+      const f = ground(x, z);
       for (const br of bridges) { const y = deckAt(br, x, z); if (y != null && y > f) return y; }
       return f;
     }
@@ -175,10 +206,10 @@
       }
       return out;
     }
-    return { height, floor, walk, deckAt, bridges, weights, road, nearRoad, trees, coast, EXT, SEA, I, ROADS, RIVER, ARM };
+    return { height, floor, ground, river, walk, deckAt, bridges, weights, road, nearRoad, trees, coast, EXT, SEA, I, ROADS, RIVER, ARM };
   }
 
   const terrain = { api: 1, create, I, EXT, SEA };
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('terrain', { api: 1, v: 2 }, () => terrain);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('terrain', { api: 1, v: 3 }, () => terrain);
   if (typeof module !== 'undefined') module.exports = terrain;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

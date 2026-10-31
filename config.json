@@ -29,11 +29,11 @@
     },
     "art": {
       "file": "src/modules/art.js",
-      "v": 13,
+      "v": 14,
       "api": 1,
       "kind": "js",
       "id": null,
-      "gz": "5c1915b1264057c70dc5811cf19bc409cd0a43cf5d356917e3dae8f133d4f05d"
+      "gz": null
     },
     "combat": {
       "file": "src/modules/combat.js",
@@ -61,11 +61,11 @@
     },
     "terrain": {
       "file": "src/modules/terrain.js",
-      "v": 2,
+      "v": 3,
       "api": 1,
       "kind": "js",
       "id": null,
-      "gz": "779caa7efd79c3fd0ae62455c46d72cc1733c336cc7b6f9863ba8a3dea276e1c"
+      "gz": null
     },
     "engine": {
       "file": "src/modules/engine.js",

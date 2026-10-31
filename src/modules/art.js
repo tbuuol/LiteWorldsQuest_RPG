@@ -905,7 +905,7 @@
       }
       /* the trees (full near the eye, a few triangles further off), and their trunks in the way */
       const list = TR.trees(x0, z0, x0 + CH, z0 + CH), solids = [];
-      for (const t of list) { const y = TR.floor(t[0], t[1]); solids.push({ min: [t[0] - 0.35, y - 1, t[1] - 0.35], max: [t[0] + 0.35, y + 3, t[1] + 0.35], on: () => true }); }
+      for (const t of list) { const y = (TR.ground || TR.floor)(t[0], t[1]); solids.push({ min: [t[0] - 0.35, y - 1, t[1] - 0.35], max: [t[0] + 0.35, y + 3, t[1] + 0.35], on: () => true }); }
       ctx.scene.add(group);
       return { group, solids, i, j, list, trees: null, near: null };
     }
@@ -913,7 +913,7 @@
       if (ch.near === near) return;
       if (ch.trees) { ch.group.remove(ch.trees); free(ch.trees); }
       ch.near = near;
-      ch.trees = !ch.list.length ? null : near ? art.trees(Object.assign({}, ctx, { scene: ch.group }), ch.list, TR.floor) : art.farTrees(Object.assign({}, ctx, { scene: ch.group }), ch.list, TR.floor);
+      ch.trees = !ch.list.length ? null : near ? art.trees(Object.assign({}, ctx, { scene: ch.group }), ch.list, TR.ground || TR.floor) : art.farTrees(Object.assign({}, ctx, { scene: ch.group }), ch.list, TR.ground || TR.floor);
     }
     function free(group) {   /* a square's meshes off the graphics card; the tree shapes made once are kept */
       const shared = new Set(Object.values(TREEGEO).concat(Object.values(FARTREE), palmGeo ? [palmGeo.trunk, palmGeo.crown, palmGeo.coco] : []));
@@ -921,12 +921,13 @@
     }
     function drop(ch) { ctx.scene.remove(ch.group); free(ch.group); }
     /* the far land: the whole world, coarse, drawn only beyond the near squares (and through no fog: the mountains far off) */
-    const [ex0, ez0, ex1, ez1] = TR.EXT, FS = 24, fw = Math.round((ex1 - ex0) / FS), fd = Math.round((ez1 - ez0) / FS);
+    const [ex0, ez0, ex1, ez1] = TR.EXT, FS = 12, fw = Math.round((ex1 - ex0) / FS), fd = Math.round((ez1 - ez0) / FS);
     const fg = new T.PlaneGeometry(ex1 - ex0, ez1 - ez0, fw, fd); fg.rotateX(-Math.PI / 2); fg.translate((ex0 + ex1) / 2, 0, (ez0 + ez1) / 2);
     { const fp = fg.attributes.position, fc = new Float32Array(fp.count * 3), c = new T.Color();
       for (let n = 0; n < fp.count; n++) {
         const x = fp.getX(n), z = fp.getZ(n), h = TR.floor(x, z);
-        if (h < SEA) { fp.setY(n, SEA - 0.6); c.copy(DEEP); } else { fp.setY(n, h - 2.5); colour(x, z, h, 0, c); }
+        /* the river wider than it is, so a grid this coarse never drops it (it was patchy far off: 2026-10-31) */
+        if (h < SEA || (TR.river && TR.river(x, z) < FS * 0.6)) { fp.setY(n, SEA - 0.6); c.copy(DEEP); } else { fp.setY(n, h - 2.5); colour(x, z, h, 0, c); }
         fc[n * 3] = c.r; fc[n * 3 + 1] = c.g; fc[n * 3 + 2] = c.b;
       }
       fg.setAttribute('color', new T.BufferAttribute(fc, 3)); fg.computeVertexNormals(); }
@@ -1983,5 +1984,5 @@
     return { groundAt, polys, segs, half, spawn, inside, stats: { buildings: buildings.length, trees: trees.length } };
   };
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('art', { api: 1, v: 13 }, () => art);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('art', { api: 1, v: 14 }, () => art);
 })(typeof globalThis !== 'undefined' ? globalThis : this);
