@@ -3,11 +3,12 @@
 zusammen ein"). arcade-publish puts one file on the chain per run, and a file of several pieces waits one block for
 its own split before its pieces can go -- an update of five files and a registry waited six blocks. Here:
 
-  1. ONE split for every piece of every file AND of the registry (whose size is known before the ids are: an id is
-     always 64 hex digits, so it is planned with stand-ins);
-  2. one block;
-  3. every piece of every file at once; then the registry, built with the real ids, from its outputs of the same
-     split -- no second wait.
+  1. the pieces of every file AND of the registry (whose size is known before the ids are: an id is always 64 hex
+     digits, so it is planned with stand-ins) packed into packages of at most 95 kB, each with a split of its own
+     paid from coins of its own that are in a block already (tbuuol 2026-10-31: "Updates größer als 95kB kannst du ja
+     auch in 95kB chunks einschreiben"): the relay carries ~101 kB under one unconfirmed transaction, so every package
+     goes at once, no block waited for. Too few such coins: one split for all, and one block;
+  2. every piece of every file at once; then the registry, built with the real ids, once every module is served.
 
 The same building blocks as arcade-publish (arcade.publish: Key, Publisher, build, payload_outputs; arcade.inscribe:
 plan, piece_size; arcade.funding: build_one), used as they are; the arcade's code is not changed. What went out is
@@ -51,6 +52,8 @@ PACKAGE_MAX = 95_000
 #: Where players' pages fetch the modules from. A page that finds the new registry but not yet its modules falls back
 #: to the copies baked into it -- an old engine (2026-10-29, v21: the house came up with engine 8 and the world stayed
 #: offline): the registry goes out only once every one of these serves every module, byte for byte.
+#: Cloudflare in front of pages.pepecoinarcade.com refuses Python-urllib (403, 2026-10-31): the check asks as a browser
+UA = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) lwq-publish"}
 SERVED_BY = ["http://127.0.0.1:8420", "https://pages.pepecoinarcade.com", "https://pages.dogecoinarcade.com"]
 
 
@@ -132,28 +135,70 @@ def main() -> int:
             pub.coins.note(unsigned, got)
             return got
 
-        # 1. one split for all
-        if not J["split"] or pub._confirmations(J["split"]) is None:
-            outputs, layout, at = [], {}, 0
+        # 1. the splits: every piece's size (signed against a stand-in coin), the pieces packed into packages of at most
+        # PACKAGE_MAX, a split for each paid from confirmed coins no other split uses (a split paid with another's
+        # unconfirmed change would hang under it, and the relay would count both packages as one)
+        if J.get("split") and not J.get("splits"):   # a journal from before the packages
+            J["splits"] = [J["split"]]
+            for name, lay in J["layout"].items():
+                lay["spots"] = [[0, lay["at"] + n] for n in range(lay["n"])]
+        if not J.get("splits") or any(pub._confirmations(t) is None for t in J["splits"]):
+            sizes = {}
             for it in everything:
                 piece = inscribelib.piece_size(it["plan"])
-                layout[it["name"]] = {"at": at, "n": it["plan"].chunks, "piece": piece}
-                outputs += [(piece, p2pkh_script(address))] * it["plan"].chunks
-                at += it["plan"].chunks
-            unsigned = build(address, pub.coins.unspent(), outputs, pub.rate, f"one split for the update to registry v{V}")
-            total_fee = unsigned.fee + sum(o[0] for o in outputs)
-            say(f"{len(everything)} files, {at} pieces, one split; it and the pieces cost about {total_fee / fees.COIN:.4f}")
+                sizes[it["name"]] = (piece, [])
+                for body in it["plan"].payloads:
+                    coin = {"txid": STANDIN, "vout": 0, "value": piece, "address": address}
+                    un = funding.build_one(params, address, coin, payload_outputs(params, address, key.pubkey, body), pub.rate, "its size")
+                    sizes[it["name"]][1].append(len(sign(un)[0]) // 2)
+            packs, cur, cur_b = [], [], 0
+            for it in everything:
+                for n, b in enumerate(sizes[it["name"]][1]):
+                    if cur and cur_b + b + 34 > PACKAGE_MAX - 600:   # (600: a split's own inputs and change)
+                        packs.append(cur)
+                        cur, cur_b = [], 0
+                    cur.append((it["name"], n))
+                    cur_b += b + 34
+            packs.append(cur)
+            def fund(packs, pool):
+                """[(unsigned split, [(name, n), ...])] or None when the coins do not stretch to a split each"""
+                out = []
+                for pk in packs:
+                    outputs = [(sizes[name][0], p2pkh_script(address)) for name, n in pk]
+                    try:
+                        un = build(address, pool, outputs, pub.rate, f"split {len(out) + 1} of {len(packs)} for the update to registry v{V}")
+                    except Exception:   # noqa: BLE001 -- not enough
+                        return None
+                    used = {(c["txid"], c["vout"]) for c in un.inputs}
+                    pool = [c for c in pool if (c["txid"], c["vout"]) not in used]
+                    out.append((un, pk))
+                return out
+            plan_ = fund(packs, list(pub.coins.confirmed())) if len(packs) > 1 else None
+            if plan_ is None:   # one split for all (and one block, if it is big)
+                packs = [[(it["name"], n) for it in everything for n in range(it["plan"].chunks)]]
+                plan_ = fund(packs, pub.coins.unspent())
+                if plan_ is None:
+                    raise PublishError("not enough coins for the update")
+            total = sum(un.fee + sum(o[0] for o in un.outputs[:len(pk)]) for un, pk in plan_)
+            npieces = sum(len(pk) for _, pk in plan_)
+            say(f"{len(everything)} files, {npieces} pieces, {len(plan_)} split(s); they and the pieces cost about {total / fees.COIN:.4f}")
             for it in everything:
                 say(f"  {it['name']}: {it['plan'].chunks} piece(s)")
+            for k, (un, pk) in enumerate(plan_):
+                say(f"  package {k + 1}: {len(pk)} pieces, about {(sum(sizes[name][1][n] for name, n in pk) + 600) // 1000} kB")
             if args.dry:
                 return 0
-            J["layout"] = layout
-            J["pieces"] = {}
-            raw, txid = sign(unsigned)
-            J["split_bytes"] = len(raw) // 2
-            J["split"] = send(raw, unsigned, txid)
-            save()
-            say("split:", J["split"])
+            J["splits"], J["pieces"], J["layout"], J["split_bytes"] = [], {}, {}, []
+            for it in everything:
+                J["layout"][it["name"]] = {"n": it["plan"].chunks, "piece": sizes[it["name"]][0], "spots": [None] * it["plan"].chunks}
+            for k, (un, pk) in enumerate(plan_):
+                for vout, (name, n) in enumerate(pk):
+                    J["layout"][name]["spots"][n] = [k, vout]
+                raw, txid = sign(un)
+                J["split_bytes"].append(len(raw) // 2)
+                J["splits"].append(send(raw, un, txid))
+                save()
+                say(f"split {k + 1}:", J["splits"][-1])
 
         def prepare(name: str, pl) -> list:
             """Every piece of a file signed, not sent yet: [(n, raw, txid, unsigned)]; a piece sent before keeps its txid."""
@@ -165,7 +210,8 @@ def main() -> int:
                 if str(n) in done:
                     out.append((n, None, done[str(n)], None))
                     continue
-                coin = {"txid": J["split"], "vout": lay["at"] + n, "value": lay["piece"], "address": address}
+                k, vout = lay["spots"][n]
+                coin = {"txid": J["splits"][k], "vout": vout, "value": lay["piece"], "address": address}
                 outs = payload_outputs(params, address, key.pubkey, body)
                 unsigned = funding.build_one(params, address, coin, outs, pub.rate, f"piece {n + 1} of {pl.chunks} of {name}")
                 raw, txid = sign(unsigned)
@@ -183,14 +229,24 @@ def main() -> int:
         rplan = inscribelib.plan(real, "application/json", real.decode(), inscription_id=bytes.fromhex(rtag))
         (ROOT / f"dist/release/registry-v{V}.min.json").write_bytes(real)
         ready[reg_name] = prepare(reg_name, rplan)
-        # 3. at once if the whole package fits under the unconfirmed split; else after its block
-        package = J.get("split_bytes", 0) + sum(len(raw) // 2 for pieces in ready.values() for _, raw, _, _ in pieces if raw)
-        if package > PACKAGE_MAX and pub._confirmations(J["split"]) < 1:
-            say(f"the package is {package // 1000} kB, more than the {PACKAGE_MAX // 1000} kB the relay carries under an unconfirmed split: waiting one block …")
-            pub.wait_for(J["split"])
-            say("the split is in a block")
-        else:
-            say(f"the package is {package // 1000} kB: every piece goes now")
+        # 3. each package at once if it fits under its unconfirmed split (it does, but for the one-split fallback); else
+        # after that split's block
+        byk = {}
+        for name, pieces in ready.items():
+            for n, raw, _, _ in pieces:
+                if raw:
+                    k = J["layout"][name]["spots"][n][0]
+                    byk[k] = byk.get(k, 0) + len(raw) // 2
+        sb = J.get("split_bytes") or []
+        sb = sb if isinstance(sb, list) else [sb]
+        for k, b in byk.items():
+            package = b + (sb[k] if k < len(sb) else 0)
+            if package > PACKAGE_MAX and pub._confirmations(J["splits"][k]) < 1:
+                say(f"package {k + 1} is {package // 1000} kB, more than the {PACKAGE_MAX // 1000} kB the relay carries under an unconfirmed split: waiting one block …")
+                pub.wait_for(J["splits"][k])
+                say(f"split {k + 1} is in a block")
+            else:
+                say(f"package {k + 1} is {package // 1000} kB: its pieces go now")
         def send_all(name):
             done = J["pieces"].setdefault(name, {})
             for n, raw, txid, unsigned in ready[name]:
@@ -209,7 +265,7 @@ def main() -> int:
             for name in want:
                 for host in SERVED_BY:
                     try:
-                        with urllib.request.urlopen(f"{host}/content/{J['pieces'][name]['0']}", timeout=30) as r:
+                        with urllib.request.urlopen(urllib.request.Request(f"{host}/content/{J['pieces'][name]['0']}", headers=UA), timeout=30) as r:
                             if r.read() != want[name]:
                                 missing.append(f"{name}@{host} (other bytes)")
                     except Exception:   # noqa: BLE001 -- not there yet

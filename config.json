@@ -1,7 +1,7 @@
 {
   "name": "LiteWorldsQuest",
   "family": "liteworldsquest",
-  "registry_version": 21,
+  "registry_version": 22,
   "three_id": "374cfd2b2f114e9da4ade8add495fe8aa0b2b996a710fb538759a956f15f9539",
   "modules": {
     "net": {
@@ -33,7 +33,7 @@
       "api": 1,
       "kind": "js",
       "id": null,
-      "gz": null
+      "gz": "39a40ecca00e55e31805c6652cdf41127560e0ceafc866be4102773c3e8f0bd6"
     },
     "combat": {
       "file": "src/modules/combat.js",
@@ -41,7 +41,7 @@
       "api": 1,
       "kind": "js",
       "id": null,
-      "gz": null
+      "gz": "8e6f55ea386ccb32cb2f150fe6a3a44945501ef5c0e145474ae738a019456388"
     },
     "rpg": {
       "file": "src/modules/rpg.js",
@@ -65,7 +65,7 @@
       "api": 1,
       "kind": "js",
       "id": null,
-      "gz": null
+      "gz": "8a839b139bd5b4e2624dfa215000290819140f790fc47c49f8e3de1c2d2cb8e5"
     },
     "engine": {
       "file": "src/modules/engine.js",
@@ -73,7 +73,7 @@
       "api": 1,
       "kind": "js",
       "id": null,
-      "gz": null
+      "gz": "96b97bc4d479954be077da9c0376dcb0a77c50f72913d8ae9b2c038858bd7f79"
     }
   },
   "levels": {
@@ -121,7 +121,7 @@
       "api": 1,
       "kind": "json",
       "id": null,
-      "gz": null
+      "gz": "5163aeb9e61de2f11efbe8b2576c1d30fecfcb6b9110fc3dc7412af0ff748e19"
     }
   },
   "page_id": "780e737befad5f1d5ee39f62a766940c67f40c43acdbfe3de6dea1be64d858c0",
@@ -188,7 +188,8 @@
     "18": "15872127afb02d3b9cb0b1e8ccf1b3b204a371a2b0496472e3ca5cc40a36f3e6 (publisher, loader 2)",
     "19": "fdf4207188787827b1578e0978eca1adcae51e0457fa2e9f31930ab27aa157ed (publisher, loader 2)",
     "20": "41dae388a02504a13a2e0cab088620cdb524cc57794689c3fd18953ccd3af6f4 (publisher, loader 2, batch)",
-    "21": "9f93f9242146e57aa4da0d4dbf859f19501f775e7b279287fddd52e7bda32b2f (publisher, loader 2, batch)"
+    "21": "9f93f9242146e57aa4da0d4dbf859f19501f775e7b279287fddd52e7bda32b2f (publisher, loader 2, batch)",
+    "22": "9df54d6538cda354f3acce733e208a2d4a80bb59b0a2c8c9c61ff2039447da8d (publisher, loader 2, batch)"
   },
   "house": [
     "notHZVkLNJjG6ymtWGjM6rhBapuh3VU8eb"
