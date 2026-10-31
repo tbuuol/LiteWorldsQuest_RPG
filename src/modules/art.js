@@ -1140,11 +1140,121 @@
       const m = mesh(g, dirt, false); m.receiveShadow = true; m.position.set((ax + bx) / 2, 0.01, (az + bz) / 2); m.rotation.y = Math.atan2(bx - ax, bz - az); ctx.scene.add(m);
     }
   };
+  /* A CITY WALL (tbuuol 2026-10-31: a wall round Genesis, "damit wir schonmal einen Eindruck davon haben wo die Stadt
+     mal stehen wird und wie groß sie werden kann" -- "vergiss nicht ein hübsches Stadttor an der Straße"): a stone ring
+     on the land's ground in pieces of up to 4 m, battlements on its outer edge, a round tower with a slate cone at
+     every corner, and a gatehouse wherever a road comes through (two tall towers, an arch, the doors standing open,
+     banners). def: {pts: [[x, z], ...] the ring, h, th: thickness, gate: the opening's width}. Few draw calls: each
+     material's pieces are one mesh. Returns {segs: [{a, b, r, top}]} for the walking (a piece is a line with a
+     thickness, so a slanted wall stops you where it is drawn, not at a box round it). */
+  art.cityWall = function (ctx, TR, def) {
+    const H = def.h || 7, TH = def.th || 2.4, GW = def.gate || 9, TR_R = 3.2, GT_R = 3.6, P = def.pts, n = P.length;
+    const ground = (x, z) => TR.walk(x, z);
+    const parts = { stone: [], arch: [], roof: [], wood: [], cloth: [], gold: [] }, segs = [];
+    const m4 = new T.Matrix4(), qq = new T.Quaternion(), UP = new T.Vector3(0, 1, 0), at = new T.Vector3(), sc = new T.Vector3();
+    const put = (list, geo, x, y, z, yaw) => { qq.setFromAxisAngle(UP, yaw || 0); m4.compose(at.set(x, y, z), qq, sc.set(1, 1, 1)); list.push(geo.applyMatrix4(m4)); };
+    const cx = P.reduce((a, p) => a + p[0], 0) / n, cz = P.reduce((a, p) => a + p[1], 0) / n;
+    /* where the roads come through */
+    const gates = [];
+    for (const r of TR.ROADS || []) for (let i = 0; i < r.pts.length - 1; i++) for (let j = 0; j < n; j++) {
+      const [ax, az] = r.pts[i], [bx, bz] = r.pts[i + 1], [qx, qz] = P[j], [wx, wz] = P[(j + 1) % n];
+      const den = (bx - ax) * (wz - qz) - (bz - az) * (wx - qx); if (Math.abs(den) < 1e-9) continue;
+      const u = ((qx - ax) * (wz - qz) - (qz - az) * (wx - qx)) / den, v = ((qx - ax) * (bz - az) - (qz - az) * (bx - ax)) / den;
+      if (u < 0 || u > 1 || v < 0 || v > 1) continue;
+      const L = Math.hypot(wx - qx, wz - qz), d = [(wx - qx) / L, (wz - qz) / L];
+      let nr = [d[1], -d[0]]; const gx = qx + (wx - qx) * v, gz = qz + (wz - qz) * v;
+      if (nr[0] * (gx - cx) + nr[1] * (gz - cz) < 0) nr = [-nr[0], -nr[1]];   /* outward */
+      gates.push({ x: gx, z: gz, d, nr });
+    }
+    const nearGate = (x, z, m) => gates.some(g => Math.hypot(x - g.x, z - g.z) < m);
+    function tower(x, z, r, rise) {
+      const g = Math.min(ground(x, z), ground(x + r, z), ground(x - r, z), ground(x, z + r), ground(x, z - r)), lo = g - 1.5, top = ground(x, z) + H + rise;
+      put(parts.stone, new T.CylinderGeometry(r, r * 1.1, top - lo, 16), x, (top + lo) / 2, z);
+      put(parts.stone, new T.CylinderGeometry(r + 0.35, r + 0.35, 0.5, 16), x, top - 0.25, z);   /* a lip under the battlements */
+      for (let k = 0; k < 10; k++) { const a = k / 10 * Math.PI * 2; put(parts.stone, new T.BoxGeometry(1.1, 1.1, 0.55), x + Math.sin(a) * (r + 0.05), top + 0.55, z + Math.cos(a) * (r + 0.05), a); }
+      put(parts.roof, new T.ConeGeometry(r + 0.7, r * 1.6, 16), x, top + 1.1 + r * 0.8, z);
+      segs.push({ a: [x, z], b: [x, z], r, top });
+    }
+    /* the ring */
+    for (let j = 0; j < n; j++) {
+      const [qx, qz] = P[j], [wx, wz] = P[(j + 1) % n], L = Math.hypot(wx - qx, wz - qz), d = [(wx - qx) / L, (wz - qz) / L];
+      let nr = [d[1], -d[0]]; if (nr[0] * ((qx + wx) / 2 - cx) + nr[1] * ((qz + wz) / 2 - cz) < 0) nr = [-nr[0], -nr[1]];
+      const k = Math.max(1, Math.ceil(L / 4)), yaw = Math.atan2(d[0], d[1]);
+      for (let i = 0; i < k; i++) {
+        const x0 = qx + (wx - qx) * i / k, z0 = qz + (wz - qz) * i / k, x1 = qx + (wx - qx) * (i + 1) / k, z1 = qz + (wz - qz) * (i + 1) / k;
+        const mx = (x0 + x1) / 2, mz = (z0 + z1) / 2;
+        if (nearGate(mx, mz, GW / 2 + GT_R)) continue;
+        const g0 = ground(x0, z0), g1 = ground(x1, z1), gm = ground(mx, mz), lo = Math.min(g0, g1, gm) - 1.5, top = (g0 + g1) / 2 + H, len = Math.hypot(x1 - x0, z1 - z0);
+        put(parts.stone, new T.BoxGeometry(TH, top - lo, len + 0.08), mx, (top + lo) / 2, mz, yaw);
+        put(parts.stone, new T.BoxGeometry(TH + 0.5, 0.35, len + 0.08), mx, top - 0.6, mz, yaw);   /* a moulding under the battlements */
+        const mm = Math.max(1, Math.round(len / 2));
+        for (let t = 0; t < mm; t++) {   /* merlons on the outer edge, with a lower parapet on the inner */
+          const f = (t + 0.5) / mm, px = x0 + (x1 - x0) * f, pz = z0 + (z1 - z0) * f;
+          put(parts.stone, new T.BoxGeometry(0.6, 1.1, 1.0), px + nr[0] * (TH / 2 - 0.3), top + 0.55, pz + nr[1] * (TH / 2 - 0.3), yaw);
+        }
+        put(parts.stone, new T.BoxGeometry(0.4, 0.6, len + 0.08), mx - nr[0] * (TH / 2 - 0.2), top + 0.3, mz - nr[1] * (TH / 2 - 0.2), yaw);
+        segs.push({ a: [x0, z0], b: [x1, z1], r: TH / 2, top: top + 1.1 });
+      }
+      if (!nearGate(qx, qz, GW / 2 + GT_R + 4)) tower(qx, qz, TR_R, 2.5);
+    }
+    /* the gatehouses */
+    for (const G of gates) {
+      const gg = ground(G.x, G.z), yaw = Math.atan2(G.d[0], G.d[1]), half = GW / 2, depth = TH + 1.4, spring = gg + 1.6, crown = spring + half;
+      for (const s of [-1, 1]) tower(G.x + G.d[0] * s * (half + GT_R - 0.2), G.z + G.d[1] * s * (half + GT_R - 0.2), GT_R, 5);
+      const lt = gg + H + 1.5;   /* the bridge over the arch, with its battlements */
+      put(parts.stone, new T.BoxGeometry(depth, lt - crown, GW + 1), G.x, (lt + crown) / 2, G.z, yaw);
+      for (let t = 0; t < 5; t++) {
+        const f = (t + 0.5) / 5 - 0.5;
+        for (const side of [1, -1]) put(parts.stone, new T.BoxGeometry(0.6, 1.1, 1.0), G.x + G.d[0] * f * GW + G.nr[0] * side * (depth / 2 - 0.3), lt + 0.55, G.z + G.d[1] * f * GW + G.nr[1] * side * (depth / 2 - 0.3), yaw);
+      }
+      const arch = new T.CylinderGeometry(half, half, depth, 20, 1, true, Math.PI / 2, Math.PI); arch.rotateX(Math.PI / 2);   /* the vault's underside */
+      put(parts.arch, arch, G.x, spring, G.z, yaw + Math.PI / 2);
+      for (let k = 0; k < 6; k++) {   /* the spandrels: stone between the arch's curve and the bridge */
+        const a0 = k / 6 * Math.PI / 2, a1 = (k + 1) / 6 * Math.PI / 2, y0 = spring + half * Math.sin(a0), y1 = crown, w = half - half * Math.cos(a1);
+        for (const s of [-1, 1]) { const off = (half - w / 2) * s; put(parts.stone, new T.BoxGeometry(depth, y1 - y0, w + 0.02), G.x + G.d[0] * off, (y0 + y1) / 2, G.z + G.d[1] * off, yaw); }
+      }
+      for (const s of [-1, 1]) {   /* the doors, swung open against the passage's sides, inside */
+        const hx = G.x + G.d[0] * s * (half - 0.2) - G.nr[0] * (depth / 2 + 0.1), hz = G.z + G.d[1] * s * (half - 0.2) - G.nr[1] * (depth / 2 + 0.1);
+        const ex = hx - G.nr[0] * half, ez = hz - G.nr[1] * half, gy = ground((hx + ex) / 2, (hz + ez) / 2);
+        put(parts.wood, new T.BoxGeometry(0.25, 5.2, half), (hx + ex) / 2, gy + 2.6, (hz + ez) / 2, yaw + Math.PI / 2);
+        for (const yy of [1.2, 4.0]) put(parts.gold, new T.BoxGeometry(0.3, 0.16, half - 0.3), (hx + ex) / 2, gy + yy, (hz + ez) / 2, yaw + Math.PI / 2);
+        segs.push({ a: [hx, hz], b: [ex, ez], r: 0.15, top: gy + 5.2 });
+        /* a banner on each tower, outside: red with a golden sun */
+        const tx = G.x + G.d[0] * s * (half + GT_R - 0.2) + G.nr[0] * (GT_R + 0.12), tz = G.z + G.d[1] * s * (half + GT_R - 0.2) + G.nr[1] * (GT_R + 0.12), ty = gg + H - 1.2;
+        put(parts.cloth, new T.BoxGeometry(0.08, 4.2, 1.7), tx, ty, tz, yaw);
+        put(parts.gold, new T.CylinderGeometry(0.45, 0.45, 0.1, 12).rotateZ(Math.PI / 2), tx + G.nr[0] * 0.06, ty + 0.6, tz + G.nr[1] * 0.06, yaw);
+        put(parts.gold, new T.BoxGeometry(0.18, 0.18, 1.9), tx, ty + 2.15, tz, yaw);   /* its pole */
+      }
+    }
+    /* each material's pieces as one mesh; the stone's texture laid by where it is, so it never stretches */
+    function join(list) {
+      let N = 0; const gs = list.map(g => { const h = g.index ? g.toNonIndexed() : g; N += h.attributes.position.count; return h; });
+      const Pp = new Float32Array(N * 3), Nn = new Float32Array(N * 3), U = new Float32Array(N * 2); let o = 0;
+      for (const g of gs) {
+        const p = g.attributes.position, nn = g.attributes.normal;
+        for (let i = 0; i < p.count; i++, o++) {
+          const x = p.getX(i), y = p.getY(i), z = p.getZ(i), nx = nn.getX(i), ny = nn.getY(i), nz = nn.getZ(i);
+          Pp[o * 3] = x; Pp[o * 3 + 1] = y; Pp[o * 3 + 2] = z; Nn[o * 3] = nx; Nn[o * 3 + 1] = ny; Nn[o * 3 + 2] = nz;
+          if (Math.abs(ny) > 0.7) { U[o * 2] = x / 3; U[o * 2 + 1] = z / 3; } else { U[o * 2] = (Math.abs(nx) > Math.abs(nz) ? z : x) / 3; U[o * 2 + 1] = y / 3; }
+        }
+        g.dispose();
+      }
+      const geo = new T.BufferGeometry();
+      geo.setAttribute('position', new T.BufferAttribute(Pp, 3)); geo.setAttribute('normal', new T.BufferAttribute(Nn, 3)); geo.setAttribute('uv', new T.BufferAttribute(U, 2));
+      return geo;
+    }
+    const stone = mat('stone', { m: { color: '#c9c0b0' } }), group = new T.Group();
+    const looks = { stone, arch: Object.assign(stone.clone(), { side: T.DoubleSide }), roof: plain('#3e5f93', { roughness: 0.7 }),
+                    wood: mat('planks', { m: { color: '#8a5e3a' } }), cloth: plain('#a3201f', { side: T.DoubleSide }), gold: plain('#d9b44a', { metalness: 0.5, roughness: 0.45 }) };
+    for (const k in parts) if (parts[k].length) { const m = new T.Mesh(join(parts[k]), looks[k]); m.castShadow = k !== 'cloth'; m.receiveShadow = true; group.add(m); }
+    group.userData.keep = true; ctx.scene.add(group);
+    return { segs, gates: gates.map(g => [g.x, g.z]), group };
+  };
   /* A THING TO GATHER (tbuuol 2026-10-23: wood, ore and plants around Blockshire): an oak to fell, a boulder with
      copper and iron in it, a patch of herbs. Returns {use: the mesh the crosshair finds, set(spent)}: spent, the oak
      is a stump, the boulder a dull stone, the herbs gone, until it grows back. */
-  art.resource = function (ctx, def) {
-    const [x, z] = def.pos, g = new T.Group(), rnd = art.rng(Math.round(x * 31 + z * 17)), full = new T.Group(), left = new T.Group();
+  art.resource = function (ctx, def) {   /* def.y: the ground it stands on (out in the world's land; 0 in a place) */
+    const [x, z] = def.pos, y0 = def.y || 0, g = new T.Group(), rnd = art.rng(Math.round(x * 31 + z * 17)), full = new T.Group(), left = new T.Group();
     g.add(full, left);
     let use;
     if (def.kind === 'tree') {
@@ -1154,7 +1264,7 @@
       const stump = mesh(new T.CylinderGeometry(0.34, 0.42, 0.45, 10), bark); stump.position.y = 0.22; left.add(stump);
       const ring = mesh(new T.CylinderGeometry(0.3, 0.3, 0.02, 10), plain('#c9a27a')); ring.position.y = 0.46; left.add(ring);
       use = mesh(new T.CylinderGeometry(0.6, 0.6, 2.4, 8), new T.MeshBasicMaterial({ visible: false })); use.position.y = 1.2;
-      ctx.solid([x - 0.45, 0, z - 0.45], [x + 0.45, 3, z + 0.45]);
+      ctx.solid([x - 0.45, y0, z - 0.45], [x + 0.45, y0 + 3, z + 0.45]);
     } else if (def.kind === 'rock') {
       const geo = new T.DodecahedronGeometry(0.9, 1), p = geo.attributes.position;
       for (let i = 0; i < p.count; i++) { const k = 0.85 + rnd() * 0.3; p.setXYZ(i, p.getX(i) * k * 1.2, p.getY(i) * k * 0.8, p.getZ(i) * k); }
@@ -1166,7 +1276,7 @@
         v.position.set(Math.cos(a) * 0.95, 0.35 + h, Math.sin(a) * 0.75); v.lookAt(0, 0.6, 0); full.add(v);
       }
       use = mesh(new T.SphereGeometry(1.1, 8, 6), new T.MeshBasicMaterial({ visible: false })); use.position.y = 0.6;
-      ctx.solid([x - 0.9, 0, z - 0.75], [x + 0.9, 1.1, z + 0.75]);
+      ctx.solid([x - 0.9, y0, z - 0.75], [x + 0.9, y0 + 1.1, z + 0.75]);
     } else {
       const leaf = plain('#5d8c3a'), flower = plain('#d9c2f0'), flax = plain('#7fa3d9');
       for (let i = 0; i < 7; i++) { const b = mesh(new T.IcosahedronGeometry(0.22 + rnd() * 0.12, 0), leaf); b.position.set((rnd() - 0.5) * 0.9, 0.2, (rnd() - 0.5) * 0.9); full.add(b); }
@@ -1175,9 +1285,9 @@
       use = mesh(new T.SphereGeometry(0.7, 8, 6), new T.MeshBasicMaterial({ visible: false })); use.position.y = 0.3;
     }
     g.add(use);
-    g.position.set(x, 0, z); g.rotation.y = rnd() * Math.PI * 2; g.userData.keep = true; ctx.scene.add(g);
+    g.position.set(x, y0, z); g.rotation.y = rnd() * Math.PI * 2; g.userData.keep = true; ctx.scene.add(g);
     left.visible = false;
-    return { use, set(spent) { full.visible = !spent; left.visible = !!spent; } };
+    return { use, group: g, set(spent) { full.visible = !spent; left.visible = !!spent; } };
   };
   /* THE FORGE (tbuuol 2026-10-23: "a smithy in Blockshire where the craft menu opens"): a stone hearth with glowing
      coals and a flickering light, a chimney, an anvil on a block, a workbench. Returns {use}: the crosshair finds it. */

@@ -10,7 +10,8 @@
      T.trees(x0, z0, x1, z1)   the trees of a rectangle, the same for everybody: [[x, z, scale, kind], ...]
      T.EXT             [x0, z0, x1, z1], the world's rectangle;  T.SEA the sea's level;  T.I(ix, iy) the draft's pixel -> metres
    Metres, x east, z south (north is -z), Blockshire's middle at (0, 0). The draft's pixels are 2 m each.
-   pads: [{at: [x, z], r, y}] flat ground for a settlement (its things stand on y);  decks: [{rect, y, aft, quarter}]. */
+   pads: [{at: [x, z], r, y}] flat ground for a settlement (its things stand on y);  decks: [{rect, y, aft, quarter}];
+   walls: [{pts}] a city wall's ring (no trees on its line). */
 (function (G) {
   'use strict';
   const K = 2, I = (ix, iy) => [(ix - 300) * K, (iy - 790) * K];
@@ -47,13 +48,14 @@
   const ROADS = [{ pts: ROUTE, w: 6 }].concat([
     [[930, 470], [1060, 500], [1180, 520], [1290, 540]], [[1290, 540], [1320, 620], [1340, 700], [1350, 790]],
     [[1350, 790], [1260, 800], [1170, 790], [1080, 780]], [[745, 280], [790, 230], [760, 175], [800, 135], [780, 100], [815, 75]],
-    [[458, 628], [478, 570], [502, 526], [560, 470], [590, 425]], [[300, 790], [400, 800], [520, 790], [640, 775], [680, 765]]
-  ].map((p, i) => ({ pts: px(p), w: [5, 4, 4, 3, 3, 5][i] })));
+    [[458, 628], [478, 570], [502, 526], [560, 470], [590, 425]], [[300, 790], [400, 800], [520, 790], [640, 775], [680, 765]],
+    [[392, 462], [350, 474], [310, 470], [282, 464]]   /* down to the Pirate Ship's dock (2026-10-31) */
+  ].map((p, i) => ({ pts: px(p), w: [5, 4, 4, 3, 3, 5, 3][i] })));
   const EXT = [...I(0, 0), ...I(1536, 1024)];
 
   function create(opts) {
     opts = opts || {};
-    const pads = opts.pads || [], decks = opts.decks || [];
+    const pads = opts.pads || [], decks = opts.decks || [], walls = (opts.walls || []).map(w => w.pts.concat([w.pts[0]]));
     function coast(x, z) {   /* signed metres to the shore: + on land */
       let inside = false, best = 1e9;
       for (let i = 0, j = LAND.length - 1; i < LAND.length; j = i++) {
@@ -199,7 +201,7 @@
         dens = b === 'fey' || gw > 0.4 ? dens * smooth(0.55 + 1.3 * fbm(x * 0.004 + 11, z * 0.004 + 5)) : dens * (0.3 + 2.2 * grove);
         if (h > 70) dens *= Math.max(0, 1 - (h - 70) / 25);
         if (r1 > dens * 0.42) continue;   /* (a tree per ~60 m² in a dense wood) */
-        if (KEEP_CLEAR.some(c => Math.hypot(x - c[0], z - c[1]) < c[2]) || pads.some(p => Math.hypot(x - p.at[0], z - p.at[1]) < p.r + 6) || nearRoad(x, z, 3)) continue;
+        if (KEEP_CLEAR.some(c => Math.hypot(x - c[0], z - c[1]) < c[2]) || pads.some(p => Math.hypot(x - p.at[0], z - p.at[1]) < p.r + 6) || nearRoad(x, z, 3) || walls.some(w => segDist(x, z, w)[0] < 9)) continue;
         if (Math.abs(floor(x + 2, z) - floor(x - 2, z)) + Math.abs(floor(x, z + 2) - floor(x, z - 2)) > 3.5) continue;   /* not on a cliff */
         const bay = coast(x, z) < 60 && z > I(0, 440)[1] && z < I(0, 690)[1] && x < I(440, 0)[0];
         out.push([x, z, 0.8 + r2 * 0.6, bay ? 'palm' : b === 'fey' ? 'fey' : b === 'swamp' ? 'swamp' : b === 'cemetery' ? 'dead' : h > 40 || r3 < 0.5 ? 'pine' : 'oak']);

@@ -2,7 +2,7 @@
  "lwq": "module",
  "name": "level.world",
  "api": 1,
- "v": 3,
+ "v": 4,
  "data": {
   "id": "world",
   "title": "LiteWorldsQuest",
@@ -65,16 +65,90 @@
    "decks": [
     {
      "rect": [
-      197.0,
-      -481.4,
-      227.0,
-      -473.4
+      -49.4,
+      -642.0,
+      -41.4,
+      -612.0
      ],
      "y": 0.7,
      "quarter": 2.8,
-     "axis": "x",
-     "aftAt": 205.0,
-     "aftSign": -1
+     "axis": "z",
+     "aftAt": -620.0,
+     "aftSign": 1
+    }
+   ],
+   "walls": [
+    {
+     "name": "Genesis",
+     "pts": [
+      [
+       1050.6,
+       -40.0
+      ],
+      [
+       1015.4,
+       29.5
+      ],
+      [
+       947.8,
+       77.5
+      ],
+      [
+       877.9,
+       118.0
+      ],
+      [
+       790.0,
+       128.4
+      ],
+      [
+       700.6,
+       120.7
+      ],
+      [
+       606.6,
+       96.6
+      ],
+      [
+       566.0,
+       29.1
+      ],
+      [
+       580.6,
+       -40.0
+      ],
+      [
+       581.2,
+       -104.4
+      ],
+      [
+       615.5,
+       -170.0
+      ],
+      [
+       698.0,
+       -205.3
+      ],
+      [
+       790.0,
+       -221.6
+      ],
+      [
+       880.5,
+       -202.7
+      ],
+      [
+       938.9,
+       -150.9
+      ],
+      [
+       1000.3,
+       -104.9
+      ]
+     ],
+     "h": 7,
+     "th": 2.4,
+     "gate": 9
     }
    ]
   },
@@ -1108,10 +1182,41 @@
     "ships": [
      {
       "pos": [
-       212.0,
-       -477.4
+       -300,
+       -440
       ],
-      "rot": 90,
+      "rot": 200,
+      "length": 14,
+      "beam": 4.5,
+      "deck": -1.6,
+      "sails": "#6a6052",
+      "list": 0.22
+     }
+    ]
+   },
+   {
+    "lift": 0,
+    "docks": [
+     {
+      "from": [
+       -40,
+       -651
+      ],
+      "to": [
+       -40,
+       -618
+      ],
+      "width": 2.4,
+      "y": 0.35
+     }
+    ],
+    "ships": [
+     {
+      "pos": [
+       -45.4,
+       -627
+      ],
+      "rot": 180,
       "deck": 0.7,
       "walk": true,
       "sails": "#2e2a26",
@@ -1124,22 +1229,1213 @@
         -1
        ]
       ]
-     },
-     {
-      "pos": [
-       -300,
-       -440
-      ],
-      "rot": 200,
-      "length": 14,
-      "beam": 4.5,
-      "deck": -1.6,
-      "sails": "#6a6052",
-      "list": 0.22
      }
     ]
+   },
+   {
+    "lift": 0,
+    "resources": {
+     "nodes": [
+      {
+       "id": "w.tree.1",
+       "kind": "tree",
+       "pos": [
+        -162.2,
+        41.9
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.tree.2",
+       "kind": "tree",
+       "pos": [
+        -300.6,
+        78.8
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.tree.3",
+       "kind": "tree",
+       "pos": [
+        -373.2,
+        70.3
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.tree.4",
+       "kind": "tree",
+       "pos": [
+        -39.3,
+        -76.1
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.tree.5",
+       "kind": "tree",
+       "pos": [
+        -145.2,
+        198.2
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.tree.6",
+       "kind": "tree",
+       "pos": [
+        308.2,
+        -98.5
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.tree.7",
+       "kind": "tree",
+       "pos": [
+        -329.3,
+        -134.8
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.tree.8",
+       "kind": "tree",
+       "pos": [
+        -186.2,
+        177.6
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.tree.9",
+       "kind": "tree",
+       "pos": [
+        320.2,
+        119.3
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.tree.10",
+       "kind": "tree",
+       "pos": [
+        246.8,
+        25.6
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.tree.11",
+       "kind": "tree",
+       "pos": [
+        -312.2,
+        98.3
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.tree.12",
+       "kind": "tree",
+       "pos": [
+        127.6,
+        -203.1
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.tree.13",
+       "kind": "tree",
+       "pos": [
+        51.2,
+        -190.4
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.tree.14",
+       "kind": "tree",
+       "pos": [
+        -212.5,
+        -101.9
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.tree.15",
+       "kind": "tree",
+       "pos": [
+        56.2,
+        118.1
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.tree.16",
+       "kind": "tree",
+       "pos": [
+        354.4,
+        94.9
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.tree.17",
+       "kind": "tree",
+       "pos": [
+        -334.2,
+        160.5
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.tree.18",
+       "kind": "tree",
+       "pos": [
+        -417.7,
+        -100.4
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.tree.19",
+       "kind": "tree",
+       "pos": [
+        282.7,
+        24.7
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.tree.20",
+       "kind": "tree",
+       "pos": [
+        -108.9,
+        100.3
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.tree.21",
+       "kind": "tree",
+       "pos": [
+        -211.7,
+        56.7
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.tree.22",
+       "kind": "tree",
+       "pos": [
+        234.5,
+        -62.2
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.tree.23",
+       "kind": "tree",
+       "pos": [
+        -71.6,
+        94.2
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.tree.24",
+       "kind": "tree",
+       "pos": [
+        -260.9,
+        -113.8
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.tree.25",
+       "kind": "tree",
+       "pos": [
+        95.9,
+        186.6
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.tree.26",
+       "kind": "tree",
+       "pos": [
+        160.1,
+        -172.6
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.tree.27",
+       "kind": "tree",
+       "pos": [
+        -177.3,
+        -158.7
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.tree.28",
+       "kind": "tree",
+       "pos": [
+        -392.6,
+        132.6
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.tree.29",
+       "kind": "tree",
+       "pos": [
+        -457.0,
+        7.0
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.tree.30",
+       "kind": "tree",
+       "pos": [
+        205.8,
+        -150.6
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.rock.31",
+       "kind": "rock",
+       "pos": [
+        -473.9,
+        67.5
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.rock.32",
+       "kind": "rock",
+       "pos": [
+        -341.9,
+        -72.6
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.rock.33",
+       "kind": "rock",
+       "pos": [
+        97.6,
+        -37.8
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.rock.34",
+       "kind": "rock",
+       "pos": [
+        239.4,
+        -99.3
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.rock.35",
+       "kind": "rock",
+       "pos": [
+        -103.1,
+        58.5
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.rock.36",
+       "kind": "rock",
+       "pos": [
+        -393.8,
+        91.6
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.rock.37",
+       "kind": "rock",
+       "pos": [
+        140.6,
+        171.4
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.rock.38",
+       "kind": "rock",
+       "pos": [
+        93.5,
+        -10.1
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.rock.39",
+       "kind": "rock",
+       "pos": [
+        -357.1,
+        126.6
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.rock.40",
+       "kind": "rock",
+       "pos": [
+        -397.8,
+        -87.6
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.rock.41",
+       "kind": "rock",
+       "pos": [
+        -379.1,
+        -109.6
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.rock.42",
+       "kind": "rock",
+       "pos": [
+        -235.8,
+        -87.2
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.rock.43",
+       "kind": "rock",
+       "pos": [
+        111.5,
+        -29.2
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.rock.44",
+       "kind": "rock",
+       "pos": [
+        -291.2,
+        89.4
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.rock.45",
+       "kind": "rock",
+       "pos": [
+        132.2,
+        113.6
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.rock.46",
+       "kind": "rock",
+       "pos": [
+        -471.6,
+        7.4
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.herb.47",
+       "kind": "herb",
+       "pos": [
+        270.0,
+        -170.6
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.herb.48",
+       "kind": "herb",
+       "pos": [
+        -326.1,
+        106.9
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.herb.49",
+       "kind": "herb",
+       "pos": [
+        -187.1,
+        -99.4
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.herb.50",
+       "kind": "herb",
+       "pos": [
+        203.2,
+        -107.9
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.herb.51",
+       "kind": "herb",
+       "pos": [
+        -183.3,
+        85.5
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.herb.52",
+       "kind": "herb",
+       "pos": [
+        -70.1,
+        167.7
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.herb.53",
+       "kind": "herb",
+       "pos": [
+        -471.0,
+        -58.8
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.herb.54",
+       "kind": "herb",
+       "pos": [
+        -244.5,
+        -63.1
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.herb.55",
+       "kind": "herb",
+       "pos": [
+        -241.6,
+        156.3
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.herb.56",
+       "kind": "herb",
+       "pos": [
+        -1.7,
+        -98.3
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.herb.57",
+       "kind": "herb",
+       "pos": [
+        20.5,
+        123.3
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.herb.58",
+       "kind": "herb",
+       "pos": [
+        -34.8,
+        -140.1
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.herb.59",
+       "kind": "herb",
+       "pos": [
+        -417.4,
+        -12.9
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.herb.60",
+       "kind": "herb",
+       "pos": [
+        -338.7,
+        -113.4
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.herb.61",
+       "kind": "herb",
+       "pos": [
+        -33.5,
+        170.6
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.herb.62",
+       "kind": "herb",
+       "pos": [
+        79.1,
+        -40.3
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.herb.63",
+       "kind": "herb",
+       "pos": [
+        238.2,
+        -145.7
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.herb.64",
+       "kind": "herb",
+       "pos": [
+        -146.8,
+        111.7
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.herb.65",
+       "kind": "herb",
+       "pos": [
+        -291.6,
+        52.9
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.herb.66",
+       "kind": "herb",
+       "pos": [
+        88.3,
+        -138.1
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.herb.67",
+       "kind": "herb",
+       "pos": [
+        -148.3,
+        -30.8
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.herb.68",
+       "kind": "herb",
+       "pos": [
+        -121.6,
+        -60.0
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.herb.69",
+       "kind": "herb",
+       "pos": [
+        -88.9,
+        42.8
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.herb.70",
+       "kind": "herb",
+       "pos": [
+        274.6,
+        113.6
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.herb.71",
+       "kind": "herb",
+       "pos": [
+        125.4,
+        -130.6
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.herb.72",
+       "kind": "herb",
+       "pos": [
+        238.8,
+        -271.6
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.herb.73",
+       "kind": "herb",
+       "pos": [
+        -10.4,
+        154.9
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.herb.74",
+       "kind": "herb",
+       "pos": [
+        -140.5,
+        172.2
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.herb.75",
+       "kind": "herb",
+       "pos": [
+        88.4,
+        119.4
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.herb.76",
+       "kind": "herb",
+       "pos": [
+        -112.2,
+        -99.3
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.rock.77",
+       "kind": "rock",
+       "pos": [
+        242.4,
+        -358.8
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.rock.78",
+       "kind": "rock",
+       "pos": [
+        227.8,
+        -407.4
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.rock.79",
+       "kind": "rock",
+       "pos": [
+        214.2,
+        -330.5
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.rock.80",
+       "kind": "rock",
+       "pos": [
+        247.2,
+        -385.4
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.herb.81",
+       "kind": "herb",
+       "pos": [
+        218.7,
+        -318.8
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.herb.82",
+       "kind": "herb",
+       "pos": [
+        229.8,
+        -346.2
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.herb.83",
+       "kind": "herb",
+       "pos": [
+        204.6,
+        -321.8
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.herb.84",
+       "kind": "herb",
+       "pos": [
+        246.6,
+        -401.5
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.rock.85",
+       "kind": "rock",
+       "pos": [
+        -222.3,
+        -186.1
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.rock.86",
+       "kind": "rock",
+       "pos": [
+        -279.2,
+        -183.6
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.rock.87",
+       "kind": "rock",
+       "pos": [
+        -204.9,
+        -196.4
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.rock.88",
+       "kind": "rock",
+       "pos": [
+        -181.2,
+        -196.8
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.herb.89",
+       "kind": "herb",
+       "pos": [
+        -265.1,
+        -183.1
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.herb.90",
+       "kind": "herb",
+       "pos": [
+        89.4,
+        -239.5
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.herb.91",
+       "kind": "herb",
+       "pos": [
+        -251.1,
+        -179.2
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.herb.92",
+       "kind": "herb",
+       "pos": [
+        -255.7,
+        -191.3
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.rock.93",
+       "kind": "rock",
+       "pos": [
+        -218.6,
+        -689.6
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.rock.94",
+       "kind": "rock",
+       "pos": [
+        175.1,
+        -550.8
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.rock.95",
+       "kind": "rock",
+       "pos": [
+        206.4,
+        -533.3
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.rock.96",
+       "kind": "rock",
+       "pos": [
+        141.8,
+        -565.7
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.rock.97",
+       "kind": "rock",
+       "pos": [
+        158.5,
+        -567.4
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.rock.98",
+       "kind": "rock",
+       "pos": [
+        -113.1,
+        -671.5
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.herb.99",
+       "kind": "herb",
+       "pos": [
+        6.4,
+        -655.1
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.herb.100",
+       "kind": "herb",
+       "pos": [
+        -37.2,
+        -659.8
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.herb.101",
+       "kind": "herb",
+       "pos": [
+        171.5,
+        -536.1
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.herb.102",
+       "kind": "herb",
+       "pos": [
+        133.1,
+        -589.1
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.herb.103",
+       "kind": "herb",
+       "pos": [
+        -204.2,
+        -687.0
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.herb.104",
+       "kind": "herb",
+       "pos": [
+        -9.2,
+        -660.2
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.tree.105",
+       "kind": "tree",
+       "pos": [
+        568.6,
+        -686.9
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.tree.106",
+       "kind": "tree",
+       "pos": [
+        512.8,
+        -650.4
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.tree.107",
+       "kind": "tree",
+       "pos": [
+        581.5,
+        -644.9
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.tree.108",
+       "kind": "tree",
+       "pos": [
+        661.2,
+        -578.1
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.tree.109",
+       "kind": "tree",
+       "pos": [
+        422.4,
+        -715.5
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.tree.110",
+       "kind": "tree",
+       "pos": [
+        429.3,
+        -682.4
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.tree.111",
+       "kind": "tree",
+       "pos": [
+        600.0,
+        -748.6
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.tree.112",
+       "kind": "tree",
+       "pos": [
+        521.6,
+        -637.5
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.tree.113",
+       "kind": "tree",
+       "pos": [
+        705.1,
+        -715.8
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.tree.114",
+       "kind": "tree",
+       "pos": [
+        602.1,
+        -688.3
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.rock.115",
+       "kind": "rock",
+       "pos": [
+        446.0,
+        -721.1
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.rock.116",
+       "kind": "rock",
+       "pos": [
+        736.7,
+        -649.9
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.rock.117",
+       "kind": "rock",
+       "pos": [
+        662.6,
+        -624.4
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.rock.118",
+       "kind": "rock",
+       "pos": [
+        455.6,
+        -730.3
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.rock.119",
+       "kind": "rock",
+       "pos": [
+        718.1,
+        -568.1
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.rock.120",
+       "kind": "rock",
+       "pos": [
+        375.9,
+        -696.8
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.rock.121",
+       "kind": "rock",
+       "pos": [
+        488.1,
+        -684.4
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.rock.122",
+       "kind": "rock",
+       "pos": [
+        560.1,
+        -743.5
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.rock.123",
+       "kind": "rock",
+       "pos": [
+        579.5,
+        -584.8
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.rock.124",
+       "kind": "rock",
+       "pos": [
+        375.8,
+        -623.8
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.herb.125",
+       "kind": "herb",
+       "pos": [
+        565.5,
+        -612.5
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.herb.126",
+       "kind": "herb",
+       "pos": [
+        618.3,
+        -664.3
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.herb.127",
+       "kind": "herb",
+       "pos": [
+        538.5,
+        -601.7
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.herb.128",
+       "kind": "herb",
+       "pos": [
+        620.8,
+        -771.8
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.herb.129",
+       "kind": "herb",
+       "pos": [
+        365.3,
+        -682.8
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.herb.130",
+       "kind": "herb",
+       "pos": [
+        413.0,
+        -675.9
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.herb.131",
+       "kind": "herb",
+       "pos": [
+        668.5,
+        -726.7
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.herb.132",
+       "kind": "herb",
+       "pos": [
+        506.1,
+        -683.0
+       ],
+       "ground": true
+      }
+     ]
+    }
    }
   ],
+  "resources": {
+   "respawn": 90,
+   "charges": {
+    "tree": 4,
+    "rock": 3,
+    "herb": 2
+   }
+  },
   "defense": {
    "guards": [
     {
@@ -1584,174 +2880,670 @@
       "toughness",
       "str"
      ]
+    },
+    "goblin": {
+     "name": "Goblin Scout",
+     "lvl": 7,
+     "hp": 82,
+     "dmg": 8,
+     "speed": 3.4,
+     "aggressive": true,
+     "sight": 7,
+     "model": "human",
+     "look": {
+      "skin": "#7aa03c",
+      "shirt": "#5c4a2c",
+      "pants": "#3b3020",
+      "hair": "#1e2410",
+      "bandana": "#8a3a22",
+      "boots": "#2a2216",
+      "scale": 0.66
+     },
+     "weapon": "sword",
+     "weaponLook": "#8f8578",
+     "loot": [
+      [
+       "torn_cloth",
+       0.35
+      ],
+      [
+       "scrap_iron",
+       0.3
+      ]
+     ],
+     "codex": [
+      "melee",
+      "evade"
+     ]
+    },
+    "goblin_brute": {
+     "name": "Goblin Warrior",
+     "lvl": 8,
+     "hp": 108,
+     "dmg": 10,
+     "speed": 3.0,
+     "aggressive": true,
+     "sight": 7,
+     "model": "human",
+     "look": {
+      "skin": "#68902f",
+      "shirt": "#4a3a22",
+      "pants": "#3b3020",
+      "hair": "#1e2410",
+      "bandana": "#5a2a1a",
+      "boots": "#2a2216",
+      "scale": 0.78
+     },
+     "weapon": "sword",
+     "weaponLook": "#a0968a",
+     "loot": [
+      [
+       "torn_cloth",
+       0.3
+      ],
+      [
+       "scrap_iron",
+       0.4
+      ]
+     ],
+     "codex": [
+      "melee",
+      "toughness"
+     ]
     }
    },
    "areas": [
     {
+     "name": "Blockshire Meadows",
      "species": "boar",
-     "center": [
-      -95,
-      -45
+     "density": "low",
+     "poly": [
+      [
+       85,
+       -55
+      ],
+      [
+       170,
+       -110
+      ],
+      [
+       290,
+       -95
+      ],
+      [
+       340,
+       0
+      ],
+      [
+       300,
+       95
+      ],
+      [
+       160,
+       115
+      ],
+      [
+       85,
+       60
+      ]
      ],
-     "r": 14,
-     "count": 4,
-     "respawn": 25
+     "center": [
+      207.2,
+      -2.2
+     ],
+     "count": 8,
+     "respawn": 40,
+     "_dry": 1.0,
+     "_m2": 45023
     },
     {
+     "name": "South Fields",
      "species": "boar",
-     "center": [
-      85,
-      -70
+     "density": "low",
+     "poly": [
+      [
+       -150,
+       85
+      ],
+      [
+       0,
+       95
+      ],
+      [
+       170,
+       120
+      ],
+      [
+       200,
+       170
+      ],
+      [
+       40,
+       195
+      ],
+      [
+       -170,
+       175
+      ]
      ],
-     "r": 14,
-     "count": 4,
-     "respawn": 25
-    },
-    {
-     "species": "boar",
      "center": [
-      -60,
-      -150
+      7.3,
+      137.7
      ],
-     "r": 14,
-     "count": 4,
-     "respawn": 25
-    },
-    {
-     "species": "boar",
-     "center": [
-      120,
-      -150
-     ],
-     "r": 14,
-     "count": 4,
-     "respawn": 25
-    },
-    {
-     "species": "wolf",
-     "center": [
-      -230,
-      -110
-     ],
-     "r": 16,
-     "count": 4,
-     "respawn": 30
-    },
-    {
-     "species": "wolf",
-     "center": [
-      40,
-      -240
-     ],
-     "r": 16,
-     "count": 4,
-     "respawn": 30
-    },
-    {
-     "species": "wolf",
-     "center": [
-      -150,
-      -250
-     ],
-     "r": 16,
-     "count": 4,
-     "respawn": 30
-    },
-    {
-     "species": "wolf",
-     "center": [
-      200,
-      -40
-     ],
-     "r": 16,
-     "count": 4,
-     "respawn": 30
-    },
-    {
-     "species": "spider",
-     "center": [
-      -330,
-      -10
-     ],
-     "r": 14,
-     "count": 4,
-     "respawn": 35
-    },
-    {
-     "species": "spider",
-     "center": [
-      -260,
-      -300
-     ],
-     "r": 14,
-     "count": 4,
-     "respawn": 35
-    },
-    {
-     "species": "spider",
-     "center": [
-      150,
-      -300
-     ],
-     "r": 14,
-     "count": 3,
-     "respawn": 35
-    },
-    {
-     "species": "crab",
-     "center": [
-      -90,
-      -640
-     ],
-     "r": 14,
      "count": 5,
-     "respawn": 30
+     "respawn": 40,
+     "_dry": 1.0,
+     "_m2": 29324
     },
     {
-     "species": "crab",
-     "center": [
-      60,
-      -604
+     "name": "Greenwood North",
+     "species": "wolf",
+     "density": "mid",
+     "poly": [
+      [
+       -180,
+       -70
+      ],
+      [
+       -60,
+       -80
+      ],
+      [
+       60,
+       -95
+      ],
+      [
+       80,
+       -150
+      ],
+      [
+       -60,
+       -165
+      ],
+      [
+       -190,
+       -155
+      ]
      ],
-     "r": 12,
-     "count": 4,
-     "respawn": 30
-    },
-    {
-     "species": "crab",
      "center": [
-      190,
-      -300
+      -60.6,
+      -119.5
      ],
-     "r": 12,
-     "count": 4,
-     "respawn": 30
+     "count": 8,
+     "respawn": 30,
+     "_dry": 1.0,
+     "_m2": 19816
     },
     {
+     "name": "Greenwood South-West",
+     "species": "wolf",
+     "density": "mid",
+     "poly": [
+      [
+       -420,
+       110
+      ],
+      [
+       -260,
+       90
+      ],
+      [
+       -170,
+       120
+      ],
+      [
+       -200,
+       190
+      ],
+      [
+       -330,
+       210
+      ],
+      [
+       -430,
+       170
+      ]
+     ],
+     "center": [
+      -305.4,
+      147.5
+     ],
+     "count": 9,
+     "respawn": 30,
+     "_dry": 1.0,
+     "_m2": 22967
+    },
+    {
+     "name": "Greenwood Deep",
+     "species": "spider",
+     "density": "high",
+     "poly": [
+      [
+       -470,
+       -100
+      ],
+      [
+       -330,
+       -160
+      ],
+      [
+       -220,
+       -140
+      ],
+      [
+       -180,
+       -40
+      ],
+      [
+       -240,
+       60
+      ],
+      [
+       -380,
+       90
+      ],
+      [
+       -480,
+       30
+      ]
+     ],
+     "center": [
+      -323.8,
+      -40.2
+     ],
+     "count": 18,
+     "respawn": 20,
+     "_dry": 1.0,
+     "_m2": 56380
+    },
+    {
+     "name": "Roadside Woods",
+     "species": "wolf",
+     "density": "low",
+     "poly": [
+      [
+       130,
+       -130
+      ],
+      [
+       250,
+       -160
+      ],
+      [
+       340,
+       -230
+      ],
+      [
+       370,
+       -330
+      ],
+      [
+       310,
+       -330
+      ],
+      [
+       250,
+       -260
+      ],
+      [
+       140,
+       -190
+      ]
+     ],
+     "center": [
+      255.0,
+      -234.2
+     ],
+     "count": 3,
+     "respawn": 40,
+     "_dry": 1.0,
+     "_m2": 20417
+    },
+    {
+     "name": "Saltwind Shore",
+     "species": "crab",
+     "density": "mid",
+     "poly": [
+      [
+       95,
+       -265
+      ],
+      [
+       140,
+       -215
+      ],
+      [
+       190,
+       -240
+      ],
+      [
+       245,
+       -300
+      ],
+      [
+       260,
+       -400
+      ],
+      [
+       230,
+       -415
+      ],
+      [
+       210,
+       -365
+      ],
+      [
+       150,
+       -300
+      ]
+     ],
+     "center": [
+      187.8,
+      -310.8
+     ],
+     "count": 4,
+     "respawn": 30,
+     "_dry": 0.71,
+     "_m2": 9453
+    },
+    {
+     "name": "Bay Shore",
+     "species": "crab",
+     "density": "mid",
+     "poly": [
+      [
+       -300,
+       -225
+      ],
+      [
+       -80,
+       -245
+      ],
+      [
+       100,
+       -280
+      ],
+      [
+       115,
+       -240
+      ],
+      [
+       -80,
+       -185
+      ],
+      [
+       -300,
+       -170
+      ]
+     ],
+     "center": [
+      -83.9,
+      -209.0
+     ],
+     "count": 3,
+     "respawn": 30,
+     "_dry": 0.38,
+     "_m2": 8559
+    },
+    {
+     "name": "North Shore",
+     "species": "crab",
+     "density": "low",
+     "poly": [
+      [
+       20,
+       -690
+      ],
+      [
+       120,
+       -650
+      ],
+      [
+       200,
+       -600
+      ],
+      [
+       225,
+       -520
+      ],
+      [
+       190,
+       -500
+      ],
+      [
+       130,
+       -570
+      ],
+      [
+       60,
+       -610
+      ],
+      [
+       20,
+       -625
+      ]
+     ],
+     "center": [
+      118.2,
+      -599.0
+     ],
+     "count": 2,
+     "respawn": 40,
+     "_dry": 0.94,
+     "_m2": 13930
+    },
+    {
+     "name": "Mermaid Cove",
      "species": "siren",
-     "center": [
-      -76,
-      -410
+     "density": "mid",
+     "poly": [
+      [
+       -200,
+       -480
+      ],
+      [
+       -80,
+       -500
+      ],
+      [
+       -20,
+       -440
+      ],
+      [
+       -50,
+       -370
+      ],
+      [
+       -170,
+       -360
+      ],
+      [
+       -220,
+       -420
+      ]
      ],
-     "r": 14,
-     "count": 4,
-     "respawn": 40
+     "center": [
+      -124.2,
+      -427.1
+     ],
+     "count": 8,
+     "respawn": 30,
+     "_dry": 1.0,
+     "_m2": 20660
     },
     {
+     "name": "Drowned Strand",
      "species": "drowned",
-     "center": [
-      -210,
-      -670
+     "density": "mid",
+     "poly": [
+      [
+       -270,
+       -740
+      ],
+      [
+       -150,
+       -725
+      ],
+      [
+       -80,
+       -700
+      ],
+      [
+       -90,
+       -655
+      ],
+      [
+       -160,
+       -668
+      ],
+      [
+       -270,
+       -690
+      ]
      ],
-     "r": 12,
+     "center": [
+      -171.0,
+      -695.7
+     ],
      "count": 4,
-     "respawn": 40
+     "respawn": 30,
+     "_dry": 0.9,
+     "_m2": 8972
+    },
+    {
+     "name": "Goblin Island",
+     "species": "goblin",
+     "density": "mid",
+     "poly": [
+      [
+       500,
+       -790
+      ],
+      [
+       380,
+       -735
+      ],
+      [
+       350,
+       -630
+      ],
+      [
+       420,
+       -560
+      ],
+      [
+       600,
+       -525
+      ],
+      [
+       700,
+       -545
+      ],
+      [
+       760,
+       -605
+      ],
+      [
+       775,
+       -700
+      ],
+      [
+       735,
+       -780
+      ],
+      [
+       650,
+       -805
+      ]
+     ],
+     "center": [
+      589.1,
+      -670.8
+     ],
+     "count": 18,
+     "respawn": 30,
+     "_dry": 1.0,
+     "_m2": 91936
+    },
+    {
+     "name": "Goblin Camp",
+     "species": "goblin_brute",
+     "density": "high",
+     "poly": [
+      [
+       500,
+       -720
+      ],
+      [
+       600,
+       -735
+      ],
+      [
+       660,
+       -680
+      ],
+      [
+       630,
+       -610
+      ],
+      [
+       530,
+       -600
+      ],
+      [
+       480,
+       -650
+      ]
+     ],
+     "center": [
+      566.2,
+      -664.7
+     ],
+     "count": 18,
+     "respawn": 20,
+     "_dry": 1.0,
+     "_m2": 17845
+    },
+    {
+     "name": "Goblin Bridgehead",
+     "species": "goblin",
+     "density": "low",
+     "poly": [
+      [
+       380,
+       -500
+      ],
+      [
+       470,
+       -470
+      ],
+      [
+       520,
+       -430
+      ],
+      [
+       470,
+       -390
+      ],
+      [
+       380,
+       -420
+      ]
+     ],
+     "center": [
+      441.2,
+      -442.7
+     ],
+     "count": 2,
+     "respawn": 40,
+     "_dry": 1.0,
+     "_m2": 9197
     },
     {
      "species": "pirate",
      "center": [
-      214.0,
-      -477.4
+      -45.4,
+      -629
      ],
      "r": 2.2,
      "count": 3,
@@ -1761,8 +3553,8 @@
     {
      "species": "pirate",
      "center": [
-      209.0,
-      -477.4
+      -45.4,
+      -624
      ],
      "r": 2.0,
      "count": 2,
@@ -1772,8 +3564,8 @@
     {
      "species": "bosun",
      "center": [
-      206.0,
-      -477.4
+      -45.4,
+      -621
      ],
      "r": 1.2,
      "count": 1,
@@ -1783,8 +3575,8 @@
     {
      "species": "captain",
      "center": [
-      200.0,
-      -477.4
+      -45.4,
+      -615
      ],
      "r": 2.0,
      "count": 1,
@@ -1996,10 +3788,10 @@
    {
     "name": "The Pirate Ship",
     "rect": [
-     197.0,
-     -481.4,
-     227.0,
-     -473.4
+     -49.4,
+     -642.0,
+     -41.4,
+     -612.0
     ]
    },
    {
@@ -2157,16 +3949,16 @@
    },
    {
     "at": [
-     212.0,
-     -477.4
+     -45.4,
+     -627
     ],
     "spawn": [
-     231,
+     -40,
      0.4,
-     -472
+     -655
     ],
-    "yaw": 0,
-    "text": "You wake on the dock at Saltwind, soaked. The sea spat you back."
+    "yaw": 3.141592653589793,
+    "text": "You wake on the pirates' dock, soaked. The sea spat you back."
    }
   ]
  }

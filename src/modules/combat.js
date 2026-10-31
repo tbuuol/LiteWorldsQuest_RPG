@@ -265,14 +265,45 @@
     /* THE GREENWOOD: each area keeps its number of beasts (a dead one comes back after a while, of a maturity drawn by
        chance). A beast wanders in its area; an aggressive one goes for a player who comes close, any one for whoever
        hit it; too far from home it gives up, goes back and is whole again (the leash). */
+    /* AN AREA is a circle (center, r) or a shape of its own that follows the land (tbuuol 2026-10-31: "größer und
+       nicht rund, passe sie der Karte an"): poly [[x, z], ...], with center a point inside it to go home to */
+    function inArea(a, x, z) {
+      if (!a.poly) return Math.hypot(x - a.center[0], z - a.center[1]) < a.r;
+      let inside = false;
+      for (let i = 0, j = a.poly.length - 1; i < a.poly.length; j = i++) {
+        const [xi, zi] = a.poly[i], [xj, zj] = a.poly[j];
+        if ((zi > z) !== (zj > z) && x < (xj - xi) * (z - zi) / (zj - zi) + xi) inside = !inside;
+      }
+      return inside;
+    }
+    function outside(a, x, z) {   /* metres out of the area (0 inside it) */
+      if (!a.poly) return Math.max(0, Math.hypot(x - a.center[0], z - a.center[1]) - a.r);
+      if (inArea(a, x, z)) return 0;
+      let best = 1e9;
+      for (let i = 0, j = a.poly.length - 1; i < a.poly.length; j = i++) {
+        const [ax, az] = a.poly[j], vx = a.poly[i][0] - ax, vz = a.poly[i][1] - az, t = Math.max(0, Math.min(1, ((x - ax) * vx + (z - az) * vz) / (vx * vx + vz * vz)));
+        best = Math.min(best, Math.hypot(x - ax - vx * t, z - az - vz * t));
+      }
+      return best;
+    }
+    function spotIn(a) {   /* a place in the area, on dry land unless it swims */
+      const sp = wild.species[a.species] || {}, wet = wild.waterY != null ? wild.waterY : -0.75;
+      if (!a.poly) { const ang = Math.random() * Math.PI * 2, d = Math.sqrt(Math.random()) * a.r; return [a.center[0] + Math.cos(ang) * d, a.center[1] + Math.sin(ang) * d]; }
+      if (!a.box) { a.box = [1e9, 1e9, -1e9, -1e9]; for (const [x, z] of a.poly) { a.box[0] = Math.min(a.box[0], x); a.box[1] = Math.min(a.box[1], z); a.box[2] = Math.max(a.box[2], x); a.box[3] = Math.max(a.box[3], z); } }
+      for (let k = 0; k < 40; k++) {
+        const x = a.box[0] + Math.random() * (a.box[2] - a.box[0]), z = a.box[1] + Math.random() * (a.box[3] - a.box[1]);
+        if (inArea(a, x, z) && (sp.swim || height(x, z) > wet + 0.4)) return [x, z];
+      }
+      return a.center.slice();
+    }
     let beastNo = 0;
     const areaState = (wild && wild.areas || []).map(() => ({ due: [] }));
     function spawnBeast(ai) {
       const a = wild.areas[ai], r = Math.random(); let m = 0, acc = 0;
       for (let i = 0; i < MAT_ODDS.length; i++) { acc += MAT_ODDS[i]; if (r < acc) { m = i; break; } }
       if (a.mat != null) m = a.mat;   /* an area that always has the same one (a boss, a guard post) */
-      const ang = Math.random() * Math.PI * 2, d = Math.sqrt(Math.random()) * a.r;
-      const u = make('b.' + a.species + '.' + m + '.' + (++beastNo % 10000), 'beast', a.center[0] + Math.cos(ang) * d, a.center[1] + Math.sin(ang) * d);
+      const at = spotIn(a);
+      const u = make('b.' + a.species + '.' + m + '.' + (++beastNo % 10000), 'beast', at[0], at[1]);
       if (u) { u.area = ai; u.wt = Math.random() * 4; }
     }
     function beasts(dt, livePlayers, events) {
@@ -288,14 +319,14 @@
         if (u.kind !== 'beast') continue;
         if (u.state === 'dead') { u.gone -= dt; if (u.gone <= 0) drop(u); continue; }
         if (u.stun > 0) { u.stun -= dt; u.state = 'idle'; continue; }
-        const a = wild.areas[u.area] || { center: [u.x, u.z], r: 10 }, b = u.beast, home = Math.hypot(u.x - a.center[0], u.z - a.center[1]);
+        const a = wild.areas[u.area] || { center: [u.x, u.z], r: 10 }, b = u.beast, home = outside(a, u.x, u.z);
         let tgt = null;
         if (u.aggro) {
           const p = livePlayers.find(q => 'p:' + q.id === u.aggro);
-          if (!p || dist(u, p) > 25 || home > a.r + 20) { u.aggro = null; u.evade = true; } else tgt = p;
+          if (!p || dist(u, p) > 25 || home > 20) { u.aggro = null; u.evade = true; } else tgt = p;
         }
         if (!tgt && !u.evade && b.spec.aggressive) {
-          let best = null; for (const p of livePlayers) if (dist(u, p) < (b.spec.sight || 7) && Math.hypot(p.x - a.center[0], p.z - a.center[1]) < a.r + 10 && (!best || dist(u, p) < dist(u, best))) best = p;
+          let best = null; for (const p of livePlayers) if (dist(u, p) < (b.spec.sight || 7) && outside(a, p.x, p.z) < 10 && (!best || dist(u, p) < dist(u, best))) best = p;
           if (best) { u.aggro = 'p:' + best.id; tgt = best; }
         }
         u.cd -= dt;
@@ -336,7 +367,7 @@
           }
         } else {   /* wandering */
           u.wt -= dt;
-          if (u.wt <= 0) { u.wt = 3 + Math.random() * 6; const ang = Math.random() * Math.PI * 2, d = Math.sqrt(Math.random()) * a.r; u.goal = [a.center[0] + Math.cos(ang) * d, a.center[1] + Math.sin(ang) * d]; }
+          if (u.wt <= 0) { u.wt = 3 + Math.random() * 6; u.goal = spotIn(a); }
           if (u.goal && step(u, u.goal[0], u.goal[1], b.speed * 0.35, dt, 0.3)) u.state = 'walk'; else u.state = 'idle';
         }
       }
@@ -586,5 +617,5 @@
     return snap;
   }
   const combat = { api: 1, player, gain, nextXp, create, encode, decode };
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('combat', { api: 1, v: 14, needs: { three: 160, art: 1 } }, () => combat);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('combat', { api: 1, v: 15, needs: { three: 160, art: 1 } }, () => combat);
 })(typeof globalThis !== 'undefined' ? globalThis : this);

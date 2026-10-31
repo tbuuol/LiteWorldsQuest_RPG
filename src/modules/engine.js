@@ -147,10 +147,12 @@
     /* a piece of the real Earth (tools/realworld.py): the ground is its heights, the houses its footprints */
     const realW = LV.real ? art.realworld(ctx, LV.real) : null;
     const grid = new Map(), CELL = 25, cellKey = (i, j) => i + ',' + j;
-    if (realW) {   /* footprints and walls by 25 m cell, so a step only looks at what is near */
-      const file = (o, x0, z0, x1, z1) => { for (let i = Math.floor(x0 / CELL); i <= Math.floor(x1 / CELL); i++) for (let j = Math.floor(z0 / CELL); j <= Math.floor(z1 / CELL); j++) { const k = cellKey(i, j); if (!grid.has(k)) grid.set(k, []); grid.get(k).push(o); } };
+    /* footprints and walls by 25 m cell, so a step only looks at what is near (the real world's; a city wall's) */
+    const file = (o, x0, z0, x1, z1) => { for (let i = Math.floor(x0 / CELL); i <= Math.floor(x1 / CELL); i++) for (let j = Math.floor(z0 / CELL); j <= Math.floor(z1 / CELL); j++) { const k = cellKey(i, j); if (!grid.has(k)) grid.set(k, []); grid.get(k).push(o); } };
+    const fileSeg = sg => file({ seg: sg }, Math.min(sg.a[0], sg.b[0]) - sg.r - 1, Math.min(sg.a[1], sg.b[1]) - sg.r - 1, Math.max(sg.a[0], sg.b[0]) + sg.r + 1, Math.max(sg.a[1], sg.b[1]) + sg.r + 1);
+    if (realW) {
       for (const b of realW.polys) { const xs = b.pts.map(q => q[0]), zs = b.pts.map(q => q[1]); file({ poly: b }, Math.min(...xs), Math.min(...zs), Math.max(...xs), Math.max(...zs)); }
-      for (const sg of realW.segs) file({ seg: sg }, Math.min(sg.a[0], sg.b[0]) - 1, Math.min(sg.a[1], sg.b[1]) - 1, Math.max(sg.a[0], sg.b[0]) + 1, Math.max(sg.a[1], sg.b[1]) + 1);
+      for (const sg of realW.segs) fileSeg(sg);
       if (!(LV.portals || []).length) portals.push(art.portal(ctx, { pos: [realW.spawn[0], realW.spawn[1]], y: realW.groundAt(realW.spawn[0], realW.spawn[1]) - 0.2, to: 'blockshire', label: 'Blockshire', rot: 0, color: '#ffc77f' }));
     }
     const many = v => v ? [].concat(v) : [];
@@ -201,6 +203,7 @@
     /* THINGS TO GATHER around the camp (tbuuol 2026-10-23): an oak, an ore boulder, herbs. Which are spent is part of
        the shared world (W.dep); the house decides what gathering gives, and when a spent one grows back. */
     for (const n of (LV.resources && LV.resources.nodes) || []) {
+      if (n.ground && TR) n.y = TR.walk(n.pos[0], n.pos[1]) - 0.05;   /* out on the world's land (make_world.py's wilds) */
       const look = art.resource(ctx, n);
       look.use.userData = { kind: 'res', id: n.id }; usable.push(look.use);
       resources[n.id] = { def: n, look };
@@ -367,8 +370,11 @@
     for (const id in switches) switches[id].mesh.userData.keep = true;
     const frozen = art.freeze ? art.freeze(scene) : null;
     /* the world's land, after the freeze: its squares come and go as you walk */
+    let resFrame = 0; const RES_NEAR = PHONE ? 90 : 150;
     const land = TR && art.land ? art.land(ctx, TR, { radius: REACH, haze: scene.fog ? '#' + scene.fog.color.getHexString() : null }) : null;
     if (frozen) console.info('LWQ: ' + frozen.joined + ' still parts drawn in ' + frozen.calls + ' calls');
+    /* city walls on the land (Genesis', 2026-10-31): they stop you where they are drawn */
+    if (TR && art.cityWall) for (const w of (LV.land && LV.land.walls) || []) for (const sg of art.cityWall(ctx, TR, w).segs) fileSeg(sg);
 
     /* --- the shared world --------------------------------------------------------------------------- */
     let W = { seq: 0, open: {}, taken: {}, dep: {} };
@@ -696,8 +702,8 @@
     }
     /* the real world's houses and walls: a circle the player's width is pushed out of any footprint it enters */
     function realPush() {
-      if (!realW) return;
-      const lim = realW.half - 1; me.x = Math.max(-lim, Math.min(lim, me.x)); me.z = Math.max(-lim, Math.min(lim, me.z));
+      if (!grid.size) return;
+      if (realW) { const lim = realW.half - 1; me.x = Math.max(-lim, Math.min(lim, me.x)); me.z = Math.max(-lim, Math.min(lim, me.z)); }
       const near = grid.get(cellKey(Math.floor(me.x / CELL), Math.floor(me.z / CELL))) || [];
       for (const o of near) {
         if (o.poly) {
@@ -1744,6 +1750,8 @@
       if (!iAmHouse) { gateTick(now); if (live()) portalTick(); zoneTick(); drawAbilities(); compassTick(); if (mapOpen && now - (mapT || 0) > 200) { mapT = now; mapTick(); } }
       if (env && !iAmHouse) env.update(fdt, t, camera.position);
       if (land && !iAmHouse) land.update(camera.position);
+      /* things to gather out in the land are drawn near you only: there are a hundred and more, each a few meshes */
+      if (TR && !iAmHouse && (resFrame = (resFrame + 1) % 30) === 0) for (const id in resources) { const r = resources[id]; if (r.look.group) r.look.group.visible = Math.hypot(r.def.pos[0] - camera.position.x, r.def.pos[1] - camera.position.z) < RES_NEAR; }
       if (sound && !iAmHouse) {
         sound.listen(camera);
         const sp = Math.hypot(me.vx || 0, me.vz || 0);
@@ -1857,6 +1865,6 @@
     };
   }
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 26, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 27, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
     D => ({ start: (el, opts) => start(D, el, opts) }));
 })(typeof globalThis !== 'undefined' ? globalThis : this);

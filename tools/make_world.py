@@ -7,19 +7,51 @@ their things are made (edit those, then run this again):
 
 Each place is a zone's things moved onto the map -- turned by a quarter turn if need be, and lifted to the ground it
 stands on (its pad: flat ground the terrain makes for it): Blockshire on its cliff 14 m above the sea, Saltwind on the
-bay with the sea to its west, the Pirate Ship moored at Saltwind's dock. The creatures of these zones are spread over
-the Greenwood and the bay; the rest of the world is open land, its people still to come. Coordinates: metres, x east,
+bay with the sea to its west, the Pirate Ship at a dock of its own on the bay's north shore. The creatures live in
+areas shaped to the land (few, some or many) round Blockshire, on the beach and on the Goblin Village's island; things
+to gather lie out in the land; Genesis has its city wall. The terrain is read through tools/terrain_probe.cjs (node).
+The rest of the world is open land, its people still to come. Coordinates: metres, x east,
 z south, Blockshire's middle at (0, 0); I(px, py) is a pixel of the draft (2 m each). The first, small world's builder
 is make_world_v1.py."""
 from __future__ import annotations
 
+import glob
 import json
+import math
 import pathlib
+import random
+import shutil
+import subprocess
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 LEVELS = ROOT / "src" / "levels"
 OUT = LEVELS / "world.json"
-VERSION = 3
+VERSION = 4
+
+
+def probe(land: dict, points: list) -> list:
+    """The terrain at these points ([[walk, coast, river, road, slope], ...]): tools/terrain_probe.cjs, the game's own
+    terrain module run by node (the one Playwright brings, if there is no other)."""
+    node = shutil.which("node") or (glob.glob(str(ROOT / "tools/.venv/lib/python3.*/site-packages/playwright/driver/node")) or [None])[0]
+    if not node:
+        raise SystemExit("make_world.py needs node (or tools/.venv's Playwright) to read the terrain")
+    out = subprocess.run([node, str(ROOT / "tools" / "terrain_probe.cjs")], input=json.dumps({"land": land, "points": points}),
+                         capture_output=True, text=True, check=True)
+    return json.loads(out.stdout)
+
+
+def inside(poly, x, z) -> bool:
+    hit = False
+    for i in range(len(poly)):
+        (xi, zi), (xj, zj) = poly[i], poly[i - 1]
+        if (zi > z) != (zj > z) and x < (xj - xi) * (z - zi) / (zj - zi) + xi:
+            hit = not hit
+    return hit
+
+
+def box(poly):
+    xs, zs = [p[0] for p in poly], [p[1] for p in poly]
+    return min(xs), min(zs), max(xs), max(zs)
 
 
 def I(px, py):
@@ -59,7 +91,7 @@ class Place:
         for k in ("pos", "lookAt", "center", "from", "to", "face"):
             if k in o and isinstance(o[k], list) and o[k] and isinstance(o[k][0], (int, float)):
                 o[k] = self.p3(o[k]) if len(o[k]) == 3 else self.xz(o[k])
-        if "walk" in o:
+        if isinstance(o.get("walk"), list):
             o["walk"] = [self.xz(w) for w in o["walk"]]
         if "rect" in o:
             o["rect"] = self.rect(o["rect"])
@@ -92,41 +124,141 @@ def main() -> None:
         saltwind["fire"] = SW.thing(bch["fire"])
     for n in saltwind["npcs"]:
         n.pop("rot", None)
-    long_dock = max(saltwind["docks"], key=lambda d: abs(d["from"][0] - d["to"][0]) + abs(d["from"][1] - d["to"][1]))
-    dz = long_dock["from"][1]
 
-    # ---- the Pirate Ship: moored south of the long dock, bow to the shore, the captain's quarterdeck out to sea ---
-    L, B, D = 30, 8, 0.7
-    sx, sz = 212.0, round(dz - 1.2 - B / 2 - 0.2, 2)
-    ship = dict(shp["ships"][0])
-    ship.update({"pos": [sx, sz], "rot": 90, "deck": D, "length": L, "beam": B, "walk": True, "gaps": [[-4, -1, -1]]})
+    # ---- the Pirate Ship: away from Saltwind (tbuuol 2026-10-31: "steht direkt an der Strandsiedlung"), at a dock of
+    # its own on the bay's north shore, some 340 m from the village, a path from the road down to it. Laid out as it
+    # was at Saltwind (dock from the shore west into the sea, the ship along its north side, the quarterdeck out to
+    # sea) and then turned a quarter: the dock runs south into the bay.
+    BERTH = Place([-40, -648], turn=90)
+    L, B, D, OUT_ = 30, 8, 0.7, 21          # length, beam, deck height; the ship's middle 21 m out along the dock
     AFT = L / 2 - 8
-    deck = {"rect": [sx - L / 2, sz - B / 2, sx + L / 2, sz + B / 2], "y": D, "quarter": D + 2.1, "axis": "x", "aftAt": sx - AFT, "aftSign": -1}
+    sxl, szl = -OUT_, round(-1.2 - B / 2 - 0.2, 2)
+    dock_l = {"from": [3, 0], "to": [-30, 0], "width": 2.4, "y": 0.35}
+    ship_l = dict(shp["ships"][0])
+    ship_l.update({"pos": [sxl, szl], "rot": 90, "deck": D, "length": L, "beam": B, "walk": True, "gaps": [[-4, -1, -1]]})
+    ship = BERTH.thing(ship_l)
+    sx, sz = ship["pos"]
+    r = BERTH.rect([sxl - L / 2, szl - B / 2, sxl + L / 2, szl + B / 2])
+    deck = {"rect": r, "y": D, "quarter": D + 2.1, "axis": "z", "aftAt": BERTH.xz([sxl - AFT, 0])[1], "aftSign": 1}
+    berth = {"lift": 0, "docks": [{k: v for k, v in BERTH.thing(dock_l).items() if k != "rot"}], "ships": [ship]}
 
-    def ship_xz(p):   # a point of the pirate level's ship (its own frame) in the world: the group turns by -rot
-        return [round(sx - p[1], 2), round(sz + p[0], 2)]
+    def ship_xz(p):   # a point of the pirate level's ship (its own frame) in the world
+        return BERTH.xz([sxl - p[1], szl + p[0]])
     wreck = [dict(s, pos=I(150, 570), rot=200) for s in bch.get("ships", []) if s.get("list")]
-    saltwind["ships"] = [ship] + wreck
+    saltwind["ships"] = wreck
 
-    # ---- the creatures of these zones, spread over the Greenwood and the bay --------------------------------------
+    # ---- the creatures: areas shaped to the land, few, some or many (green, yellow, red on the map) ----------------
     sp = {}
     for src in (blk, bch, shp):
         sp.update(src["wild"]["species"])
     if "captain" in sp:
         sp["captain"] = dict(sp["captain"], sight=min(sp["captain"].get("sight", 6), 4))
+    goblin_look = {"skin": "#7aa03c", "shirt": "#5c4a2c", "pants": "#3b3020", "hair": "#1e2410", "bandana": "#8a3a22", "boots": "#2a2216"}
+    sp["goblin"] = {"name": "Goblin Scout", "lvl": 7, "hp": 82, "dmg": 8, "speed": 3.4, "aggressive": True, "sight": 7, "model": "human",
+                    "look": dict(goblin_look, scale=0.66), "weapon": "sword", "weaponLook": "#8f8578",
+                    "loot": [["torn_cloth", 0.35], ["scrap_iron", 0.3]], "codex": ["melee", "evade"]}
+    sp["goblin_brute"] = {"name": "Goblin Warrior", "lvl": 8, "hp": 108, "dmg": 10, "speed": 3.0, "aggressive": True, "sight": 7, "model": "human",
+                          "look": dict(goblin_look, skin="#68902f", shirt="#4a3a22", bandana="#5a2a1a", scale=0.78), "weapon": "sword",
+                          "weaponLook": "#a0968a", "loot": [["torn_cloth", 0.3], ["scrap_iron", 0.4]], "codex": ["melee", "toughness"]}
 
-    def A(species, at, r, n, respawn=30):
-        return {"species": species, "center": at, "r": r, "count": n, "respawn": respawn}
-    areas = [
-        A("boar", [-95, -45], 14, 4, 25), A("boar", [85, -70], 14, 4, 25), A("boar", [-60, -150], 14, 4, 25), A("boar", [120, -150], 14, 4, 25),
-        A("wolf", [-230, -110], 16, 4), A("wolf", [40, -240], 16, 4), A("wolf", [-150, -250], 16, 4), A("wolf", [200, -40], 16, 4),
-        A("spider", [-330, -10], 14, 4, 35), A("spider", [-260, -300], 14, 4, 35), A("spider", [150, -300], 14, 3, 35),
-        A("crab", I(255, 470), 14, 5), A("crab", I(330, 488), 12, 4), A("crab", I(395, 640), 12, 4),
-        A("siren", I(262, 585), 14, 4, 40), A("drowned", I(195, 455), 12, 4, 40),
+    RATE = {"low": 1 / 6000, "mid": 1 / 2500, "high": 1 / 1000}   # creatures a square metre of dry land
+    RESPAWN = {"low": 40, "mid": 30, "high": 20}
+    # [name, species, density, shape (metres; x east, z south)]
+    SHAPES = [
+        # round Blockshire: boars in the open fields, wolves in the wood to the north, spiders deep in the west
+        ["Blockshire Meadows", "boar", "low", [[85, -55], [170, -110], [290, -95], [340, 0], [300, 95], [160, 115], [85, 60]]],
+        ["South Fields", "boar", "low", [[-150, 85], [0, 95], [170, 120], [200, 170], [40, 195], [-170, 175]]],
+        ["Greenwood North", "wolf", "mid", [[-180, -70], [-60, -80], [60, -95], [80, -150], [-60, -165], [-190, -155]]],
+        ["Greenwood South-West", "wolf", "mid", [[-420, 110], [-260, 90], [-170, 120], [-200, 190], [-330, 210], [-430, 170]]],
+        ["Greenwood Deep", "spider", "high", [[-470, -100], [-330, -160], [-220, -140], [-180, -40], [-240, 60], [-380, 90], [-480, 30]]],
+        ["Roadside Woods", "wolf", "low", [[130, -130], [250, -160], [340, -230], [370, -330], [310, -330], [250, -260], [140, -190]]],
+        # the beach: crabs along the shores, sirens in the cove, the drowned on the far strand
+        ["Saltwind Shore", "crab", "mid", [[95, -265], [140, -215], [190, -240], [245, -300], [260, -400], [230, -415], [210, -365], [150, -300]]],
+        ["Bay Shore", "crab", "mid", [[-300, -225], [-80, -245], [100, -280], [115, -240], [-80, -185], [-300, -170]]],
+        ["North Shore", "crab", "low", [[20, -690], [120, -650], [200, -600], [225, -520], [190, -500], [130, -570], [60, -610], [20, -625]]],
+        ["Mermaid Cove", "siren", "mid", [[-200, -480], [-80, -500], [-20, -440], [-50, -370], [-170, -360], [-220, -420]]],
+        ["Drowned Strand", "drowned", "mid", [[-270, -740], [-150, -725], [-80, -700], [-90, -655], [-160, -668], [-270, -690]]],
+        # the Goblin Village's island, its camp, and scouts across the bridge
+        ["Goblin Island", "goblin", "mid", [[500, -790], [380, -735], [350, -630], [420, -560], [600, -525], [700, -545], [760, -605], [775, -700], [735, -780], [650, -805]]],
+        ["Goblin Camp", "goblin_brute", "high", [[500, -720], [600, -735], [660, -680], [630, -610], [530, -600], [480, -650]]],
+        ["Goblin Bridgehead", "goblin", "low", [[380, -500], [470, -470], [520, -430], [470, -390], [380, -420]]],
     ]
+    land = {"pads": [{"at": [0, 0], "r": 62, "y": LIFT, "rim": 40},
+                     {"at": [SW.at[0] + 6, SW.at[1]], "r": 24, "y": 0.25, "rim": 14, "landOnly": True}],
+            "decks": [deck]}
+    areas = []
+    for name, species, dens, poly in SHAPES:
+        x0, z0, x1, z1 = box(poly)
+        pts = [[x0 + (i + 0.5) * (x1 - x0) / 24, z0 + (j + 0.5) * (z1 - z0) / 24] for i in range(24) for j in range(24)]
+        pts = [q for q in pts if inside(poly, *q)]
+        res = probe(land, pts)
+        swims = sp[species].get("swim")
+        ok = [q for q, r in zip(pts, res) if swims or r[0] > -0.35]
+        cell = (x1 - x0) * (z1 - z0) / 576
+        n = max(2, min(18, round(len(ok) * cell * RATE[dens])))
+        home = min(ok, key=lambda q: math.hypot(q[0] - sum(p[0] for p in poly) / len(poly), q[1] - sum(p[1] for p in poly) / len(poly)))
+        areas.append({"name": name, "species": species, "density": dens, "poly": poly, "center": [round(home[0], 1), round(home[1], 1)],
+                      "count": n, "respawn": RESPAWN[dens], "_dry": round(len(ok) / max(1, len(pts)), 2), "_m2": round(len(ok) * cell)})
     for a in shp["wild"]["areas"]:   # the crew, where they stood on their ship
         areas.append(dict(a, center=ship_xz(a["center"]), respawn=shp["wild"].get("respawn", 120)))
     wild = {"zone": "Greenwood", "from": 28, "respawn": 25, "waterY": bch["wild"].get("waterY", -0.75), "species": sp, "areas": areas}
+
+    # ---- things to gather out in the land (tbuuol 2026-10-31: "mehr sammelbare Rohstoffe verteilen"): oaks in the
+    # wood, ore boulders on the slopes and the shore's rocks, herbs in the open; never on a road, in the river or the
+    # villages, 12 m apart at least. The same every time (a fixed seed).
+    rnd = random.Random(31)
+    REGIONS = [   # [shape, {kind: how many}]
+        [[[-500, -120], [-200, -200], [60, -215], [120, -260], [300, -300], [340, -120], [360, 120], [200, 190], [-150, 200], [-480, 150]],
+         {"tree": 30, "rock": 16, "herb": 30}],
+        [[[110, -270], [250, -330], [250, -420], [200, -420], [140, -340]], {"rock": 4, "herb": 4}],
+        [[[-300, -215], [100, -275], [110, -240], [-300, -170]], {"rock": 4, "herb": 4}],
+        [[[-260, -700], [0, -660], [200, -560], [215, -500], [100, -590], [-260, -660]], {"rock": 6, "herb": 6}],
+        [[[500, -790], [380, -735], [350, -630], [420, -560], [600, -525], [700, -545], [760, -605], [775, -700], [735, -780], [650, -805]],
+         {"tree": 10, "rock": 10, "herb": 8}],
+    ]
+    KEEP_OFF = [[0, 0, 85], [SW.at[0], SW.at[1], 50], [sx, sz, 25]]
+    nodes = []
+    for poly, want in REGIONS:
+        x0, z0, x1, z1 = box(poly)
+        cand = []
+        while len(cand) < 900:
+            q = [round(rnd.uniform(x0, x1), 1), round(rnd.uniform(z0, z1), 1)]
+            if inside(poly, *q) and not any(math.hypot(q[0] - k[0], q[1] - k[1]) < k[2] for k in KEEP_OFF):
+                cand.append(q)
+        res = probe(land, cand)
+        for kind, n in want.items():
+            got = 0
+            for q, (h, coast, river, road, slope) in zip(cand, res):
+                if got >= n:
+                    break
+                if h < 0.5 or road > 0.02 or river < 6 or coast < (2 if kind == "rock" else 6):
+                    continue
+                if slope > (0.8 if kind == "rock" else 0.45) or (kind == "tree" and coast < 25):
+                    continue
+                if any(math.hypot(q[0] - m["pos"][0], q[1] - m["pos"][1]) < 12 for m in nodes):
+                    continue
+                got += 1
+                nodes.append({"id": f"w.{kind}.{len(nodes) + 1}", "kind": kind, "pos": q, "ground": True})
+    wilds = {"lift": 0, "resources": {"nodes": nodes}}
+
+    # ---- Genesis: a city wall round the ground players will build on (tbuuol 2026-10-31), so its place and size can
+    # be seen already; the gate stands where the road comes through (art.cityWall finds it)
+    gx, gz = 790, -40
+    ring = []
+    for k in range(16):
+        t = k / 16 * 2 * math.pi
+        rr = 1 + 0.07 * math.sin(3 * t + 1) + 0.05 * math.cos(5 * t)
+        ring.append([gx + 235 * rr * math.cos(t), gz + 175 * rr * math.sin(t)])
+    for _ in range(12):   # off the sea and the river: a vertex too close is pulled in
+        res = probe(land, ring)
+        moved = False
+        for i, (h, coast, river, road, slope) in enumerate(res):
+            if coast < 30 or river < 25 or h < 1:
+                ring[i] = [gx + (ring[i][0] - gx) * 0.94, gz + (ring[i][1] - gz) * 0.94]
+                moved = True
+        if not moved:
+            break
+    land["walls"] = [{"name": "Genesis", "pts": [[round(x, 1), round(z, 1)] for x, z in ring], "h": 7, "th": 2.4, "gate": 9}]
 
     quests, seen = [], set()
     for src in (blk, bch, shp):
@@ -164,22 +296,24 @@ def main() -> None:
         "from": ["blockshire", "beach", "pirateship"],
         "spawn": spawn, "spawnYaw": blk.get("spawnYaw", 0),
         "env": env,
-        "land": {"pads": [{"at": [0, 0], "r": 62, "y": LIFT, "rim": 40},
-                          {"at": [SW.at[0] + 6, SW.at[1]], "r": 24, "y": 0.25, "rim": 14, "landOnly": True}],
-                 "decks": [deck]},
-        "places": [blockshire, saltwind],
+        "land": land,
+        "places": [blockshire, saltwind, berth, wilds],
+        "resources": {k: v for k, v in (blk.get("resources") or {}).items() if k != "nodes"},   # how often, how much: the wilds' too
         "defense": {k: v for k, v in (blk.get("defense") or {}).items() if k != "spawns"},   # the guards and the priest; no raider waves
         "wild": wild, "quests": quests, "zones": zones,
         "revives": [
             {"at": [0, 0], "spawn": spawn, "yaw": blk.get("spawnYaw", 0)},
             {"at": SW.at, "spawn": SW.p3(bch["spawn"]), "yaw": 0, "text": bch.get("revive")},
-            {"at": [sx, sz], "spawn": [long_dock["from"][0] + 4, 0.4, dz], "yaw": 0, "text": shp.get("revive")},
+            {"at": [sx, sz], "spawn": BERTH.p3([7, 0.4, 0]), "yaw": math.pi, "text": "You wake on the pirates' dock, soaked. The sea spat you back."},
         ],
     }
     OUT.write_text(json.dumps({"lwq": "module", "name": "level.world", "api": 1, "v": VERSION, "data": world}, indent=1,
                               ensure_ascii=False) + "\n")
-    print(f"{OUT.relative_to(ROOT)}: {OUT.stat().st_size // 1024} KB, {len(areas)} areas, {len(quests)} quests, "
-          f"long dock {long_dock['from']} -> {long_dock['to']}, ship at {sx},{sz}")
+    print(f"{OUT.relative_to(ROOT)}: {OUT.stat().st_size // 1024} KB, {len(areas)} areas ({sum(a['count'] for a in areas)} creatures), "
+          f"{len(nodes)} things to gather, {len(quests)} quests, ship at {sx},{sz}")
+    for a in areas:
+        if a.get("density"):
+            print(f"  {a['name']:22} {a['species']:13} {a['density']:5} {a['count']:3}  dry {a.pop('_dry')}  {a.pop('_m2')} m2")
 
 
 if __name__ == "__main__":
