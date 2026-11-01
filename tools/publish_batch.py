@@ -54,7 +54,10 @@ PACKAGE_MAX = 95_000
 #: offline): the registry goes out only once every one of these serves every module, byte for byte.
 #: Cloudflare in front of pages.pepecoinarcade.com refuses Python-urllib (403, 2026-10-31): the check asks as a browser
 UA = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) lwq-publish"}
-SERVED_BY = ["http://127.0.0.1:8420", "https://pages.pepecoinarcade.com", "https://pages.dogecoinarcade.com"]
+SERVED_BY = ["http://127.0.0.1:8420", "https://pages.dogecoinarcade.com"]
+#: Looked at and told, not waited for (tbuuol 2026-11-01: "dogecoinarcade.com ist der Main Server"): pepecoinarcade.com
+#: is a node of its own behind Cloudflare, which kept a 404 for v23's modules for hours.
+ALSO_SHOWN = ["https://pages.pepecoinarcade.com"]
 
 
 def say(*parts) -> None:
@@ -252,7 +255,18 @@ def main() -> int:
             for n, raw, txid, unsigned in ready[name]:
                 if str(n) in done:
                     continue
-                done[str(n)] = send(raw, unsigned, txid)
+                try:
+                    done[str(n)] = send(raw, unsigned, txid)
+                except Exception as e:   # noqa: BLE001
+                    # the relay weighs a piece by its signature checks too, so a package of bytes under the limit can
+                    # still be too much under its unconfirmed split (2026-11-01): then its split's block, and on
+                    if "too-long-mempool-chain" not in str(e):
+                        raise
+                    k = J["layout"][name]["spots"][n][0]
+                    say(f"{name}: the relay carries no more under split {k + 1} for now; waiting for its block …")
+                    pub.wait_for(J["splits"][k])
+                    say(f"split {k + 1} is in a block")
+                    done[str(n)] = send(raw, unsigned, txid)
                 save()
             say(f"{name} -> {done['0']}")
         for it in items:
@@ -264,6 +278,10 @@ def main() -> int:
             missing = []
             for name in want:
                 for host in SERVED_BY:
+                    # Cloudflare keeps a 404 it was asked for too early (for minutes, no-store or not: 2026-11-01), and
+                    # players then get the old modules: a host behind it is asked only once this node serves the file
+                    if host != SERVED_BY[0] and f"{name}@{SERVED_BY[0]}" in missing:
+                        missing.append(f"{name}@{host}"); continue
                     try:
                         with urllib.request.urlopen(urllib.request.Request(f"{host}/content/{J['pieces'][name]['0']}", headers=UA), timeout=30) as r:
                             if r.read() != want[name]:
@@ -271,7 +289,16 @@ def main() -> int:
                     except Exception:   # noqa: BLE001 -- not there yet
                         missing.append(f"{name}@{host}")
             if not missing:
-                say("every module is served everywhere")
+                for name in want:
+                    for host in ALSO_SHOWN:
+                        try:
+                            with urllib.request.urlopen(urllib.request.Request(f"{host}/content/{J['pieces'][name]['0']}", headers=UA), timeout=30) as r:
+                                ok = r.read() == want[name]
+                        except Exception:   # noqa: BLE001
+                            ok = False
+                        if not ok:
+                            say(f"(not yet at {host.split('//')[1]}: {name})")
+                say("every module is served by this node and the main server")
                 break
             if time.time() - t0 > 3600:
                 raise PublishError("modules still not served after an hour: " + ", ".join(missing) + " -- run again to resume")
