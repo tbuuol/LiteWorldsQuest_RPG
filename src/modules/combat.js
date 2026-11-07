@@ -166,7 +166,13 @@
     for (const u of units.values()) u.yaw = u.tyaw = yawTo(u.face[0] - u.x, u.face[1] - u.z);
 
     function yawTo(dx, dz) { return Math.atan2(-dx, -dz); }
-    const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
+    /* HEIGHT COUNTS (tbuuol 2026-11-07, flying in the beta: "von weit oben angreifen und treffen und auch getroffen
+       werden"): where a foe's feet are, and the distance to a player in three dimensions (a player has y; a guard,
+       like any unit, stands on the ground). A blow lands only within TALL of the other's feet, up or down. */
+    const TALL = 2.0;
+    const footY = u => u.beast && u.beast.spec.swim ? Math.max(height(u.x, u.z), wild && wild.waterY != null ? wild.waterY : -0.75) : height(u.x, u.z);
+    const dist = (a, b) => b.y != null ? Math.hypot(a.x - b.x, a.z - b.z, b.y - footY(a)) : Math.hypot(a.x - b.x, a.z - b.z);
+    const level = (u, p) => p.y == null || Math.abs(p.y - footY(u)) < TALL;
     const alive = u => u.state !== 'dead' && u.state !== 'down';
 
     /* --- the host's simulation ------------------------------------------------------------------------- */
@@ -222,16 +228,16 @@
         if (u.stun > 0) { u.stun -= dt; u.state = 'idle'; continue; }   /* stunned: does nothing */
         /* who to fight: whoever struck it last (a player), else the nearest guard standing, else a player nearby */
         let tgt = null;
-        if (u.aggro) { const p = livePlayers.find(q => 'p:' + q.id === u.aggro); if (p && dist(u, p) < 18) tgt = { x: p.x, z: p.z, ref: u.aggro }; else u.aggro = null; }
+        if (u.aggro) { const p = livePlayers.find(q => 'p:' + q.id === u.aggro); if (p && dist(u, p) < 18) tgt = { x: p.x, z: p.z, y: p.y, ref: u.aggro }; else u.aggro = null; }
         if (!tgt) { let best = null; for (const g of guards) if (alive(g) && (!best || dist(u, g) < dist(u, best))) best = g; if (best) tgt = { x: best.x, z: best.z, ref: best.id }; }
-        if (!tgt) { let best = null; for (const p of livePlayers) if (dist(u, p) < 12 && (!best || dist(u, p) < dist(u, best))) best = p; if (best) tgt = { x: best.x, z: best.z, ref: 'p:' + best.id }; }
+        if (!tgt) { let best = null; for (const p of livePlayers) if (dist(u, p) < 12 && (!best || dist(u, p) < dist(u, best))) best = p; if (best) tgt = { x: best.x, z: best.z, y: best.y, ref: 'p:' + best.id }; }
         if (!tgt) tgt = { x: 0, z: 21, ref: null };
         const b = statOf('raider');
         u.cd -= dt;
         if (step(u, tgt.x, tgt.z, b.speed, dt, tgt.ref && tgt.ref.startsWith('p:') ? armFor(b) : b.range * 0.85)) u.state = 'walk';
         else {
           u.tyaw = yawTo(tgt.x - u.x, tgt.z - u.z); u.state = 'idle';
-          if (tgt.ref && u.cd <= 0) {
+          if (tgt.ref && u.cd <= 0 && level(u, tgt)) {
             u.cd = b.cd; u.atk++; u.state = 'attack';
             const d = b.dmg + Math.floor(Math.random() * 3);
             if (tgt.ref.startsWith('p:')) events.push({ t: 'hit', to: tgt.ref.slice(2), d, from: u.name });
@@ -400,7 +406,7 @@
           if (step(u, tgt.x, tgt.z, b.speed, dt, armFor(b, b.scale * ((b.spec.look && b.spec.look.scale) || 1)))) u.state = 'walk';
           else {
             u.tyaw = yawTo(tgt.x - u.x, tgt.z - u.z); u.state = 'idle';
-            if (u.cd <= 0) { u.cd = b.spec.cd || 1.6; u.atk++; u.state = 'attack'; events.push({ t: 'hit', to: tgt.id, d: b.dmg + Math.floor(Math.random() * 3), from: u.name, lvl: b.lvl }); }
+            if (u.cd <= 0 && level(u, tgt)) { u.cd = b.spec.cd || 1.6; u.atk++; u.state = 'attack'; events.push({ t: 'hit', to: tgt.id, d: b.dmg + Math.floor(Math.random() * 3), from: u.name, lvl: b.lvl }); }
           }
         } else {   /* wandering */
           u.wt -= dt;
@@ -511,14 +517,16 @@
         if (u && (u.kind === 'raider' || u.kind === 'beast')) hurt(u, Math.max(0, Math.min(60, Math.round(+d || 0))), 'p:' + byPlayer, events);
         return events;
       },
-      pick(x, z, yaw, range) {
+      pick(x, z, yaw, range, y) {   /* y: the striker's feet (left out: height not counted) */
         const fx = -Math.sin(yaw), fz = -Math.cos(yaw);
         let best = null, bestD = range;
         for (const u of units.values()) {
           if ((u.kind !== 'raider' && u.kind !== 'beast') || !alive(u)) continue;
-          const dx = u.x - x, dz = u.z - z, d = Math.hypot(dx, dz);
+          const dy = y == null ? 0 : y - footY(u);
+          if (Math.abs(dy) >= TALL) continue;
+          const dx = u.x - x, dz = u.z - z, h = Math.hypot(dx, dz), d = Math.hypot(h, dy);
           if (d > range) continue;
-          if (d > 0.6 && (dx * fx + dz * fz) / d < 0.55) continue;   /* in front of you, roughly */
+          if (h > 0.6 && (dx * fx + dz * fz) / h < 0.55) continue;   /* in front of you, roughly */
           if (d < bestD) { best = u.id; bestD = d; }
         }
         return best;
@@ -592,17 +600,19 @@
         for (const u of Array.from(units.values())) if ((u.kind === 'raider' || u.kind === 'beast') && now - (u.seenAt || now) > 3000) drop(u);
       },
       /* foes in front of you, nearest first (Cleave) */
-      pickAll(x, z, yaw, range, most) {
+      pickAll(x, z, yaw, range, most, y) {   /* y: the striker's feet (left out: height not counted) */
         const fx = -Math.sin(yaw), fz = -Math.cos(yaw), out = [];
         for (const u of units.values()) {
           if ((u.kind !== 'raider' && u.kind !== 'beast') || !alive(u)) continue;
-          const dx = u.x - x, dz = u.z - z, d = Math.hypot(dx, dz);
+          const dy = y == null ? 0 : y - footY(u);
+          if (Math.abs(dy) >= TALL) continue;
+          const dx = u.x - x, dz = u.z - z, d = Math.hypot(dx, dz, dy);
           if (d > range || (d > 0.6 && (dx * fx + dz * fz) / d < 0.3)) continue;
           out.push([d, u.id]);
         }
         return out.sort((a, b) => a[0] - b[0]).slice(0, most || 4).map(e => e[1]);
       },
-      posOf(id) { const u = units.get(String(id)); return u ? [u.x, u.z] : null; },
+      posOf(id) { const u = units.get(String(id)); return u ? [u.x, u.z, footY(u)] : null; },
       /* host: a foe stunned for so long; every foe near a point made to come for a player (Taunt) */
       stun(id, secs) { const u = units.get(String(id)); if (u && alive(u) && u.kind !== 'guard') { u.stun = Math.max(u.stun || 0, secs); } },
       taunt(x, z, radius, playerId) {
@@ -662,5 +672,5 @@
     return snap;
   }
   const combat = { api: 1, player, gain, nextXp, create, encode, decode };
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('combat', { api: 1, v: 18, needs: { three: 160, art: 1 } }, () => combat);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('combat', { api: 1, v: 19, needs: { three: 160, art: 1 } }, () => combat);
 })(typeof globalThis !== 'undefined' ? globalThis : this);

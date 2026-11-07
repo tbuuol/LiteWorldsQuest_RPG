@@ -987,7 +987,7 @@
       const now = performance.now();
       if (now < atkReady) return;
       atkReady = now + P.cd * 1000; swingT = 1;
-      const id = fight.pick(me.x, me.z, me.yaw, P.range);
+      const id = fight.pick(me.x, me.z, me.yaw, P.range, me.y);
       if (sound) sound.blip(id ? 'hit' : 'swing');
       if (!id) return;
       if (amHost()) { route(fight.damage(id, blowFor(room ? room.me : null, id), myId())); return; }
@@ -1010,8 +1010,8 @@
       if ((abilCd[ab.key] || 0) > now) return;
       if (!room || !houseId() || iAmHouse) { log(ab.name + ' needs the house: it decides what an ability does.'); return; }
       const msg = { A: ab.key, n: ++blowNo };
-      if (ab.key === 'cleave') { msg.u = fight.pickAll(me.x, me.z, me.yaw, ab.range, ab.most); if (!msg.u.length) { log('No foe in reach.'); return; } }
-      else if (ab.mul) { const id = fight.pick(me.x, me.z, me.yaw, ab.range); if (!id) { log('No foe in reach.'); return; } msg.u = [id]; }
+      if (ab.key === 'cleave') { msg.u = fight.pickAll(me.x, me.z, me.yaw, ab.range, ab.most, me.y); if (!msg.u.length) { log('No foe in reach.'); return; } }
+      else if (ab.mul) { const id = fight.pick(me.x, me.z, me.yaw, ab.range, me.y); if (!id) { log('No foe in reach.'); return; } msg.u = [id]; }
       else if (ab.key === 'salve') {   /* the player in front of you, else yourself */
         const fx = -Math.sin(me.yaw), fz = -Math.cos(me.yaw); let best = null, bd = ab.range;
         for (const [id, r] of remotes) {
@@ -1029,6 +1029,12 @@
     }
     /* the house does an ability: checked again, then dealt out */
     const houseCd = new Map();
+    /* the house: a blow counts only from where it could land -- the reach and some slack for the trip, height too */
+    function blowNear(fromId, unit) {
+      const r = remotes.get(fromId), q = fight.posOf(unit);
+      if (!r || !q) return true;   /* not known yet: as before */
+      return Math.hypot(q[0] - r.g.position.x, q[1] - r.g.position.z, q[2] - r.g.position.y) <= 2.5 + 2.5;
+    }
     function houseAbility(from, d) {
       const a = addrOf(from); if (!a || !ready(a)) return;
       const ab = rpg.abilities(book.of(a)).find(x => x.key === String(d.A));
@@ -1037,8 +1043,8 @@
       const now = performance.now(), cds = houseCd.get(a) || {};
       if ((cds[ab.key] || 0) > now + 400) return;   /* too soon (a little slack for the trip) */
       cds[ab.key] = now + ab.cd * 1000; houseCd.set(a, cds);
-      const r = remotes.get(from.id), pos = r ? [r.g.position.x, r.g.position.z] : null;
-      const near = id => { const q = fight.posOf(id); return !!(q && pos && Math.hypot(q[0] - pos[0], q[1] - pos[1]) <= (ab.range || 3) + 2.5); };
+      const r = remotes.get(from.id), pos = r ? [r.g.position.x, r.g.position.z, r.g.position.y] : null;
+      const near = id => { const q = fight.posOf(id); return !!(q && pos && Math.hypot(q[0] - pos[0], q[1] - pos[1], q[2] - pos[2]) <= (ab.range || 3) + 2.5); };
       if (ab.mul) {
         for (const id of (Array.isArray(d.u) ? d.u : []).slice(0, ab.most || 1).map(String)) {
           if (!near(id)) continue;
@@ -1470,7 +1476,7 @@
       if (fight) {
         const fromHost = from.id === hostId();
         if (d.C && fromHost && !amHost()) fight.apply(d.C);
-        if (d.X != null && amHost() && freshBlow(from.id, d.n)) route(fight.damage(String(d.X), blowFor(from, String(d.X)), from.id));
+        if (d.X != null && amHost() && freshBlow(from.id, d.n) && blowNear(from.id, String(d.X))) route(fight.damage(String(d.X), blowFor(from, String(d.X)), from.id));
         if (d.D != null && String(d.D) === myId() && fromHost) hurt(+d.d || 0, String(d.f || 'raider').slice(0, 30));
         if (Array.isArray(d.M) && String(d.M[0]) === myId() && fromHost) fight.missed(String(d.M[1]));
       }
@@ -1747,8 +1753,8 @@
     function fightTick(dt, now) {
       const host = amHost(), players = [];
       if (host) {
-        if (!iAmHouse) players.push({ id: myId(), x: me.x, z: me.z, hp: P.hp, max: P.max, dead: P.dead });
-        for (const [id, r] of remotes) if (r.g.visible && linked(id)) players.push({ id, x: r.g.position.x, z: r.g.position.z, hp: r.hp ? r.hp[0] : 100, max: r.hp ? r.hp[1] : 100, dead: r.hp ? r.hp[2] : false });
+        if (!iAmHouse) players.push({ id: myId(), x: me.x, y: me.y, z: me.z, hp: P.hp, max: P.max, dead: P.dead });
+        for (const [id, r] of remotes) if (r.g.visible && linked(id)) players.push({ id, x: r.g.position.x, y: r.g.position.y, z: r.g.position.z, hp: r.hp ? r.hp[0] : 100, max: r.hp ? r.hp[1] : 100, dead: r.hp ? r.hp[2] : false });
       }
       /* the fight runs on real time in small steps: a house on a busy machine may get few frames, and one big step
          made raiders and guards jump (tbuuol 2026-10-23, as a client: "they stutter") */
@@ -1817,7 +1823,7 @@
         /* no record yet and the house is here: ask it for mine */
         if (rpg && room && !iAmHouse && !rec && linked(houseId()) && now - askedRec > 5000) { askedRec = now; sendIntent({ Q: 'me' }); }
       }
-      const pr = playing() && !iAmHouse ? promptFor(aimed()) || (fight && !TOUCH && fight.pick(me.x, me.z, me.yaw, P.range) ? 'F / click: strike' : '') : '';
+      const pr = playing() && !iAmHouse ? promptFor(aimed()) || (fight && !TOUCH && fight.pick(me.x, me.z, me.yaw, P.range, me.y) ? 'F / click: strike' : '') : '';
       if (pr !== promptNow) { promptNow = pr; $('.lwq-prompt').textContent = pr; }   /* only when it changes: a DOM write is not free */
       if (drawing) { if (post) post.render(t); else renderer.render(scene, camera); }
       frameMs += (performance.now() - t0 - frameMs) * 0.05;
