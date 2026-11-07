@@ -77,16 +77,41 @@
         x.fillStyle = colour; x.fillRect(1, 1, Math.max(0, Math.round(62 * hp / max)), 8); tex.needsUpdate = true;
       } };
     }
-    /* numbers that rise and fade where a blow or a blessing landed */
+    /* numbers that rise and fade where a blow or a blessing landed: over the head of the one it landed on (tbuuol
+       2026-11-07: "der Kampftext ist winzig und findet unter meinen Füßen statt" -- it stood at 2.2 m above the sea, and
+       Blockshire's ground is 14 m up), big enough to read in the middle of a fight */
     const floaters = [];
-    function floater(x, y, z, text, colour) {
-      const c = document.createElement('canvas'); c.width = 96; c.height = 48;
-      const x2 = c.getContext('2d'); x2.font = 'bold 34px system-ui,sans-serif'; x2.textAlign = 'center';
-      x2.lineWidth = 6; x2.strokeStyle = 'rgba(0,0,0,.75)'; x2.strokeText(text, 48, 36); x2.fillStyle = colour; x2.fillText(text, 48, 36);
+    function floater(u, text, colour, lift) {
+      const c = document.createElement('canvas'); c.width = 256; c.height = 96;
+      const x2 = c.getContext('2d'); x2.font = 'bold 72px system-ui,sans-serif'; x2.textAlign = 'center';
+      x2.lineWidth = 12; x2.lineJoin = 'round'; x2.strokeStyle = 'rgba(0,0,0,.8)'; x2.strokeText(text, 128, 74);
+      x2.fillStyle = colour; x2.fillText(text, 128, 74);
       const tex = new T.CanvasTexture(c); tex.colorSpace = T.SRGBColorSpace;
       const s = new T.Sprite(new T.SpriteMaterial({ map: tex, depthTest: false, transparent: true }));
-      s.scale.set(0.8, 0.4, 1); s.position.set(x + (Math.random() - 0.5) * 0.4, y, z); s.renderOrder = 12; scene.add(s);
-      floaters.push({ s, life: 1 });
+      const top = u.c.group.position.y + (u.c.barY || 2.2) + 0.45 + (lift || 0);
+      s.scale.set(1.6, 0.6, 1); s.position.set(u.x + (Math.random() - 0.5) * 0.5, top, u.z); s.renderOrder = 12; scene.add(s);
+      floaters.push({ s, life: 1.3 });
+    }
+    /* A FOE THAT FALLS GOES UP IN A PUFF (tbuuol 2026-11-07: it froze, then sank into the ground a moment later --
+       "noch besser zerpuffen"): a burst of dust where it stood while it shrinks to nothing, in a quarter of a second */
+    let puffTex = null;
+    const puffs = [];
+    function puff(x, y, z, size) {
+      if (!puffTex) {
+        const c = document.createElement('canvas'); c.width = c.height = 64;
+        const g = c.getContext('2d'), r = g.createRadialGradient(32, 32, 2, 32, 32, 31);
+        r.addColorStop(0, 'rgba(255,255,255,1)'); r.addColorStop(0.45, 'rgba(235,228,214,.7)'); r.addColorStop(1, 'rgba(235,228,214,0)');
+        g.fillStyle = r; g.fillRect(0, 0, 64, 64);
+        puffTex = new T.CanvasTexture(c); puffTex.colorSpace = T.SRGBColorSpace;
+      }
+      for (let i = 0; i < 12; i++) {
+        const a = Math.random() * Math.PI * 2, up = Math.random();
+        const sp = new T.Sprite(new T.SpriteMaterial({ map: puffTex, transparent: true, depthWrite: false, opacity: 0.9 }));
+        sp.position.set(x + (Math.random() - 0.5) * 0.3 * size, y + (up - 0.3) * 0.6 * size, z + (Math.random() - 0.5) * 0.3 * size);
+        sp.scale.setScalar(0.35 * size); sp.renderOrder = 8; scene.add(sp);
+        puffs.push({ sp, life: 0.6 + Math.random() * 0.35, vx: Math.cos(a) * (1.2 + Math.random()) * size, vz: Math.sin(a) * (1.2 + Math.random()) * size,
+                     vy: (0.6 + up * 1.4) * size, grow: (1.6 + Math.random()) * size });
+      }
     }
     /* the blessing as it is seen: a golden ring rising from the priest's feet to its radius, and gone */
     const rings = [];
@@ -95,7 +120,7 @@
     function ring(x, z, r, k) {
       const m = new T.Mesh(new T.RingGeometry(0.85, 1, 64), new T.MeshBasicMaterial({ color: RING[k | 0] || RING[0], transparent: true, opacity: 0.9,
         side: T.DoubleSide, depthWrite: false, blending: T.AdditiveBlending }));
-      m.rotation.x = -Math.PI / 2; m.position.set(x, 0.15, z); m.renderOrder = 9; scene.add(m);
+      m.rotation.x = -Math.PI / 2; m.position.set(x, Math.max(height(x, z), wild && wild.waterY != null ? wild.waterY : -0.75) + 0.15, z);   /* on the ground, not at sea level */ m.renderOrder = 9; scene.add(m);
       rings.push({ m, r, life: 1, slow: k === 1 });
     }
     function look(kind, id) {
@@ -159,6 +184,11 @@
         if (by && by.startsWith('p:')) events.push({ t: 'kill', by: by.slice(2), xp: statOf('raider').xp, name: u.name });
       } else { u.state = 'down'; u.gone = 6; }   /* a guard goes down, and gets up again */
     }
+    /* ARM'S LENGTH (tbuuol 2026-11-07: "Gegner rennen in mich rein, somit muss ich immer weit nach unten kucken"): a
+       foe fighting a player stops this far off -- about where the player's own reach (2.5 m) ends -- and strikes from
+       there, so it stays in front of the eyes; a big one (a boss) further. Against a guard they close in as before. */
+    const ARM = 2.1;
+    const armFor = (b, scale) => Math.max(b.range * 0.85, ARM * Math.max(1, scale || 1));
     function step(u, tx, tz, speed, dt, keep) {
       const dx = tx - u.x, dz = tz - u.z, d = Math.hypot(dx, dz);
       if (d <= keep) return false;
@@ -198,7 +228,7 @@
         if (!tgt) tgt = { x: 0, z: 21, ref: null };
         const b = statOf('raider');
         u.cd -= dt;
-        if (step(u, tgt.x, tgt.z, b.speed, dt, b.range * 0.85)) u.state = 'walk';
+        if (step(u, tgt.x, tgt.z, b.speed, dt, tgt.ref && tgt.ref.startsWith('p:') ? armFor(b) : b.range * 0.85)) u.state = 'walk';
         else {
           u.tyaw = yawTo(tgt.x - u.x, tgt.z - u.z); u.state = 'idle';
           if (tgt.ref && u.cd <= 0) {
@@ -367,7 +397,7 @@
           u.hp = u.max;
           if (step(u, a.center[0], a.center[1], b.speed * 1.4, dt, 2)) u.state = 'walk'; else { u.evade = false; u.state = 'idle'; }
         } else if (tgt) {
-          if (step(u, tgt.x, tgt.z, b.speed, dt, b.range * 0.85)) u.state = 'walk';
+          if (step(u, tgt.x, tgt.z, b.speed, dt, armFor(b, b.scale * ((b.spec.look && b.spec.look.scale) || 1)))) u.state = 'walk';
           else {
             u.tyaw = yawTo(tgt.x - u.x, tgt.z - u.z); u.state = 'idle';
             if (u.cd <= 0) { u.cd = b.spec.cd || 1.6; u.atk++; u.state = 'attack'; events.push({ t: 'hit', to: tgt.id, d: b.dmg + Math.floor(Math.random() * 3), from: u.name, lvl: b.lvl }); }
@@ -407,21 +437,21 @@
             while (b.length > 3 && b[1].t < t - 1000) b.shift();
           }
         }
-        /* a raider that died lies a moment, then sinks into the ground before it is gone (the host drops it at 3.2 s) */
-        let y = 0;
-        if (u.state === 'dead') {
-          u.deadSince = u.deadSince || performance.now();
-          const lying = (performance.now() - u.deadSince) / 1000;
-          if (lying > 0.6) y = -Math.min(1.4, (lying - 0.6) * 1.8);   /* down a moment, then quickly into the ground (tbuuol: too slow) */
-        } else u.deadSince = 0;
         const gy = height(u.x, u.z);   /* a swimmer (a siren) keeps its head above the water */
-        u.c.group.position.set(u.x, y + (u.beast && u.beast.spec.swim ? Math.max(gy, wild && wild.waterY != null ? wild.waterY : -0.75) : gy), u.z);
+        u.c.group.position.set(u.x, u.beast && u.beast.spec.swim ? Math.max(gy, wild && wild.waterY != null ? wild.waterY : -0.75) : gy, u.z);
+        /* one that died: a puff, and it shrinks away within 0.25 s (the host drops it a little later) */
+        if (u.state === 'dead') {
+          if (!u.deadSince) { u.deadSince = performance.now(); if (u.c.group.visible) puff(u.x, u.c.group.position.y + (u.c.barY || 1.6) * 0.45, u.z, Math.max(0.7, Math.min(1.6, (u.c.barY || 1.6) / 1.6))); }
+          const k = Math.max(0, 1 - (performance.now() - u.deadSince) / 250);
+          u.c.group.scale.setScalar(Math.max(0.001, k));
+          if (!k) { u.c.group.visible = false; continue; }
+        } else if (u.deadSince) { u.deadSince = 0; u.c.group.scale.setScalar(1); }
         let d = u.tyaw - u.yaw; d = Math.atan2(Math.sin(d), Math.cos(d)); u.yaw += d * Math.min(1, dt * 8);
         u.c.group.rotation.y = u.yaw;
         /* far off it is not drawn at all (2026-10-31: a figure is some 30 draw calls, and a hundred are out there) */
         if (eyeOf) { const e = eyeOf(), vis = Math.hypot(u.x - e.x, u.z - e.z) < FAR; u.c.group.visible = vis; if (!vis) continue; }
         const speed = dt > 0 ? Math.hypot(u.x - ox, u.z - oz) / dt : 0;
-        if (u.state === 'dead' || u.state === 'down') u.c.hold('die');
+        if (u.state === 'dead' || u.state === 'down') { u.c.hold('die'); u.c.animate(dt, 0); }   /* falling, not frozen */
         else { u.c.hold(null); if (u.atk !== u.shown.atk) u.c.emote(u.kind === 'priest' ? 'interact-right' : 'attack-melee-right'); u.c.animate(dt, speed > 0.4 ? speed : 0); }
         if (u.hp !== u.shown.hp) {
           if (u.shown.hp >= 0) {
@@ -429,8 +459,8 @@
             u.predicted = (u.predicted || []).filter(q => q.until > now);
             const mine = diff < 0 ? u.predicted.findIndex(q => q.d === -diff) : -1;
             if (mine >= 0) u.predicted.splice(mine, 1);   /* my own blow, already shown when I struck */
-            else if (diff < 0) floater(u.x, 2.2, u.z, String(diff), '#ff6b5a');
-            else if (diff > 0) floater(u.x, 2.2, u.z, '+' + diff, '#7dff8a');
+            else if (diff < 0) floater(u, String(diff), '#ff6b5a');
+            else if (diff > 0) floater(u, '+' + diff, '#7dff8a');
           }
           u.bar.draw(u.hp, u.max, u.kind === 'raider' ? '#e0483a' : '#4cc35a');
           u.shown.hp = u.hp;
@@ -446,8 +476,14 @@
       /* the host's own effects, the moment they happen (a client's come with the snapshot) */
       for (const e of fx) if (!fxSeen.has(e.id)) { fxSeen.add(e.id); ring(e.x, e.z, e.r, Math.max(0, FXK.indexOf(e.k))); }
       while (fx.length && performance.now() - fx[0].at > 2000) fx.shift();
+      for (let i = puffs.length - 1; i >= 0; i--) {
+        const q = puffs[i]; q.life -= dt; const p = q.sp.position;
+        p.x += q.vx * dt; p.z += q.vz * dt; p.y += q.vy * dt; q.vx *= 1 - dt * 3; q.vz *= 1 - dt * 3; q.vy *= 1 - dt * 2;
+        q.sp.scale.setScalar(q.sp.scale.x + q.grow * dt); q.sp.material.opacity = Math.max(0, Math.min(0.9, q.life * 1.8));
+        if (q.life <= 0) { scene.remove(q.sp); q.sp.material.dispose(); puffs.splice(i, 1); }
+      }
       for (let i = floaters.length - 1; i >= 0; i--) {
-        const f = floaters[i]; f.life -= dt * 1.1; f.s.position.y += dt * 1.1; f.s.material.opacity = Math.max(0, Math.min(1, f.life * 1.6));
+        const f = floaters[i]; f.life -= dt; f.s.position.y += dt * 0.9; f.s.material.opacity = Math.max(0, Math.min(1, f.life * 1.6));
         if (f.life <= 0) { scene.remove(f.s); f.s.material.map.dispose(); f.s.material.dispose(); floaters.splice(i, 1); }
       }
     }
@@ -463,13 +499,13 @@
       predict(id, d) {
         const u = units.get(String(id)); d = Math.round(+d || 0);
         if (!u || !alive(u)) return;
-        if (d <= 0) { floater(u.x, 2.0, u.z, '✶', '#fff6d0'); return; }   /* the house rolls the number: a spark now, the number when it says */
-        floater(u.x, 2.2, u.z, '-' + d, '#ff6b5a');
+        if (d <= 0) { floater(u, '✶', '#fff6d0'); return; }   /* the house rolls the number: a spark now, the number when it says */
+        floater(u, '-' + d, '#ff6b5a');
         (u.predicted = u.predicted || []).push({ d, until: performance.now() + 2500 });
       },
       /* the house says a blow of mine missed: shown over the raider, where the spark was */
       quiet(on) { quiet = !!on; },
-      missed(id) { const u = units.get(String(id)); if (u && alive(u)) floater(u.x, 2.2, u.z, 'miss', '#d9e2ec'); },
+      missed(id) { const u = units.get(String(id)); if (u && alive(u)) floater(u, 'miss', '#d9e2ec'); },
       damage(id, d, byPlayer) {
         const events = [], u = units.get(String(id));
         if (u && (u.kind === 'raider' || u.kind === 'beast')) hurt(u, Math.max(0, Math.min(60, Math.round(+d || 0))), 'p:' + byPlayer, events);
@@ -576,7 +612,7 @@
         return n;
       },
       /* a word over a foe (a stun, as the one who did it sees it) */
-      say(id, text, colour) { const u = units.get(String(id)); if (u) floater(u.x, 2.4, u.z, text, colour || '#ffe08a'); },
+      say(id, text, colour) { const u = units.get(String(id)); if (u) floater(u, text, colour || '#ffe08a', 0.3); },
       /* what a blow is against: how hard the foe is (what striking it teaches) and its defence */
       info(id) { const u = units.get(String(id)); if (!u) return null; return u.beast ? { kind: 'beast', lvl: u.beast.lvl, def: u.beast.spec.def || 0, species: u.beast.sp } : { kind: u.kind }; },
       units() { return Array.from(units.values()).map(u => ({ id: u.id, kind: u.kind, name: u.name, x: Math.round(u.x * 10) / 10, z: Math.round(u.z * 10) / 10, y: Math.round(u.c.group.position.y * 100) / 100, hp: u.hp, max: u.max, state: u.state })); }
@@ -626,5 +662,5 @@
     return snap;
   }
   const combat = { api: 1, player, gain, nextXp, create, encode, decode };
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('combat', { api: 1, v: 16, needs: { three: 160, art: 1 } }, () => combat);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('combat', { api: 1, v: 17, needs: { three: 160, art: 1 } }, () => combat);
 })(typeof globalThis !== 'undefined' ? globalThis : this);

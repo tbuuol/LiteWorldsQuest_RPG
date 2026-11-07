@@ -37,7 +37,7 @@
     },
     "combat": {
       "file": "src/modules/combat.js",
-      "v": 16,
+      "v": 17,
       "api": 1,
       "kind": "js",
       "id": null,
