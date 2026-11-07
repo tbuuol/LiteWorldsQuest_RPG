@@ -48,7 +48,7 @@
   const ROADS = [{ pts: ROUTE, w: 6 }].concat([
     [[930, 470], [1060, 500], [1180, 520], [1290, 540]], [[1290, 540], [1320, 620], [1340, 700], [1350, 790]],
     [[1350, 790], [1260, 800], [1170, 790], [1080, 780]], [[745, 280], [790, 230], [760, 175], [800, 135], [780, 100], [815, 75]],
-    [[458, 628], [478, 570], [540, 560], [548, 500], [560, 470], [590, 425]], [[300, 790], [400, 800], [520, 790], [640, 775], [680, 765]],
+    [[458, 628], [478, 570], [540, 560], [548, 500], [560, 470], [590, 425]], [[300, 790], [400, 800], [520, 790], [570, 770], [600, 770]]   /* to Genesis' gate, straight in on its avenue (2026-11-07) */,
     [[392, 462], [350, 474], [310, 470], [282, 464]]   /* down to the Pirate Ship's dock (2026-10-31) */
   ].map((p, i) => ({ pts: px(p), w: [5, 4, 4, 3, 3, 5, 3][i] })));
   const EXT = [...I(0, 0), ...I(1536, 1024)];
@@ -57,6 +57,9 @@
   function create(opts) {
     opts = opts || {};
     const pads = opts.pads || [], decks = opts.decks || [], walls = (opts.walls || []).map(w => w.pts.concat([w.pts[0]]));
+    /* metres outside a pad's flat ground (- inside): a circle (r), or an ellipse (rx, rz: Genesis inside its wall) */
+    const padOut = (p, x, z) => p.rx ? (Math.hypot((x - p.at[0]) / p.rx, (z - p.at[1]) / p.rz) - 1) * Math.min(p.rx, p.rz)
+                                     : Math.hypot(x - p.at[0], z - p.at[1]) - p.r;
     function coast(x, z) {   /* signed metres to the shore: + on land */
       let inside = false, best = 1e9;
       for (let i = 0, j = LAND.length - 1; i < LAND.length; j = i++) {
@@ -96,7 +99,7 @@
       /* the settlements' flat ground (Blockshire on its cliff, Saltwind by the water): a pad, faded out over its rim */
       for (const p of pads) {
         if (p.landOnly && c < 0) continue;   /* Saltwind's ground stops at the water */
-        const d = Math.hypot(x - p.at[0], z - p.at[1]), k = 1 - smooth((d - p.r) / (p.rim || 30));
+        const k = 1 - smooth(padOut(p, x, z) / (p.rim || 30));
         if (k > 0) h = h * (1 - k) + p.y * k;
       }
       /* the river and its arm: a deep bed, a steep bank of 3 m to a strip just above the water, then the land (the
@@ -210,7 +213,7 @@
         dens = b === 'fey' || gw > 0.4 ? dens * smooth(0.55 + 1.3 * fbm(x * 0.004 + 11, z * 0.004 + 5)) : dens * (0.3 + 2.2 * grove);
         if (h > 70) dens *= Math.max(0, 1 - (h - 70) / 25);
         if (r1 > dens * 0.42) continue;   /* (a tree per ~60 m² in a dense wood) */
-        if (KEEP_CLEAR.some(c => Math.hypot(x - c[0], z - c[1]) < c[2]) || pads.some(p => Math.hypot(x - p.at[0], z - p.at[1]) < p.r + 6) || nearRoad(x, z, 3) || walls.some(w => segDist(x, z, w)[0] < 9)) continue;
+        if (KEEP_CLEAR.some(c => Math.hypot(x - c[0], z - c[1]) < c[2]) || pads.some(p => padOut(p, x, z) < 6) || nearRoad(x, z, 3) || walls.some(w => segDist(x, z, w)[0] < 9)) continue;
         if (Math.abs(floor(x + 2, z) - floor(x - 2, z)) + Math.abs(floor(x, z + 2) - floor(x, z - 2)) > 3.5) continue;   /* not on a cliff */
         const bay = coast(x, z) < 60 && z > I(0, 440)[1] && z < I(0, 690)[1] && x < I(440, 0)[0];
         out.push([x, z, 0.8 + r2 * 0.6, bay ? 'palm' : b === 'fey' ? 'fey' : b === 'swamp' ? 'swamp' : b === 'cemetery' ? 'dead' : h > 40 || r3 < 0.5 ? 'pine' : 'oak']);
@@ -221,6 +224,6 @@
   }
 
   const terrain = { api: 1, create, I, EXT, SEA };
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('terrain', { api: 1, v: 4 }, () => terrain);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('terrain', { api: 1, v: 5 }, () => terrain);
   if (typeof module !== 'undefined') module.exports = terrain;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

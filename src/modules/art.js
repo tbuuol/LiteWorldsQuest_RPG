@@ -526,9 +526,11 @@
     for (const y of [0.12, 0.4, 0.68]) { const h = mesh(new T.TorusGeometry(0.31, 0.02, 6, 18), hoop); h.rotation.x = Math.PI / 2; h.position.y = y; g.add(h); }
     return g;
   };
+  let lanternM = null;   /* one pair of materials for every lantern, so a street of them joins into two draw calls */
   art.lantern = function () {
-    const g = new T.Group(), metal = plain('#2d2a26', { metalness: 0.6, roughness: 0.5 });
-    const glow = mesh(new T.BoxGeometry(0.16, 0.22, 0.16), new T.MeshStandardMaterial({ color: '#ffcf7a', emissive: '#ffb347', emissiveIntensity: 2.2 }), false);
+    lanternM = lanternM || { metal: plain('#2d2a26', { metalness: 0.6, roughness: 0.5 }), glow: new T.MeshStandardMaterial({ color: '#ffcf7a', emissive: '#ffb347', emissiveIntensity: 2.2 }) };
+    const g = new T.Group(), metal = lanternM.metal;
+    const glow = mesh(new T.BoxGeometry(0.16, 0.22, 0.16), lanternM.glow, false);
     g.add(glow); const cap = mesh(new T.ConeGeometry(0.15, 0.12, 4), metal); cap.position.y = 0.17; cap.rotation.y = Math.PI / 4; g.add(cap);
     const base = mesh(new T.BoxGeometry(0.18, 0.04, 0.18), metal); base.position.y = -0.13; g.add(base);
     return g;
@@ -1126,8 +1128,9 @@
     seg(x0, z0, x1, z0); seg(x0, z0, x0, z1); seg(x1, z0, x1, z1);
     return { door };
   };
-  art.paths = function (ctx, def) {
-    const dirt = mat('dirt', { repeat: [1, 1], m: { bumpScale: 1.5, polygonOffset: true, polygonOffsetFactor: -2 } });
+  art.paths = function (ctx, def) {   /* def.paved: cobbles (Genesis) instead of the camp's dirt */
+    const dirt = def.paved ? mat('cobble', { repeat: [1, 1], m: { polygonOffset: true, polygonOffsetFactor: -2 } })
+                           : mat('dirt', { repeat: [1, 1], m: { bumpScale: 1.5, polygonOffset: true, polygonOffsetFactor: -2 } });
     for (const p of def.circles || []) {
       const g = new T.CircleGeometry(p[2], 40); g.rotateX(-Math.PI / 2);
       const uv = g.attributes.uv, pos = g.attributes.position; for (let i = 0; i < uv.count; i++) uv.setXY(i, pos.getX(i) / 4, pos.getZ(i) / 4);
@@ -1139,6 +1142,145 @@
       const uv = g.attributes.uv, pos = g.attributes.position; for (let i = 0; i < uv.count; i++) uv.setXY(i, pos.getX(i) / 4, pos.getZ(i) / 4);
       const m = mesh(g, dirt, false); m.receiveShadow = true; m.position.set((ax + bx) / 2, 0.01, (az + bz) / 2); m.rotation.y = Math.atan2(bx - ax, bz - az); ctx.scene.add(m);
     }
+  };
+  /* --- GENESIS, the city players build (tbuuol 2026-11-07) ------------------------------------------------------ */
+  /* cobbles for the city's streets and its plaza (art.paths with def.paved) */
+  painters.cobble = function (rnd) {
+    const [c, x] = canvas(256); x.fillStyle = '#6f6a62'; x.fillRect(0, 0, 256, 256);
+    for (let row = 0; row < 256; row += 32) {
+      const off = (row / 32) % 2 ? 16 : 0;
+      for (let col = -32; col < 288; col += 32) {
+        x.fillStyle = shade('#a39c90', rnd.range(0.78, 1.12));
+        const w = 28 + rnd.range(-3, 2), h = 27 + rnd.range(-3, 2);
+        x.beginPath(); x.roundRect(col + off + 2, row + 2, w, h, 7); x.fill();
+        x.fillStyle = 'rgba(255,255,255,.08)'; x.beginPath(); x.roundRect(col + off + 5, row + 4, w - 10, 6, 3); x.fill();
+      }
+    }
+    return c;
+  };
+  /* A HALL: Genesis' town hall and the adventurers' guild. A stone ground floor with a wide open doorway, a plastered
+     upper floor under a tiled gable roof, steps up to the door, a carved sign over it, two banners and two lanterns,
+     and inside a counter where its keeper stands. def: {pos, size: [w, d], rot (0/90/180/270; the door is on the local
+     -z side, as a hut's), sign, banner, height}. Its parts are joined by material: a handful of draw calls. */
+  art.hall = function (ctx, def) {
+    const W = def.size[0], D = def.size[1], H1 = def.height || 4.4, H2 = 3.3, P0 = 0.5, th = 0.6;
+    const rot = ((def.rot || 0) % 360 + 360) % 360, cx = def.pos[0], cz = def.pos[1];
+    const grp = new T.Group(), stone = mat('stone', { m: { bumpScale: 1.4 } }), planks = mat('planks'), plaster = mat('plaster');
+    const beam = plain('#4a3424'), tiles = mat('rooftiles', { m: { color: def.roof || '#ffffff' } });
+    const local = (x, z) => { const r = rot * Math.PI / 180, c = Math.round(Math.cos(r)), s = Math.round(Math.sin(r)); return [cx + x * c + z * s, cz - x * s + z * c]; };
+    const solidL = (x0, y0, z0, x1, y1, z1) => { const a = local(x0, z0), b = local(x1, z1); ctx.solid([Math.min(a[0], b[0]), y0, Math.min(a[1], b[1])], [Math.max(a[0], b[0]), y1, Math.max(a[1], b[1])]); };
+    const add = (m, x, y, z) => { m.position.set(x, y, z); grp.add(m); return m; };
+    /* plinth, floor, two steps to the door */
+    add(mesh(boxM(W + 0.6, P0, D + 0.6, 2), stone), 0, P0 / 2, 0);
+    add(mesh(boxM(W - 2 * th, 0.04, D - 2 * th, 2), planks), 0, P0 + 0.02, 0);
+    solidL(-W / 2 - 0.3, 0, -D / 2 - 0.3, W / 2 + 0.3, P0, D / 2 + 0.3);
+    const dw = 3.2, dh = 3.4;
+    add(mesh(boxM(dw + 2.4, 0.25, 1.2, 2), stone), 0, 0.125, -D / 2 - 0.3 - 0.6);   /* a step: 0.25, then the plinth's 0.5 */
+    solidL(-(dw + 2.4) / 2, 0, -D / 2 - 1.5, (dw + 2.4) / 2, 0.25, -D / 2 - 0.3);
+    /* the ground floor in stone: back and sides whole, the front with the doorway */
+    const y0 = P0, wy = y0 + H1 / 2;
+    add(mesh(boxM(W, H1, th, 2), stone), 0, wy, D / 2 - th / 2); solidL(-W / 2, y0, D / 2 - th, W / 2, y0 + H1, D / 2);
+    add(mesh(boxM(th, H1, D, 2), stone), -W / 2 + th / 2, wy, 0); solidL(-W / 2, y0, -D / 2, -W / 2 + th, y0 + H1, D / 2);
+    add(mesh(boxM(th, H1, D, 2), stone), W / 2 - th / 2, wy, 0); solidL(W / 2 - th, y0, -D / 2, W / 2, y0 + H1, D / 2);
+    const side = (W - dw) / 2;
+    add(mesh(boxM(side, H1, th, 2), stone), -W / 2 + side / 2, wy, -D / 2 + th / 2); solidL(-W / 2, y0, -D / 2, -dw / 2, y0 + H1, -D / 2 + th);
+    add(mesh(boxM(side, H1, th, 2), stone), W / 2 - side / 2, wy, -D / 2 + th / 2); solidL(dw / 2, y0, -D / 2, W / 2, y0 + H1, -D / 2 + th);
+    add(mesh(boxM(dw, H1 - dh, th, 2), stone), 0, y0 + dh + (H1 - dh) / 2, -D / 2 + th / 2);
+    /* windows of the ground floor: dark panes in light frames, two each side of the door and along the sides */
+    const pane = plain('#26323a', { roughness: 0.3, metalness: 0.2 }), frame = plain('#e6dccb');
+    const win = (x, z, turn) => {
+      const f = add(mesh(new T.BoxGeometry(1.5, 2.0, 0.14), frame), x, y0 + 2.2, z); const p = add(mesh(new T.BoxGeometry(1.2, 1.7, 0.16), pane), x, y0 + 2.2, z);
+      if (turn) { f.rotation.y = p.rotation.y = Math.PI / 2; }
+    };
+    for (let x = dw / 2 + 2.2; x < W / 2 - 1.5; x += 3.6) { win(x, -D / 2 - 0.02); win(-x, -D / 2 - 0.02); }
+    for (let z = -D / 2 + 3; z < D / 2 - 2; z += 4) { win(-W / 2 - 0.02, z, true); win(W / 2 + 0.02, z, true); }
+    /* a beam between the floors, the upper floor in plaster (its texture has the windows), corner posts */
+    add(mesh(boxM(W + 0.3, 0.35, D + 0.3, 1), beam), 0, y0 + H1 + 0.17, 0);
+    const y1 = y0 + H1 + 0.35;
+    const up = (w, d, x, z) => add(mesh(boxM(w, H2, d, 3), plaster), x, y1 + H2 / 2, z);
+    up(W, 0.3, 0, -D / 2 + 0.15); up(W, 0.3, 0, D / 2 - 0.15); up(0.3, D, -W / 2 + 0.15, 0); up(0.3, D, W / 2 - 0.15, 0);
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) add(mesh(new T.BoxGeometry(0.4, H2, 0.4), beam), sx * (W / 2 - 0.05), y1 + H2 / 2, sz * (D / 2 - 0.05));
+    add(mesh(boxM(W - 0.6, 0.2, D - 0.6, 2), planks), 0, y1 - 0.1, 0);   /* the ceiling seen from inside */
+    /* the gable roof, its ridge along the width; the two gables in plaster */
+    const rise = Math.min(4.5, D * 0.36), half = D / 2 + 0.8, slope = Math.hypot(half, rise), a = Math.atan2(rise, half), yt = y1 + H2;
+    for (const s of [-1, 1]) { const r = add(mesh(boxM(W + 1.6, 0.3, slope, 3), tiles), 0, yt + rise / 2, s * half / 2); r.rotation.x = s * a; }
+    const tri = new T.Shape([new T.Vector2(-D / 2, 0), new T.Vector2(D / 2, 0), new T.Vector2(0, rise * (D / 2) / half)]);
+    for (const s of [-1, 1]) { const g = mesh(new T.ShapeGeometry(tri), plaster); g.rotation.y = Math.PI / 2; g.material = plain('#efe7d8', { side: T.DoubleSide }); add(g, s * (W / 2 - 0.1), yt, 0); }
+    add(mesh(boxM(W + 1.8, 0.3, 0.4, 1), beam), 0, yt + rise + 0.05, 0);
+    /* inside: a counter across the back, shelves behind it, a long rug to the door */
+    add(mesh(boxM(Math.min(9, W * 0.45), 1.1, 0.9, 1), planks), 0, y0 + 0.55, D / 2 - 3.2); solidL(-Math.min(9, W * 0.45) / 2, y0, D / 2 - 3.65, Math.min(9, W * 0.45) / 2, y0 + 1.1, D / 2 - 2.75);
+    for (const sx of [-1, 1]) add(mesh(boxM(3.2, 2.4, 0.5, 1), planks), sx * 3.2, y0 + 1.2, D / 2 - th - 0.3);
+    add(mesh(new T.BoxGeometry(2.2, 0.03, D - 5.5), plain(def.banner || '#7a2a2a')), 0, y0 + 0.06, -1.6);
+    joinByMaterial(grp);
+    /* the sign over the door, the banners, the lanterns: kept apart (their own looks) */
+    const [sc, sx2] = canvas(512); sc.height = 96;
+    sx2.fillStyle = '#3a2616'; sx2.fillRect(0, 0, 512, 96); sx2.strokeStyle = '#c8a050'; sx2.lineWidth = 6; sx2.strokeRect(6, 6, 500, 84);
+    sx2.fillStyle = '#e8c870'; sx2.font = 'bold 48px Georgia,serif'; sx2.textAlign = 'center'; sx2.textBaseline = 'middle'; sx2.fillText(def.sign || '', 256, 50);
+    const st = new T.CanvasTexture(sc); st.colorSpace = T.SRGBColorSpace; st.anisotropy = 4;
+    const sw = Math.min(W - 2, 8.5);
+    add(new T.Mesh(new T.PlaneGeometry(sw, sw * 96 / 512), new T.MeshStandardMaterial({ map: st, roughness: 0.8 })), 0, y1 + 0.9, -D / 2 - 0.08).rotation.y = Math.PI;
+    const cloth = new T.MeshStandardMaterial({ color: def.banner || '#7a2a2a', roughness: 0.95, side: T.DoubleSide });
+    for (const sx of [-1, 1]) {
+      const b = add(new T.Mesh(new T.PlaneGeometry(1.1, 2.6), cloth), sx * (dw / 2 + 0.9), y0 + H1 - 1.5, -D / 2 - 0.06); b.rotation.y = Math.PI;
+      const l = art.lantern(); add(l, sx * (dw / 2 + 0.35), y0 + 2.6, -D / 2 - 0.3);
+    }
+    grp.rotation.y = rot * Math.PI / 180; grp.position.set(cx, 0, cz);
+    ctx.scene.add(grp);
+    return { group: grp };
+  };
+  /* THE FOUNTAIN in the middle of the plaza: a round basin on a step, a column with two bowls, water falling from
+     each into the next and rippling in the basin. def: {pos, r} */
+  art.fountain = function (ctx, def) {
+    const [x, z] = def.pos, R = def.r || 6, g = new T.Group(), stone = mat('stone', { m: { bumpScale: 1.2 } });
+    const ring = (r0, r1, h, y) => { const m = mesh(new T.CylinderGeometry(r1, r0, h, 48, 1, true), stone); m.position.y = y; g.add(m); return m; };
+    const step = mesh(new T.CylinderGeometry(R + 0.7, R + 0.9, 0.3, 48), stone); step.position.y = 0.15; g.add(step);
+    ring(R, R, 0.85, 0.72); ring(R - 0.4, R - 0.4, 0.85, 0.72).material = stone;
+    const rim = mesh(new T.RingGeometry(R - 0.4, R + 0.02, 48), stone); rim.rotation.x = -Math.PI / 2; rim.position.y = 1.15; g.add(rim);
+    const col = mesh(new T.CylinderGeometry(0.45, 0.6, 3.4, 16), stone); col.position.y = 1.7; g.add(col);
+    const bowl = (r, y) => { const b = mesh(new T.CylinderGeometry(r, r * 0.35, 0.45, 32), stone); b.position.y = y; g.add(b); return b; };
+    bowl(1.9, 2.3); bowl(0.9, 3.5);
+    const fin = mesh(new T.SphereGeometry(0.28, 14, 10), stone); fin.position.y = 4.0; g.add(fin);
+    joinByMaterial(g);
+    /* the water: a surface that ripples, and veils falling from the bowls */
+    const [wc, wx] = canvas(128); wx.fillStyle = '#2f6f8a'; wx.fillRect(0, 0, 128, 128);
+    for (let i = 0; i < 26; i++) { wx.strokeStyle = 'rgba(200,235,250,' + (0.12 + Math.random() * 0.2) + ')'; wx.lineWidth = 2; wx.beginPath(); wx.arc(Math.random() * 128, Math.random() * 128, 6 + Math.random() * 22, 0, Math.PI * 2); wx.stroke(); }
+    const wt = new T.CanvasTexture(wc); wt.wrapS = wt.wrapT = T.RepeatWrapping; wt.repeat.set(2, 2); wt.colorSpace = T.SRGBColorSpace;
+    const water = new T.Mesh(new T.CircleGeometry(R - 0.4, 48), new T.MeshStandardMaterial({ map: wt, roughness: 0.12, metalness: 0.25, transparent: true, opacity: 0.92 }));
+    water.rotation.x = -Math.PI / 2; water.position.y = 0.95; water.userData.keep = true; g.add(water);
+    const [fc, fx] = canvas(64); fx.clearRect(0, 0, 64, 64);
+    for (let i = 0; i < 40; i++) { fx.fillStyle = 'rgba(225,245,255,' + (0.25 + Math.random() * 0.5) + ')'; fx.fillRect(Math.random() * 64, Math.random() * 64, 1.5, 6 + Math.random() * 14); }
+    const ft = new T.CanvasTexture(fc); ft.wrapS = ft.wrapT = T.RepeatWrapping; ft.repeat.set(6, 1);
+    const veilM = new T.MeshBasicMaterial({ map: ft, transparent: true, opacity: 0.75, depthWrite: false, side: T.DoubleSide });
+    const veil = (r0, r1, y0, y1) => { const v = new T.Mesh(new T.CylinderGeometry(r1, r0, y1 - y0, 32, 1, true), veilM); v.position.y = (y0 + y1) / 2; v.userData.keep = true; g.add(v); };
+    veil(2.3, 1.9, 1.0, 2.5); veil(1.1, 0.9, 2.5, 3.7);
+    g.position.set(x, 0, z); ctx.scene.add(g);
+    ctx.every(dt => { wt.offset.x += dt * 0.02; wt.offset.y += dt * 0.013; ft.offset.y += dt * 0.9; });
+    /* walking: an octagon of three boxes round the basin */
+    const a = R * 0.96, b = R * 0.42;
+    ctx.solid([x - a, 0, z - b], [x + a, 1.15, z + b]); ctx.solid([x - b, 0, z - a], [x + b, 1.15, z + a]); ctx.solid([x - R * 0.72, 0, z - R * 0.72], [x + R * 0.72, 1.15, z + R * 0.72]);
+    return { group: g };
+  };
+  /* THE PLOTS of Genesis, marked out on the ground: a pale stone kerb round each, and at one corner a post whose cap
+     says its kind (house blue, workshop red, shop gold). def: [{id, kind, rect: [x0, z0, x1, z1]}]. A few draw calls
+     for all of them. */
+  art.plots = function (ctx, list) {
+    const g = new T.Group(), kerb = plain('#d8d0c0'), wood = plain('#5a4230');
+    const caps = { house: plain('#4f8cc8'), workshop: plain('#c0563e'), shop: plain('#e0a83a') };
+    const strip = (ax, az, bx, bz) => { const len = Math.hypot(bx - ax, bz - az), m = new T.Mesh(new T.BoxGeometry(0.3, 0.06, len), kerb);
+      m.position.set((ax + bx) / 2, 0.03, (az + bz) / 2); m.rotation.y = Math.atan2(bx - ax, bz - az); m.receiveShadow = true; g.add(m); };
+    const seen = new Set();
+    for (const p of list) {
+      const [x0, z0, x1, z1] = p.rect;
+      for (const [ax, az, bx, bz] of [[x0, z0, x1, z0], [x1, z0, x1, z1], [x1, z1, x0, z1], [x0, z1, x0, z0]]) {
+        const k = [Math.min(ax, bx), Math.min(az, bz), Math.max(ax, bx), Math.max(az, bz)].join();
+        if (!seen.has(k)) { seen.add(k); strip(ax, az, bx, bz); }   /* a shared edge once */
+      }
+      const post = new T.Mesh(new T.CylinderGeometry(0.07, 0.09, 1.1, 6), wood); post.position.set(x0 + 0.35, 0.55, z0 + 0.35); g.add(post);
+      const cap = new T.Mesh(new T.BoxGeometry(0.3, 0.22, 0.3), caps[p.kind] || caps.house); cap.position.set(x0 + 0.35, 1.2, z0 + 0.35); g.add(cap);
+    }
+    joinByMaterial(g);
+    ctx.scene.add(g);
+    return { group: g };
   };
   /* A CITY WALL (tbuuol 2026-10-31: a wall round Genesis, "damit wir schonmal einen Eindruck davon haben wo die Stadt
      mal stehen wird und wie groß sie werden kann" -- "vergiss nicht ein hübsches Stadttor an der Straße"): a stone ring
@@ -2125,5 +2267,5 @@
     return { groundAt, polys, segs, half, spawn, inside, stats: { buildings: buildings.length, trees: trees.length } };
   };
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('art', { api: 1, v: 15 }, () => art);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('art', { api: 1, v: 16 }, () => art);
 })(typeof globalThis !== 'undefined' ? globalThis : this);

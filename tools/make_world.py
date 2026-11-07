@@ -26,7 +26,7 @@ import subprocess
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 LEVELS = ROOT / "src" / "levels"
 OUT = LEVELS / "world.json"
-VERSION = 5
+VERSION = 6
 
 
 def probe(land: dict, points: list) -> list:
@@ -98,6 +98,61 @@ class Place:
         if self.turn:
             o["rot"] = ((o.get("rot") or 0) + self.turn) % 360
         return o
+
+
+#: GENESIS (tbuuol 2026-11-07): the city players will build, inside the wall. Its plan -- streets, plaza, the two halls,
+#: the plots -- is design/genesis/plots.json (design/genesis/plan.py, the map tbuuol approved); here it becomes a place
+#: on its flat ground (a pad at GEN_Y), with the fountain, the town hall's registrar and the guild's master.
+GEN, GEN_Y = (790, -40), 7.0
+PLAN = ROOT / "design" / "genesis" / "plots.json"
+
+
+def make_genesis(ring: list) -> dict:
+    plan = json.loads(PLAN.read_text())
+    cx, cz = plan["centre"]
+    strips = []
+    for _, a, b, c, e, w in plan["streets"]:   # each street cut to where it is inside the wall (3 m short of it)
+        n = max(2, int(math.hypot(c - a, e - b) // 2))
+        pts = [(a + (c - a) * i / n, b + (e - b) * i / n) for i in range(n + 1)]
+        pts = [q for q in pts if inside(ring, *q) and all(math.hypot(q[0] - r[0], q[1] - r[1]) > 3 for r in ring)]
+        if len(pts) > 1:
+            strips.append([round(pts[0][0], 1), round(pts[0][1], 1), round(pts[-1][0], 1), round(pts[-1][1], 1), w])
+    halls, npcs = [], []
+    KEEPER = {
+        "townhall": ("registrar", "Registrar Aldous", "Town Hall", "#2f4f7a", {"person": "i", "skin": "#e0b48c", "shirt": "#2f4f7a", "pants": "#2a2a30", "hair": "#7a6a5a", "beard": "#8a7a6a", "robe": "#2f4f7a"},
+                     ["Welcome to Genesis, traveller. This city is not built yet -- it will be built by those who live in it.",
+                      "Every plot inside the wall has its number: houses to the north and south, workshops in the east, shops along the gate street.",
+                      "Soon you will buy a plot here. Its deed is yours, and what you build on it is yours too.",
+                      "Own two plots side by side, and you may build one great building over both."]),
+        "guild": ("guildmaster", "Guildmaster Rowan", "Adventurers' Guild", "#7a2a2a", {"person": "i", "skin": "#c98b62", "shirt": "#5a3a22", "pants": "#3b2f25", "hair": "#2a1a10", "beard": "#2a1a10", "hood": "#7a2a2a"},
+                  ["The Adventurers' Guild. Out there are boars, wolves, goblins and worse, and the city needs what they guard.",
+                   "Soon this board will hold work for every day: hunts, deliveries, things to fetch. Come back, and come back again.",
+                   "Until then: Blockshire's elder and the people of Saltwind have tasks for you."]),
+    }
+    for b in plan["buildings"]:
+        x0, z0, x1, z1 = b["rect"]
+        hx, hz = (x0 + x1) / 2, z1 - 12   # 22 m deep, its door on the plaza side (south)
+        nid, name, sign, banner, look, lines = KEEPER[b["id"]]
+        halls.append({"id": b["id"], "pos": [round(hx, 1), round(hz, 1)], "size": [round(x1 - x0 - 8, 1), 22], "rot": 180, "sign": sign, "banner": banner})
+        npcs.append({"id": nid, "name": name, "pos": [round(hx, 1), round(hz - 9, 1)], "lookAt": [round(hx, 1), round(hz + 11, 1)], "talkTurn": True, "look": look, "lines": lines})
+    props = []
+    for k in range(8):   # benches round the plaza, facing the fountain
+        t = (k + 0.5) / 8 * 2 * math.pi
+        props.append({"kind": "bench", "pos": [round(cx + 16 * math.cos(t), 1), round(cz + 16 * math.sin(t), 1)], "rot": round(90 - math.degrees(t), 1) % 180})
+    for k in range(12):   # lanterns on the plaza's edge, between the streets that come in (never in their way)
+        t = (k + 0.5) / 12 * 2 * math.pi
+        props.append({"kind": "lamppost", "pos": [round(cx + (plan["plaza_r"] - 2) * math.cos(t), 1), round(cz + (plan["plaza_r"] - 2) * math.sin(t), 1)]})
+    for x0, z0, x1, z1, w in strips:   # and along every street, both sides, every 24 m
+        L = math.hypot(x1 - x0, z1 - z0)
+        for i in range(1, int(L // 24)):
+            px, pz = x0 + (x1 - x0) * i * 24 / L, z0 + (z1 - z0) * i * 24 / L
+            if math.hypot(px - cx, pz - cz) < plan["plaza_r"] + 4:
+                continue
+            nx, nz = -(z1 - z0) / L * (w / 2 + 0.4), (x1 - x0) / L * (w / 2 + 0.4)
+            props.append({"kind": "lamppost", "pos": [round(px + nx * (1 if i % 2 else -1), 1), round(pz + nz * (1 if i % 2 else -1), 1)]})
+    plots = [{"id": p["id"], "kind": p["kind"], "rect": p["rect"]} for p in plan["plots"]]
+    return {"id": "genesis", "lift": GEN_Y, "paths": {"paved": True, "circles": [[cx, cz, plan["plaza_r"]]], "strips": strips},
+            "fountain": {"pos": [cx, cz], "r": plan["fountain_r"]}, "halls": halls, "npcs": npcs, "props": props, "plots": plots}
 
 
 def main() -> None:
@@ -188,7 +243,9 @@ def main() -> None:
         ["Goblin Bridgehead", "goblin", "low", [[380, -500], [470, -470], [520, -430], [470, -390], [380, -420]]],
     ]
     land = {"pads": [{"at": [0, 0], "r": 62, "y": LIFT, "rim": 40},
-                     {"at": [SW.at[0] + 6, SW.at[1]], "r": 24, "y": 0.25, "rim": 14, "landOnly": True}],
+                     {"at": [SW.at[0] + 6, SW.at[1]], "r": 24, "y": 0.25, "rim": 14, "landOnly": True},
+                     # Genesis inside its wall, flat for the plots (2026-11-07): an ellipse round the ring
+                     {"at": [GEN[0], GEN[1]], "rx": 270, "rz": 190, "y": GEN_Y, "rim": 45, "landOnly": True}],
             "decks": [deck]}
     areas = []
     for name, species, dens, poly in SHAPES:
@@ -265,6 +322,7 @@ def main() -> None:
         if not moved:
             break
     land["walls"] = [{"name": "Genesis", "pts": [[round(x, 1), round(z, 1)] for x, z in ring], "h": 7, "th": 2.4, "gate": 9}]
+    genesis = make_genesis(land["walls"][0]["pts"])
 
     quests, seen = [], set()
     for src in (blk, bch, shp):
@@ -319,7 +377,7 @@ def main() -> None:
         "spawn": spawn, "spawnYaw": blk.get("spawnYaw", 0),
         "env": env,
         "land": land,
-        "places": [blockshire, saltwind, berth, wilds],
+        "places": [blockshire, saltwind, berth, wilds, genesis],
         "resources": {k: v for k, v in (blk.get("resources") or {}).items() if k != "nodes"},   # how often, how much: the wilds' too
         "defense": {k: v for k, v in (blk.get("defense") or {}).items() if k != "spawns"},   # the guards and the priest; no raider waves
         "wild": wild, "quests": quests, "zones": zones,

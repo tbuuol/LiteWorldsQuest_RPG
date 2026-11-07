@@ -29,7 +29,7 @@
     },
     "art": {
       "file": "src/modules/art.js",
-      "v": 15,
+      "v": 16,
       "api": 1,
       "kind": "js",
       "id": null,
@@ -61,7 +61,7 @@
     },
     "terrain": {
       "file": "src/modules/terrain.js",
-      "v": 4,
+      "v": 5,
       "api": 1,
       "kind": "js",
       "id": null,
@@ -69,7 +69,7 @@
     },
     "engine": {
       "file": "src/modules/engine.js",
-      "v": 28,
+      "v": 29,
       "api": 1,
       "kind": "js",
       "id": null,
@@ -117,7 +117,7 @@
     },
     "world": {
       "file": "src/levels/world.json",
-      "v": 5,
+      "v": 6,
       "api": 1,
       "kind": "json",
       "id": null,

@@ -143,6 +143,7 @@
     const RES_NAME = { tree: 'oak', rock: 'ore boulder', herb: 'herbs' };
     const yawTo = (dx, dz) => Math.atan2(-dx, -dz);
     let forge = null, forgeDef = null;
+    const plots = [];   /* Genesis' plots, for "where am I" */
     const nearForge = (x, z) => !!forgeDef && Math.hypot(x - forgeDef.pos[0], z - forgeDef.pos[1]) < 5;
     /* a piece of the real Earth (tools/realworld.py): the ground is its heights, the houses its footprints */
     const realW = LV.real ? art.realworld(ctx, LV.real) : null;
@@ -200,6 +201,10 @@
     for (const g of many(LV.grass)) art.grass(ctx, g);
     for (const pa of many(LV.paths)) art.paths(ctx, pa);
     for (const pr of LV.props || []) art.prop(ctx, pr);
+    /* GENESIS (2026-11-07): its halls (the town hall, the guild), the fountain, the plots players will own */
+    for (const h of LV.halls || []) art.hall(ctx, h);
+    if (LV.fountain) art.fountain(ctx, LV.fountain);
+    if (LV.plots) { art.plots(ctx, LV.plots); for (const p of LV.plots) plots.push(p); }
     /* THINGS TO GATHER around the camp (tbuuol 2026-10-23): an oak, an ore boulder, herbs. Which are spent is part of
        the shared world (W.dep); the house decides what gathering gives, and when a spent one grows back. */
     for (const n of (LV.resources && LV.resources.nodes) || []) {
@@ -552,7 +557,11 @@
       const c = Math.floor((x - TR.EXT[0]) / SQ), r = Math.floor((z - TR.EXT[1]) / SQ);
       return String.fromCharCode(65 + Math.max(0, Math.min(25, c))) + (r + 1);
     }
-    const whereText = () => square(me.x, me.z) + ' · ' + Math.round(me.x) + ' / ' + Math.round(me.z);
+    /* on a plot of Genesis: its number and kind too, so it can be named ("W12") */
+    const PLOT_KIND = { house: 'house', workshop: 'workshop', shop: 'shop' };
+    function plotAt(x, z) { for (const p of plots) { const r = p.rect; if (x >= r[0] && x <= r[2] && z >= r[1] && z <= r[3]) return p; } return null; }
+    const whereText = () => { const p = plotAt(me.x, me.z);
+      return square(me.x, me.z) + ' · ' + Math.round(me.x) + ' / ' + Math.round(me.z) + (p ? ' · plot ' + p.id + ' (' + (PLOT_KIND[p.kind] || p.kind) + ')' : ''); };
     let posKey = '';
     function posTick() {
       if (!TR) return;
@@ -1889,6 +1898,6 @@
     };
   }
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 28, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 29, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
     D => ({ start: (el, opts) => start(D, el, opts) }));
 })(typeof globalThis !== 'undefined' ? globalThis : this);
