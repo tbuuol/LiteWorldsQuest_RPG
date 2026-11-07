@@ -23,6 +23,7 @@ from playwright.async_api import async_playwright
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import house_store  # noqa: E402
+import ltc_pay  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SECRET = ROOT / ".publisher"
@@ -285,11 +286,16 @@ async def _session(p, level: str = "") -> None:
                 break
         # A game that can ask for records one player at a time (Etappe 4) gets them from the database as players come;
         # an older one still gets every record at the start, from players.json.
-        store = None
+        store = pay = None
         if await frame.evaluate("!!window.LWQGAME.houseStore"):
             store = house_store.Store(STORE)
             await frame.evaluate("window.LWQGAME.houseStore(true)")
             log("store mode:", store.count(), "players in", STORE.name)
+            # THE BETA SELLS GENESIS' PLOTS FOR LITECOIN TESTNET (2026-11-07): tools/ltc_pay.py
+            if BETA and await frame.evaluate("!!window.LWQGAME.housePay"):
+                pay = ltc_pay.Pay(store)
+                await frame.evaluate("window.LWQGAME.housePay(true)")
+                log("plots for tLTC, paid to", pay.key["address"])
         elif PLAYERS.exists():   # every player's record, back into the house's book
             n = await frame.evaluate("json => window.LWQGAME.houseLoad ? window.LWQGAME.houseLoad(json) : 0", PLAYERS.read_text())
             log("players' records loaded:", n)
@@ -329,7 +335,12 @@ async def _session(p, level: str = "") -> None:
                     snap: window.LWQGAME.snapBytes ? window.LWQGAME.snapBytes() : null})"""))
                 log("keeping the world:", s)
             # between the checks: the database every second (records asked for, records changed)
-            for _ in range(CHECK_EVERY):
+            for tick in range(CHECK_EVERY):
+                if pay is not None:
+                    try:
+                        await ltc_pay.sync(frame, pay, tick)
+                    except Exception as e:   # noqa: BLE001 -- the next second tries again
+                        log("pay error:", repr(e)[:200])
                 if store is not None:
                     try:
                         given, taken = await house_store.sync(frame, store, level)

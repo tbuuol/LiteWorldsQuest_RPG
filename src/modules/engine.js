@@ -340,6 +340,10 @@
     const PLOT_LIMIT = 3, PLOT_PRICE = { house: '0.05', workshop: '0.12', shop: '0.08' };
     let plotOwn = {}, plotsLoaded = false;
     const plotsDirty = new Set();
+    /* PAID IN LITECOIN TESTNET (beta, 2026-11-07): with tools/ltc_pay.py behind it (housePay(true)) a Buy asks the keeper
+       for an invoice -- the house's tLTC address and an exact amount -- holds the plot for the buyer meanwhile, and
+       gives it the moment the keeper has seen the payment on the chain. Without it, buying stays simulated. */
+    let payOn = false, plotAsks = [], held = {}, myInvoice = null;
     const tagOf = from => { const r = from && remotes.get(from.id); const t = (from && from.tag) || (r && r.from.tag) || ''; return t ? '@' + String(t).replace(/^@/, '') : ''; };
     const myAddr = () => (room && room.me && room.me.address) || null;
     function plotOwnerText(id) {
@@ -354,6 +358,13 @@
       if (plotOwn[id]) { notice(from.id, 'Plot ' + id + ' is not for sale: ' + (plotOwn[id][1] === a ? 'it is yours already.' : 'it belongs to ' + (plotOwn[id][0] || 'someone') + '.')); return; }
       const mine = Object.keys(plotOwn).filter(k => plotOwn[k][1] === a).length;
       if (mine >= PLOT_LIMIT) { notice(from.id, 'You hold ' + mine + ' plots, as many as one citizen may.'); return; }
+      const hold = held[id];
+      if (hold && hold.addr !== a && hold.until > Date.now()) { notice(from.id, 'Plot ' + id + ' is held for ' + (hold.tag || 'another buyer') + ' until their payment comes or their invoice runs out.'); return; }
+      if (payOn) {
+        if (!plotAsks.some(q => q.plot === id)) plotAsks.push({ plot: id, addr: a, tag: tagOf(from), to: from.id, price: PLOT_PRICE[p.kind] });
+        notice(from.id, 'Registrar Aldous writes your invoice for plot ' + id + '…');
+        return;
+      }
       const at = Date.now(), deed = 'sim-' + (at.toString(36) + id).slice(-10);
       plotOwn = Object.assign({}, plotOwn, { [id]: [tagOf(from), a, at, deed] });
       plotsDirty.add(id); applyPlots(plotOwn); sendPlots();
@@ -369,6 +380,7 @@
       for (const id in next) if (Array.isArray(next[id]) && plots.some(p => p.id === id)) plotOwn[id] = next[id].slice(0, 4);
       if (plotLook && plotLook.owners) plotLook.owners(id => plotOwn[id] ? { text: plotOwn[id][0] || 'owned', mine: plotOwn[id][1] === myAddr() } : null);
       posKey = '';
+      if (myInvoice && plotOwn[myInvoice.plot]) myInvoice = null;
       if (plotsOpen) drawPlots();
     }
     /* the registrar's book: a plan of Genesis, the plots in their colours (yours gold, others' grey); click one, buy it */
@@ -426,7 +438,14 @@
       const sz = Math.round(p.rect[2] - p.rect[0]) + ' × ' + Math.round(p.rect[3] - p.rect[1]) + ' m', own = plotOwnerText(p.id);
       info.innerHTML = esc(head) + '<br><b>Plot ' + esc(p.id) + '</b> · ' + esc(PLOT_KIND[p.kind] || p.kind) + ' · ' + sz + ' · ' + esc(own) +
         (plotOwn[p.id] ? (plotOwn[p.id][1] === me2 ? ' · deed ' + esc(plotOwn[p.id][3] || '') : '')
-          : ' · price ' + PLOT_PRICE[p.kind] + ' LTC (not charged in the beta) ' + (me2 ? '<button data-buy style="background:#3f6a2a;color:#fff;border:1px solid #8fbf5a;border-radius:4px;padding:3px 12px;cursor:pointer">Buy</button>' : '· sign in to buy'));
+          : ' · price ' + PLOT_PRICE[p.kind] + ' tLTC (Litecoin testnet) ' + (me2 ? '<button data-buy style="background:#3f6a2a;color:#fff;border:1px solid #8fbf5a;border-radius:4px;padding:3px 12px;cursor:pointer">Buy</button>' : '· sign in to buy'));
+      const iv = myInvoice && myInvoice.until > Date.now() ? myInvoice : null;
+      if (iv) {
+        const mins = Math.max(0, Math.round((iv.until - Date.now()) / 60000));
+        info.innerHTML += '<div style="margin-top:8px;padding:8px;border:1px solid #c8a050;border-radius:6px;background:#3a2c1a">Invoice for plot <b>' + esc(iv.plot) +
+          '</b>: send exactly <b style="user-select:all">' + esc(iv.amount) + '</b> tLTC to <b style="user-select:all;font-family:monospace">' + esc(iv.to) +
+          '</b> from any Litecoin testnet wallet, within ' + mins + ' minutes. The plot is held for you; it is yours the moment the payment is seen.</div>';
+      }
       const bb = info.querySelector('[data-buy]');
       if (bb) bb.onclick = () => { askHouse({ Q: 'plot', p: p.id }); bb.disabled = true; bb.textContent = 'Asking…'; };
     }
@@ -1715,6 +1734,7 @@
       /* the world only from the house */
       if (d.W && typeof d.W === 'object' && from.id === hostId() && +d.W.seq > W.seq) applyWorld(d.W);
       if (d.PL && typeof d.PL === 'object' && from.id === hostId()) applyPlots(d.PL);
+      if (d.IV && typeof d.IV === 'object' && from.id === hostId()) { myInvoice = d.IV; if (plotsOpen) drawPlots(); else openPlots(); }
       if (Array.isArray(d.BU) && from.id === hostId() && Array.isArray(d.BU[1]) && plots.some(p => p.id === String(d.BU[0]))) {
         built = Object.assign({}, built, { [String(d.BU[0])]: d.BU[1].filter(q => Array.isArray(q) && q.length >= 6).slice(0, BUILD_MAX) }); applyBuilt(String(d.BU[0]));
       }
@@ -2138,6 +2158,29 @@
       housePlotsLoaded: () => plotsLoaded || !plots.length,
       housePlots(json) { const all = typeof json === 'string' ? JSON.parse(json) : json; plotsLoaded = true; applyPlots(all || {}); sendPlots(); return Object.keys(plotOwn).length; },
       housePlotsTake() { const out = {}; for (const id of plotsDirty) out[id] = plotOwn[id] || null; plotsDirty.clear(); return JSON.stringify(out); },
+      housePay(on) { payOn = !!on; return payOn; },
+      housePlotAsks() { const out = plotAsks; plotAsks = []; return JSON.stringify(out); },
+      housePlotInvoice({ ask, inv }) {
+        const to = ask && ask.to;
+        if (!inv) { if (to) notice(to, 'Plot ' + ask.plot + ' is held for another buyer just now.'); return false; }
+        held[inv.plot] = inv;
+        if (to === myId()) myInvoice = inv; else if (to && linked(to)) room.to([to], { IV: inv }, true);
+        if (to) notice(to, 'Invoice for plot ' + inv.plot + ': send exactly ' + inv.amount + ' tLTC to ' + inv.to + ' within 30 minutes.');
+        return true;
+      },
+      housePlotInvoices(list) { held = {}; for (const inv of list || []) held[inv.plot] = inv; return Object.keys(held).length; },
+      housePlotPaid(paid) {
+        const id = String(paid.plot), p = plots.find(q => q.id === id);
+        if (!p) return true;
+        if (plotOwn[id] && plotOwn[id][1] !== paid.addr) { console.warn('LWQ: plot ' + id + ' was paid for by ' + paid.addr + ' but is owned already'); return true; }
+        if (!plotOwn[id]) {
+          plotOwn = Object.assign({}, plotOwn, { [id]: [paid.tag || '', paid.addr, Date.now(), 'tltc:' + String(paid.txid || '').slice(0, 16)] });
+          plotsDirty.add(id); applyPlots(plotOwn); sendPlots();
+        }
+        delete held[id];
+        for (const [rid, r] of remotes) if (r.from.address === paid.addr) notice(rid, 'Payment seen on the Litecoin test chain: plot ' + id + ' is yours. Deed tltc:' + String(paid.txid || '').slice(0, 16) + '.');
+        return true;
+      },
       houseBuiltLoaded: () => builtLoaded || !plots.length,
       houseBuilt(json) { const all = typeof json === 'string' ? JSON.parse(json) : json; builtLoaded = true; built = {}; for (const id in all || {}) if (Array.isArray(all[id])) { built[id] = all[id]; applyBuilt(id); sendBuilt(id); } return Object.keys(built).length; },
       houseBuiltTake() { const out = {}; for (const id of builtDirty) out[id] = built[id] && built[id].length ? built[id] : null; builtDirty.clear(); return JSON.stringify(out); },
@@ -2190,6 +2233,6 @@
     };
   }
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 32, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 33, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
     D => ({ start: (el, opts) => start(D, el, opts) }));
 })(typeof globalThis !== 'undefined' ? globalThis : this);
