@@ -499,7 +499,7 @@
       predict(id, d) {
         const u = units.get(String(id)); d = Math.round(+d || 0);
         if (!u || !alive(u)) return;
-        if (d <= 0) { floater(u, '✶', '#fff6d0'); return; }   /* the house rolls the number: a spark now, the number when it says */
+        if (d <= 0) return;   /* the house rolls the number and it shows when it says (tbuuol: no spark first) */
         floater(u, '-' + d, '#ff6b5a');
         (u.predicted = u.predicted || []).push({ d, until: performance.now() + 2500 });
       },
@@ -662,5 +662,5 @@
     return snap;
   }
   const combat = { api: 1, player, gain, nextXp, create, encode, decode };
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('combat', { api: 1, v: 17, needs: { three: 160, art: 1 } }, () => combat);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('combat', { api: 1, v: 18, needs: { three: 160, art: 1 } }, () => combat);
 })(typeof globalThis !== 'undefined' ? globalThis : this);
