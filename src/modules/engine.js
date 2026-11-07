@@ -500,6 +500,11 @@
 
     /* --- the player ------------------------------------------------------------------------------------ */
     const HALF = 0.3, HEIGHT = 1.7, EYE = 1.6, WALK = 4.2, RUN = 7, JUMP = 7.5, GRAVITY = 20;
+    /* FLYING, IN THE BETA ONLY (tbuuol 2026-11-07: "das Laufen nervt"): jump, then jump again in the air, and you fly --
+       W goes where you look (up and down too), Space climbs, C sinks, Shift twice as fast; touching the ground lands you */
+    const BETA = (() => { try { const r = G.LWQ.get('$registry'); return !!(r && r.beta); } catch (e) { return false; } })();
+    const FLY = 32, FLY_FAST = 70, FLY_TOP = 150;
+    let flying = false, spaceHeld = false;
     const SPAWN = realW ? [realW.spawn[0], realW.groundAt(realW.spawn[0], realW.spawn[1]) + 0.05, realW.spawn[1]] : LV.spawn;
     const me = { x: SPAWN[0], y: SPAWN[1], z: SPAWN[2], vy: 0, ground: false, yaw: LV.spawnYaw || 0, pitch: 0, name: '' };
     const keys = {};
@@ -774,9 +779,17 @@
       if (P && P.dead) f = s = 0;
       const sp = keys.ShiftLeft || keys.ShiftRight || runOn ? RUN : WALK, len = Math.max(1, Math.hypot(f, s));
       const sin = Math.sin(me.yaw), cos = Math.cos(me.yaw);
-      const dx = ((s * cos) - (f * sin)) / len * sp * dt, dz = ((-s * sin) - (f * cos)) / len * sp * dt;
-      if (keys.Space && me.ground) { me.vy = JUMP; me.ground = false; }
-      me.vy -= GRAVITY * dt;
+      let dx = ((s * cos) - (f * sin)) / len * sp * dt, dz = ((-s * sin) - (f * cos)) / len * sp * dt;
+      const spaceNow = !!keys.Space && !(P && P.dead), spacePressed = spaceNow && !spaceHeld; spaceHeld = spaceNow;
+      if (BETA && spacePressed && !me.ground && !flying && TR) { flying = true; log('You fly. Touch the ground to land.'); }
+      if (flying) {   /* where you look, at the flying speed: the step below is made again, faster and with the pitch */
+        const fs = keys.ShiftLeft || keys.ShiftRight || runOn ? FLY_FAST : FLY, cp = Math.cos(me.pitch);
+        dx = ((s * cos) - (f * sin * cp)) / len * fs * dt; dz = ((-s * sin) - (f * cos * cp)) / len * fs * dt;
+        me.vy = (f / len) * Math.sin(me.pitch) * fs + (spaceNow ? fs * 0.6 : 0) - (keys.KeyC ? fs * 0.6 : 0);
+      } else {
+        if (keys.Space && me.ground) { me.vy = JUMP; me.ground = false; }
+        me.vy -= GRAVITY * dt;
+      }
       /* one axis at a time, so a wall stops the part of a step that goes into it and not the rest */
       let B;
       const x0 = me.x, z0 = me.z;
@@ -796,13 +809,15 @@
         if (me.vy <= 0) { me.y = B.max[1]; me.ground = true; } else me.y = B.min[1] - HEIGHT - 1e-4;
         me.vy = 0;
       }
+      if (flying && groundAt) me.y = Math.min(me.y, groundAt(me.x, me.z) + FLY_TOP);   /* not into the clouds */
       if (groundAt) {
         const g = groundAt(me.x, me.z);
         /* down a slope too, not in hops -- but not off a dock or a deck onto the sand just under it */
-        if (me.y <= g || (wasGround && me.vy <= 0 && me.y - g < 0.45 && !hits(me.x, me.y - 0.06, me.z))) { me.y = Math.max(me.y, g); me.vy = 0; me.ground = true; }
+        if (me.y <= g || (!flying && wasGround && me.vy <= 0 && me.y - g < 0.45 && !hits(me.x, me.y - 0.06, me.z))) { me.y = Math.max(me.y, g); me.vy = 0; me.ground = true; }
       }
+      if (flying && me.ground) { flying = false; log('You land.'); }
       /* no swimming: deep water stops you at its edge (from a bank above it too); a dock or a deck under you is not water */
-      if (groundAt && wet(me.x, me.z)) { const g = groundAt(me.x, me.z); if (g < -1.1 && g < me.y - 0.05 && !hits(me.x, me.y - 0.06, me.z)) { me.x = x0; me.z = z0; } }
+      if (groundAt && !flying && wet(me.x, me.z)) { const g = groundAt(me.x, me.z); if (g < -1.1 && g < me.y - 0.05 && !hits(me.x, me.y - 0.06, me.z)) { me.x = x0; me.z = z0; } }
       if (LV.env && LV.env.terrain === 'ship' && me.y < -1.5) { me.x = prev.x = SPAWN[0]; me.y = prev.y = SPAWN[1] + 0.5; me.z = prev.z = SPAWN[2]; me.vy = 0; log('Overboard! The crew hauls you back on deck.'); }
       /* OVERBOARD in the world (off the ship's rail): back where you last stood dry */
       if (me.ground && me.y > -0.2) { dry.x = me.x; dry.y = me.y; dry.z = me.z; }
