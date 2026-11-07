@@ -58,11 +58,16 @@
       const say = s => { try { if (onStatus) onStatus(s); } catch (e) { /* the game's problem */ } };
       const body = { kind: 'coins', to: ask.to, amount: String(ask.amount), label: ask.label || 'LiteWorldsQuest',
                      note: ask.note || '' };
+      /* coins on another chain the player holds (ask.chain, e.g. 'ltctest'; the arcade change of 2026-11-07), and a
+         ref so a lost reply is never paid twice */
+      if (ask.chain) body.chain = ask.chain;
+      if (ask.ref) body.ref = String(ask.ref).slice(0, 64);
       let filed;
       try {
         filed = await getJSON('/r/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       } catch (e) { return { status: 'failed', error: 'no wallet is answering' }; }
       if (!filed.ok || !filed.j.id) return { status: 'failed', error: filed.j.error || 'refused' };
+      if (ask.chain && filed.j.chain == null) return { status: 'failed', error: 'this arcade cannot pay in that coin from the wallet yet' };   /* an arcade before the change */
       say('pending');
       const until = Date.now() + 10 * 60 * 1000;   /* the arcade expires a request after an hour; a game stops asking sooner */
       while (Date.now() < until) {
@@ -74,5 +79,5 @@
       return { status: 'expired' };
     }
   };
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('wallet', { api: 1, v: 1 }, () => wallet);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('wallet', { api: 1, v: 2 }, () => wallet);
 })(typeof globalThis !== 'undefined' ? globalThis : this);

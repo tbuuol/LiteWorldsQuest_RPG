@@ -444,8 +444,16 @@
         const mins = Math.max(0, Math.round((iv.until - Date.now()) / 60000));
         info.innerHTML += '<div style="margin-top:8px;padding:8px;border:1px solid #c8a050;border-radius:6px;background:#3a2c1a">Invoice for plot <b>' + esc(iv.plot) +
           '</b>: send exactly <b style="user-select:all">' + esc(iv.amount) + '</b> tLTC to <b style="user-select:all;font-family:monospace">' + esc(iv.to) +
-          '</b> from any Litecoin testnet wallet, within ' + mins + ' minutes. The plot is held for you; it is yours the moment the payment is seen.</div>';
+          '</b> from any Litecoin testnet wallet, within ' + mins + ' minutes. The plot is held for you; it is yours the moment the payment is seen.' +
+          '<div style="margin-top:6px"><button data-pay style="background:#2f5a7a;color:#fff;border:1px solid #7fb6d6;border-radius:4px;padding:3px 12px;cursor:pointer">Pay with my arcade wallet</button></div></div>';
       }
+      const pb = info.querySelector('[data-pay]');
+      if (pb && iv) pb.onclick = async () => {   /* the arcade's own card, in tLTC (needs the arcade's /r/send chain) */
+        pb.disabled = true; pb.textContent = 'Look at your wallet…';
+        const got = await wallet.pay({ to: iv.to, amount: iv.amount, chain: 'ltctest', ref: 'lwq-plot-' + iv.plot + '-' + iv.until, label: 'LiteWorldsQuest', note: 'Plot ' + iv.plot + ' in Genesis' });
+        log(got.status === 'sent' ? 'Paid. The registrar waits for the Litecoin test chain to show it.' : 'The payment did not go out: ' + (got.error || got.status) + '.');
+        pb.disabled = false; pb.textContent = 'Pay with my arcade wallet';
+      };
       const bb = info.querySelector('[data-buy]');
       if (bb) bb.onclick = () => { askHouse({ Q: 'plot', p: p.id }); bb.disabled = true; bb.textContent = 'Asking…'; };
     }
@@ -2335,6 +2343,6 @@
     };
   }
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 35, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 36, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
     D => ({ start: (el, opts) => start(D, el, opts) }));
 })(typeof globalThis !== 'undefined' ? globalThis : this);

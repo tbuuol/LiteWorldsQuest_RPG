@@ -14,7 +14,7 @@
     },
     "wallet": {
       "file": "src/modules/wallet.js",
-      "v": 1,
+      "v": 2,
       "api": 1,
       "kind": "js",
       "id": null
@@ -69,7 +69,7 @@
     },
     "engine": {
       "file": "src/modules/engine.js",
-      "v": 35,
+      "v": 36,
       "api": 1,
       "kind": "js",
       "id": null,
