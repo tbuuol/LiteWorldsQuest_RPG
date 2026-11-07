@@ -33,5 +33,6 @@ PY
   chmod --reference="$CF" "$NEW"; chown --reference="$CF" "$NEW"
   mv "$NEW" "$CF"
 fi
-systemctl reload caddy
+# the Caddyfile says "admin off", so there is no reload (it needs the admin API): a restart, about a second
+systemctl restart caddy
 echo "done: /content/lwq-beta/ on pages.pepecoinarcade.com serves /var/www/lwq-beta"
