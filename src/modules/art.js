@@ -1280,7 +1280,26 @@
     }
     joinByMaterial(g);
     ctx.scene.add(g);
-    return { group: g };
+    /* an owner's name on a little board over the post (gold for your own); owners(fn): fn(id) -> {text, mine} | null */
+    const signs = new Map(), byId = new Map(list.map(p => [p.id, p]));
+    function owners(fn) {
+      for (const [id, p] of byId) {
+        const want = fn(id), key = want ? want.text + (want.mine ? '*' : '') : '';
+        const had = signs.get(id);
+        if (had && had.key === key) continue;
+        if (had) { ctx.scene.remove(had.s); had.s.material.map.dispose(); had.s.material.dispose(); signs.delete(id); }
+        if (!want) continue;
+        const [c, x] = canvas(256); c.height = 56;
+        x.fillStyle = want.mine ? 'rgba(90,64,10,.85)' : 'rgba(30,24,18,.75)'; x.fillRect(0, 0, 256, 56);
+        x.font = '600 30px Georgia,serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillStyle = want.mine ? '#ffd65a' : '#f0e6d2';
+        x.fillText(String(want.text).slice(0, 18), 128, 29);
+        const t = new T.CanvasTexture(c); t.colorSpace = T.SRGBColorSpace;
+        const sp = new T.Sprite(new T.SpriteMaterial({ map: t, transparent: true }));
+        sp.scale.set(2.2, 0.48, 1); sp.position.set(p.rect[0] + 0.35, g.position.y + 1.85, p.rect[1] + 0.35); sp.userData.keep = true;
+        ctx.scene.add(sp); signs.set(id, { s: sp, key });
+      }
+    }
+    return { group: g, owners };
   };
   /* A CITY WALL (tbuuol 2026-10-31: a wall round Genesis, "damit wir schonmal einen Eindruck davon haben wo die Stadt
      mal stehen wird und wie groß sie werden kann" -- "vergiss nicht ein hübsches Stadttor an der Straße"): a stone ring
@@ -2269,5 +2288,5 @@
     return { groundAt, polys, segs, half, spawn, inside, stats: { buildings: buildings.length, trees: trees.length } };
   };
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('art', { api: 1, v: 17 }, () => art);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('art', { api: 1, v: 18 }, () => art);
 })(typeof globalThis !== 'undefined' ? globalThis : this);

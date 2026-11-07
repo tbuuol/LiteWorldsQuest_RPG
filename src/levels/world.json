@@ -2,7 +2,7 @@
  "lwq": "module",
  "name": "level.world",
  "api": 1,
- "v": 6,
+ "v": 7,
  "data": {
   "id": "world",
   "title": "LiteWorldsQuest",
@@ -2558,7 +2558,9 @@
        "Every plot inside the wall has its number: houses to the north and south, workshops in the east, shops along the gate street.",
        "Soon you will buy a plot here. Its deed is yours, and what you build on it is yours too.",
        "Own two plots side by side, and you may build one great building over both."
-      ]
+      ],
+      "office": "plots",
+      "greet": "Welcome to the registry of Genesis. Pick a plot on the plan, and it can be yours."
      },
      {
       "id": "guildmaster",

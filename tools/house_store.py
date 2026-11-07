@@ -26,6 +26,28 @@ class Store:
         self.db.execute("PRAGMA journal_mode=WAL")
         self.db.execute("CREATE TABLE IF NOT EXISTS players (addr TEXT PRIMARY KEY, rec TEXT NOT NULL, updated REAL NOT NULL)")
         self.db.execute("CREATE TABLE IF NOT EXISTS hashes (day TEXT PRIMARY KEY, sha TEXT NOT NULL, n INTEGER NOT NULL, at REAL NOT NULL)")
+        # Genesis' plots (2026-11-07): who owns which, as the game keeps it ([tag, address, bought at, deed])
+        self.db.execute("CREATE TABLE IF NOT EXISTS plots (plot TEXT PRIMARY KEY, own TEXT NOT NULL, updated REAL NOT NULL)")
+
+    def plots(self) -> dict:
+        out = {}
+        for p, own in self.db.execute("SELECT plot, own FROM plots"):
+            try:
+                out[p] = json.loads(own)
+            except ValueError:
+                pass
+        return out
+
+    def put_plots(self, changed: dict) -> int:
+        now = time.time()
+        with self.db:
+            for p, own in changed.items():
+                if own is None:
+                    self.db.execute("DELETE FROM plots WHERE plot = ?", (p,))
+                else:
+                    self.db.execute("INSERT INTO plots (plot, own, updated) VALUES (?, ?, ?) ON CONFLICT(plot) DO UPDATE SET "
+                                    "own = excluded.own, updated = excluded.updated", (p, json.dumps(own, separators=(",", ":")), now))
+        return len(changed)
 
     def get(self, addresses) -> dict:
         out = {a: None for a in addresses}
@@ -100,6 +122,13 @@ async def sync(frame, store: Store, zone: str = "") -> tuple[int, int]:
     for a in raw.get("gone") or []:
         if HELD.get(a) == zone:
             del HELD[a]
+    # Genesis' plots: the whole book once, when the game has not had it; then what changed, back into the database
+    if await frame.evaluate("window.LWQGAME.housePlotsLoaded ? window.LWQGAME.housePlotsLoaded() : true") is False:
+        await frame.evaluate("json => window.LWQGAME.housePlots(json)", json.dumps(store.plots()))
+    elif await frame.evaluate("!!window.LWQGAME.housePlotsTake"):
+        changed = json.loads(await frame.evaluate("window.LWQGAME.housePlotsTake()") or "{}")
+        if changed:
+            store.put_plots(changed)
     wants = await frame.evaluate("window.LWQGAME.houseWants()")
     if held:
         wants = [a for a in wants if HELD.get(a, zone) == zone]

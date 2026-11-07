@@ -26,7 +26,7 @@ import subprocess
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 LEVELS = ROOT / "src" / "levels"
 OUT = LEVELS / "world.json"
-VERSION = 6
+VERSION = 7
 
 
 def probe(land: dict, points: list) -> list:
@@ -134,7 +134,10 @@ def make_genesis(ring: list) -> dict:
         hx, hz = (x0 + x1) / 2, z1 - 12   # 22 m deep, its door on the plaza side (south)
         nid, name, sign, banner, look, lines = KEEPER[b["id"]]
         halls.append({"id": b["id"], "pos": [round(hx, 1), round(hz, 1)], "size": [round(x1 - x0 - 8, 1), 22], "rot": 180, "sign": sign, "banner": banner})
-        npcs.append({"id": nid, "name": name, "pos": [round(hx, 1), round(hz - 9, 1)], "lookAt": [round(hx, 1), round(hz + 11, 1)], "talkTurn": True, "look": look, "lines": lines})
+        npc = {"id": nid, "name": name, "pos": [round(hx, 1), round(hz - 9, 1)], "lookAt": [round(hx, 1), round(hz + 11, 1)], "talkTurn": True, "look": look, "lines": lines}
+        if b["id"] == "townhall":   # the registry of plots (engine: E on him opens it)
+            npc.update({"office": "plots", "greet": "Welcome to the registry of Genesis. Pick a plot on the plan, and it can be yours."})
+        npcs.append(npc)
     props = []
     for k in range(8):   # benches round the plaza, facing the fountain
         t = (k + 0.5) / 8 * 2 * math.pi

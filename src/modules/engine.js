@@ -144,6 +144,7 @@
     const yawTo = (dx, dz) => Math.atan2(-dx, -dz);
     let forge = null, forgeDef = null;
     const plots = [];   /* Genesis' plots, for "where am I" */
+    let plotLook = null, plotPlan = null;
     const nearForge = (x, z) => !!forgeDef && Math.hypot(x - forgeDef.pos[0], z - forgeDef.pos[1]) < 5;
     /* a piece of the real Earth (tools/realworld.py): the ground is its heights, the houses its footprints */
     const realW = LV.real ? art.realworld(ctx, LV.real) : null;
@@ -204,7 +205,7 @@
     /* GENESIS (2026-11-07): its halls (the town hall, the guild), the fountain, the plots players will own */
     for (const h of LV.halls || []) art.hall(ctx, h);
     if (LV.fountain) art.fountain(ctx, LV.fountain);
-    if (LV.plots) { art.plots(ctx, LV.plots); for (const p of LV.plots) plots.push(p); }
+    if (LV.plots) { plotLook = art.plots(ctx, LV.plots); for (const p of LV.plots) plots.push(p); plotPlan = { halls: LV.halls || [], plaza: (LV.paths && LV.paths.circles || [])[0] || null }; }
     /* THINGS TO GATHER around the camp (tbuuol 2026-10-23): an oak, an ore boulder, herbs. Which are spent is part of
        the shared world (W.dep); the house decides what gathering gives, and when a spent one grows back. */
     for (const n of (LV.resources && LV.resources.nodes) || []) {
@@ -332,8 +333,106 @@
       }
       return best;
     }
+    /* --- GENESIS' PLOTS (tbuuol 2026-11-07) ------------------------------------------------------------------- */
+    /* Bought at the town hall from Registrar Aldous: the house keeps who owns which (its database, tools/house.py),
+       tells everyone, and says no when a plot is taken, the buyer is a guest, or holds PLOT_LIMIT already. The deed is
+       simulated for now (an id, later an inscription), and so is the price: in Litecoin, not charged in the beta. */
+    const PLOT_LIMIT = 3, PLOT_PRICE = { house: '0.05', workshop: '0.12', shop: '0.08' };
+    let plotOwn = {}, plotsLoaded = false;
+    const plotsDirty = new Set();
+    const tagOf = from => { const r = from && remotes.get(from.id); const t = (from && from.tag) || (r && r.from.tag) || ''; return t ? '@' + String(t).replace(/^@/, '') : ''; };
+    const myAddr = () => (room && room.me && room.me.address) || null;
+    function plotOwnerText(id) {
+      const o = plotOwn[id];
+      if (!o) return 'free';
+      return o[1] && o[1] === myAddr() ? 'yours' : 'owned by ' + (o[0] || 'someone');
+    }
+    function housePlot(from, a, id) {
+      const p = plots.find(q => q.id === id);
+      if (!p) return;
+      if (!plotsLoaded) { notice(from.id, 'The registrar is still opening his books. Ask again in a moment.'); return; }
+      if (plotOwn[id]) { notice(from.id, 'Plot ' + id + ' is not for sale: ' + (plotOwn[id][1] === a ? 'it is yours already.' : 'it belongs to ' + (plotOwn[id][0] || 'someone') + '.')); return; }
+      const mine = Object.keys(plotOwn).filter(k => plotOwn[k][1] === a).length;
+      if (mine >= PLOT_LIMIT) { notice(from.id, 'You hold ' + mine + ' plots, as many as one citizen may.'); return; }
+      const at = Date.now(), deed = 'sim-' + (at.toString(36) + id).slice(-10);
+      plotOwn = Object.assign({}, plotOwn, { [id]: [tagOf(from), a, at, deed] });
+      plotsDirty.add(id); applyPlots(plotOwn); sendPlots();
+      notice(from.id, 'Plot ' + id + ' is yours. Your deed: ' + deed + ' (simulated; the price, ' + PLOT_PRICE[p.kind] + ' LTC, is not charged in the beta).');
+    }
+    function sendPlots(to) {
+      if (!room || !iAmHouse) return;
+      const ids = to ? [to].filter(linked) : directPlayers();
+      if (ids.length) room.to(ids, { PL: plotOwn }, true);
+    }
+    function applyPlots(next) {
+      plotOwn = {};
+      for (const id in next) if (Array.isArray(next[id]) && plots.some(p => p.id === id)) plotOwn[id] = next[id].slice(0, 4);
+      if (plotLook && plotLook.owners) plotLook.owners(id => plotOwn[id] ? { text: plotOwn[id][0] || 'owned', mine: plotOwn[id][1] === myAddr() } : null);
+      posKey = '';
+      if (plotsOpen) drawPlots();
+    }
+    /* the registrar's book: a plan of Genesis, the plots in their colours (yours gold, others' grey); click one, buy it */
+    let plotsOpen = false, plotPick = null, plotsBox = null;
+    function openPlots() {
+      if (!plots.length) return;
+      try { document.exitPointerLock(); } catch (e) { /* not locked */ }
+      if (!plotsBox) {
+        plotsBox = document.createElement('div');
+        plotsBox.style.cssText = 'position:absolute;inset:0;z-index:16;display:flex;align-items:center;justify-content:center;background:rgba(10,8,4,.72);font:14px Georgia,serif;color:#f3e3c3';
+        plotsBox.innerHTML = '<div style="background:#2a2016;border:2px solid #8a6a3a;border-radius:8px;padding:12px;max-width:96vw;max-height:94vh;display:flex;flex-direction:column;gap:8px">' +
+          '<div style="display:flex;justify-content:space-between;align-items:center;gap:12px"><b style="font-size:17px">The Registry of Genesis</b><button data-x style="background:#5a4630;color:#f3e3c3;border:1px solid #8a6a3a;border-radius:4px;padding:3px 10px;cursor:pointer">Close</button></div>' +
+          '<canvas style="max-width:92vw;max-height:62vh;cursor:pointer;background:#cfc2a0;border-radius:4px"></canvas>' +
+          '<div data-i style="min-height:44px"></div></div>';
+        el.appendChild(plotsBox);
+        plotsBox.querySelector('[data-x]').onclick = () => closePlots();
+        plotsBox.querySelector('canvas').onclick = e => {
+          const cv = e.currentTarget, b = cv.getBoundingClientRect(), k = cv.width / b.width, [x0, z0, S] = cv._map;
+          const x = x0 + (e.clientX - b.left) * k / S, z = z0 + (e.clientY - b.top) * k / S;
+          plotPick = plotAt(x, z); drawPlots();
+        };
+        plotsBox.addEventListener('keydown', e => e.stopPropagation());
+      }
+      plotsOpen = true; plotsBox.style.display = 'flex';
+      plotPick = plotPick || plotAt(me.x, me.z);
+      drawPlots();
+    }
+    function closePlots() { plotsOpen = false; if (plotsBox) plotsBox.style.display = 'none'; }
+    function drawPlots() {
+      if (!plotsBox) return;
+      const cv = plotsBox.querySelector('canvas'), x = cv.getContext('2d');
+      let x0 = 1e9, z0 = 1e9, x1 = -1e9, z1 = -1e9;
+      for (const p of plots) { x0 = Math.min(x0, p.rect[0]); z0 = Math.min(z0, p.rect[1]); x1 = Math.max(x1, p.rect[2]); z1 = Math.max(z1, p.rect[3]); }
+      x0 -= 12; z0 -= 12; x1 += 12; z1 += 12;
+      const S = 2; cv.width = Math.round((x1 - x0) * S); cv.height = Math.round((z1 - z0) * S); cv._map = [x0, z0, S];
+      x.fillStyle = '#d9cfb0'; x.fillRect(0, 0, cv.width, cv.height);
+      const FREE = { house: '#9cc7e8', workshop: '#d79a8a', shop: '#f0b65a' }, me2 = myAddr();
+      for (const p of plots) {
+        const [a, b, c, d] = p.rect, o = plotOwn[p.id];
+        x.fillStyle = !o ? FREE[p.kind] || '#ccc' : o[1] === me2 ? '#e8c440' : '#8a8578';
+        x.fillRect((a - x0) * S, (b - z0) * S, (c - a) * S, (d - b) * S);
+        x.strokeStyle = p === plotPick ? '#d0261a' : 'rgba(40,30,20,.55)'; x.lineWidth = p === plotPick ? 3 : 1;
+        x.strokeRect((a - x0) * S + 0.5, (b - z0) * S + 0.5, (c - a) * S - 1, (d - b) * S - 1);
+      }
+      if (plotPlan && plotPlan.plaza) { const [px, pz, pr] = plotPlan.plaza; x.fillStyle = '#e8dcc0'; x.beginPath(); x.arc((px - x0) * S, (pz - z0) * S, pr * S, 0, Math.PI * 2); x.fill(); x.fillStyle = '#7fb6d6'; x.beginPath(); x.arc((px - x0) * S, (pz - z0) * S, 6 * S, 0, Math.PI * 2); x.fill(); }
+      for (const h of (plotPlan && plotPlan.halls) || []) {
+        const w = h.size[0], d = h.size[1], [hx, hz] = h.pos; x.fillStyle = '#8d6a4a'; x.fillRect((hx - w / 2 - x0) * S, (hz - d / 2 - z0) * S, w * S, d * S);
+        x.fillStyle = '#fff3dc'; x.font = 'bold 10px Georgia,serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(h.sign || '', (hx - x0) * S, (hz - z0) * S);
+      }
+      x.fillStyle = '#d0261a'; x.beginPath(); x.arc((me.x - x0) * S, (me.z - z0) * S, 5, 0, Math.PI * 2); x.fill();   /* you */
+      const info = plotsBox.querySelector('[data-i]'), p = plotPick;
+      const mine = Object.keys(plotOwn).filter(k => plotOwn[k][1] === me2);
+      const head = 'Blue: houses · red: workshops · gold-orange: shops · grey: owned · yellow: yours (' + mine.length + ' of ' + PLOT_LIMIT + ')';
+      if (!p) { info.innerHTML = esc(head) + '<br>Click a plot.'; return; }
+      const sz = Math.round(p.rect[2] - p.rect[0]) + ' × ' + Math.round(p.rect[3] - p.rect[1]) + ' m', own = plotOwnerText(p.id);
+      info.innerHTML = esc(head) + '<br><b>Plot ' + esc(p.id) + '</b> · ' + esc(PLOT_KIND[p.kind] || p.kind) + ' · ' + sz + ' · ' + esc(own) +
+        (plotOwn[p.id] ? (plotOwn[p.id][1] === me2 ? ' · deed ' + esc(plotOwn[p.id][3] || '') : '')
+          : ' · price ' + PLOT_PRICE[p.kind] + ' LTC (not charged in the beta) ' + (me2 ? '<button data-buy style="background:#3f6a2a;color:#fff;border:1px solid #8fbf5a;border-radius:4px;padding:3px 12px;cursor:pointer">Buy</button>' : '· sign in to buy'));
+      const bb = info.querySelector('[data-buy]');
+      if (bb) bb.onclick = () => { askHouse({ Q: 'plot', p: p.id }); bb.disabled = true; bb.textContent = 'Asking…'; };
+    }
     function speak(id) {
       const N = npcs[id], lines = N.def.lines || ['…'];
+      if (N.def.office === 'plots' && plots.length) { log(N.def.name + ': ' + (N.def.greet || 'The registry is open. Which plot do you want?')); openPlots(); return; }
       /* QUESTS (Etappe 3): E shows the quest, E again takes it or hands it in (the house decides) */
       if (talk && talk.id === id && talk.quest) {
         const { q, st } = talk.quest;
@@ -566,7 +665,7 @@
     const PLOT_KIND = { house: 'house', workshop: 'workshop', shop: 'shop' };
     function plotAt(x, z) { for (const p of plots) { const r = p.rect; if (x >= r[0] && x <= r[2] && z >= r[1] && z <= r[3]) return p; } return null; }
     const whereText = () => { const p = plotAt(me.x, me.z);
-      return square(me.x, me.z) + ' · ' + Math.round(me.x) + ' / ' + Math.round(me.z) + (p ? ' · plot ' + p.id + ' (' + (PLOT_KIND[p.kind] || p.kind) + ')' : ''); };
+      return square(me.x, me.z) + ' · ' + Math.round(me.x) + ' / ' + Math.round(me.z) + (p ? ' · plot ' + p.id + ' (' + (PLOT_KIND[p.kind] || p.kind) + ') · ' + plotOwnerText(p.id) : ''); };
     let posKey = '';
     function posTick() {
       if (!TR) return;
@@ -707,6 +806,7 @@
       if (down && e.code === 'KeyM' && !e.repeat) { if (TR) toggleMap(); else if (sound) muteSound(); }
       if (down && e.code === 'KeyP' && !e.repeat && TR) log('You are at ' + whereText() + (zoneNow ? ', ' + zoneNow : '') + '.');
       if (down && e.code === 'Space') e.preventDefault();
+      if (down && e.code === 'Escape' && plotsOpen) closePlots();
     };
     on(document, 'keydown', onKey(true));
     on(document, 'keyup', onKey(false));
@@ -1315,6 +1415,7 @@
       const dep = {}; for (const id in W.dep) if (W.dep[id]) dep[id] = 1;
       const ids = to ? [to].filter(linked) : directPlayers();
       if (ids.length) room.to(ids, { W: { seq: W.seq, open, taken, dep } }, true);
+      if (plots.length) sendPlots(to);
       lastWorldSent = performance.now();
     }
     /* the world as the host says it is: what changed is said in the log, each change once */
@@ -1474,6 +1575,7 @@
       if (d.I && amHost()) hostApply(String(d.I), String(d.o || ''), from.id);
       /* the world only from the house */
       if (d.W && typeof d.W === 'object' && from.id === hostId() && +d.W.seq > W.seq) applyWorld(d.W);
+      if (d.PL && typeof d.PL === 'object' && from.id === hostId()) applyPlots(d.PL);
       if (d.H && amHost()) sendWorld(from.id);
       /* the fight: the host's picture of it, a player's blow for the host, and what the host says happened to me */
       if (fight) {
@@ -1492,6 +1594,7 @@
         const a = addrOf(from);
         if (d.Q === 'equip') { const res = book.equip(a, +d.u); if (!res.ok) notice(from.id, 'Cannot wear that: ' + res.why + '.'); }
         else if (d.Q === 'unequip') book.unequip(a, String(d.s));
+        else if (d.Q === 'plot') housePlot(from, a, String(d.p));
         else if (d.Q === 'quest') {
           const q = (LV.quests || []).find(x => x.id === String(d.q)), r = remotes.get(from.id), N = q && npcs[q.npc];
           if (!q) return;
@@ -1888,6 +1991,13 @@
       /* the house's book of players, for tools/house.py to keep on disk: out as JSON, and back in after a start */
       houseDump: () => book ? JSON.stringify(book.dump()) : '{}',
       houseStore(on) { storeMode = !!on; return storeMode; },
+      /* Genesis' plots for tools/house.py: loaded once from its database, and what changed handed back */
+      housePlotsLoaded: () => plotsLoaded || !plots.length,
+      housePlots(json) { const all = typeof json === 'string' ? JSON.parse(json) : json; plotsLoaded = true; applyPlots(all || {}); sendPlots(); return Object.keys(plotOwn).length; },
+      housePlotsTake() { const out = {}; for (const id of plotsDirty) out[id] = plotOwn[id] || null; plotsDirty.clear(); return JSON.stringify(out); },
+      plots: () => Object.assign({}, plotOwn),
+      buyPlot(id) { askHouse({ Q: 'plot', p: String(id) }); },   /* what the registry's Buy does (tests) */
+      registry(on) { if (on === false) closePlots(); else openPlots(); return plotsOpen; },
       /* the records the house waits for: players here whose record has not come */
       houseWants() {
         const out = new Set();
@@ -1929,6 +2039,6 @@
     };
   }
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 29, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 30, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
     D => ({ start: (el, opts) => start(D, el, opts) }));
 })(typeof globalThis !== 'undefined' ? globalThis : this);
