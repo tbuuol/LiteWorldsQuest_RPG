@@ -886,6 +886,7 @@
         if (d.opens === 'switch' || (d.opens === 'key' && W.open[u.id])) return;
         if (d.opens === 'key' && !hasItem(d.key)) { log('It is locked. Somewhere there is a key.'); return; }
       }
+      act(u.kind === 'pickup' ? 'pick-up' : 'interact-right');
       intent(u.kind === 'pickup' ? 'take' : 'use', u.id);
     }
     const hasItem = id => W.taken[id] != null && W.taken[id] === myId();
@@ -986,7 +987,7 @@
       if (!fight || !P || P.dead || !playing() || (menu && menu.isOpen())) return;
       const now = performance.now();
       if (now < atkReady) return;
-      atkReady = now + P.cd * 1000; swingT = 1;
+      atkReady = now + P.cd * 1000; swingT = 1; act('attack-melee-right');
       const id = fight.pick(me.x, me.z, me.yaw, P.range, me.y);
       if (sound) sound.blip(id ? 'hit' : 'swing');
       if (!id) return;
@@ -1022,7 +1023,7 @@
         msg.p = best || myId();
       }
       abilCd[ab.key] = now + ab.cd * 1000;
-      if (ab.mul) { swingT = 1; if (sound) sound.blip('hit'); for (const id of msg.u) { fight.predict(id, 0); if (ab.stun) fight.say(id, 'stun'); } }
+      if (ab.mul) { swingT = 1; act('attack-melee-right'); if (sound) sound.blip('hit'); for (const id of msg.u) { fight.predict(id, 0); if (ab.stun) fight.say(id, 'stun'); } }
       else if (sound) sound.blip('pickup');
       sendIntent(msg);
       drawAbilities(true);
@@ -1090,7 +1091,7 @@
     function gather(id) {
       const now = performance.now();
       if (now < gatherReady || !fight || (P && P.dead)) return;
-      gatherReady = now + 1200; swingT = 1;
+      gatherReady = now + 1200; swingT = 1; act('pick-up');
       if (sound) sound.blip('swing');
       if (W.dep[id]) return;
       if (!room || !houseId() || iAmHouse) { log('Gathering needs the house: it keeps what you carry.'); return; }
@@ -1446,6 +1447,8 @@
       if (d.j != null && r.j == null && isFinite(+d.j)) r.j = +d.j;
       if (Array.isArray(d.p)) {
         if (d.n && d.n !== r.name) { r.name = String(d.n).slice(0, 24); r.c.setName(label(from, r.name)); }
+        if (Array.isArray(d.e) && d.e[0] !== r.eN) { r.eN = d.e[0]; if (r.c.emote) r.c.emote(String(d.e[1])); }   /* their swing, their gather */
+        if (Array.isArray(d.h) && r.c.hold) r.c.hold(d.h[2] ? 'die' : null);   /* down when they are down */
         /* SMOOTH OTHERS: a sample is placed by when it was SENT (d.s, the sender's clock), not when it arrived, so
            uneven delivery does not make the avatar stutter. The sender's clock is mapped onto ours by the smallest
            arrival - sent seen (that is its offset plus the fastest trip); the scatter above that is the jitter. */
@@ -1594,6 +1597,11 @@
       drawNet();
     }
     let lastState = 0, lastKey = '', lastName = 0, handsSent = '';
+    /* WHAT I DO, SEEN BY THE OTHERS (tbuuol 2026-11-07: "ich sehe die Animationen anderer Spieler nicht"): a swing, a
+       gather, a hand on a door goes out with my position as {e: [number, gesture]} -- for 1.5 s, so a lost sample does
+       not lose it; the number says it is the same one */
+    let actN = 0, actNow = null, actAt = 0;
+    function act(name) { actNow = [++actN % 1000, name]; actAt = performance.now(); sendState(true); }
     function sendState(force) {   /* where I am, 15 times a second, to the house only (it passes it on to who is near) */
       if (!room || iAmHouse || !entered) return;
       const h = houseId();
@@ -1611,6 +1619,7 @@
         if (rec) m.w = ['main', 'off'].map(sl => { const it = rec.eq[sl] && rpg.itemOf(rec, rec.eq[sl]); return it ? it.id : ''; });   /* what you hold, for your avatar */
       }
       if (P && fight) m.h = [Math.ceil(P.hp), P.max, P.dead ? 1 : 0];   /* the host's priest needs to know who is hurt */
+      if (actNow && now - actAt < 1500) m.e = actNow;
       room.to([h], m, false);
     }
     let remotesT = performance.now();
@@ -1854,6 +1863,7 @@
         if (!keepPicture) { renderer.dispose(); renderer.domElement.remove(); keep.renderer = null; }
       },
       /* for tests and tools: stand somewhere, look somewhere, press E without a captured mouse */
+      others: () => Array.from(remotes, ([id, r]) => ({ id, house: !!r.house, x: r.g.position.x, z: r.g.position.z, sp: r.sp || 0, act: r.eN == null ? null : r.eN })),   /* tests */
       goto(x, y, z) { me.x = prev.x = +x; me.y = prev.y = +y; me.z = prev.z = +z; me.vy = 0; },
       look(yaw, pitch) { me.yaw = +yaw; me.pitch = +(pitch || 0); },
       use() { camera.position.set(me.x, me.y + EYE, me.z); camera.rotation.set(me.pitch, me.yaw, 0); camera.updateMatrixWorld(); useAim(true); },
