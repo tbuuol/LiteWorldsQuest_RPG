@@ -1319,25 +1319,52 @@
       const b = mesh(boxM(w, h, d, 2), material); b.position.set(x, y + h / 2, z); g.add(b);
       if (solid !== false) solids.push({ min: [x - w / 2, y, z - d / 2], max: [x + w / 2, y + h, z + d / 2] });
     };
+    /* ROOFS THAT MEET (tbuuol 2026-11-07, "es entstehen Lücken"): a slope with another one of the same way just below
+       it carries on from that one's top, 1.5 m a cell, so two rows from each side meet at the ridge a storey up; and
+       where a slope has no neighbour beside it, its side is closed down to the storey's floor (the gable) */
+    const RISE = 1.5, DIR = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+    const slopeAt = new Map();
+    for (const pc of pieces) if (pc[0] === 4) slopeAt.set(pc[1] + ',' + pc[2] + ',' + pc[3] + ',' + (pc[4] | 0), pc);
+    const chain = pc => { const [dx, dz] = DIR[pc[4] | 0]; let n = 0, x = pc[1], z = pc[2];
+      while (n < 8 && slopeAt.has(Math.round((x - 2 * dx) * 10) / 10 + ',' + Math.round((z - 2 * dz) * 10) / 10 + ',' + pc[3] + ',' + (pc[4] | 0))) { n++; x -= 2 * dx; z -= 2 * dz; } return n; };
+    const ends = new Map();   /* wall ends, for the corner posts */
     for (const pc of pieces) {
       const [k, cx, cz, L, r, m] = pc, y0 = base + L * H;
       if (k === 0) box(2, TH, 2, cx, y0, cz, M(m, true));
       else if (k <= 3) {
-        /* a wall on the cell's north edge (r 0) runs along x, on its west edge (r 3) along z */
+        /* a wall on the cell's north edge (r 0) runs along x, on its west edge (r 3) along z; from the storey's floor up */
         const alongX = (r | 0) % 2 === 0, ex = alongX ? cx : cx - 1, ez = alongX ? cz - 1 : cz, mm = M(m);
         const part = (u0, u1, y1, y2) => {   /* a piece of the wall from u0 to u1 along it, y1 to y2 up */
           const w = u1 - u0, mid = (u0 + u1) / 2;
           if (alongX) box(w, y2 - y1, TH, ex + mid, y0 + y1, ez, mm); else box(TH, y2 - y1, w, ex, y0 + y1, ez + mid, mm);
         };
-        if (k === 1) part(-1, 1, TH, H);
-        else if (k === 2) { part(-1, -0.5, TH, H); part(0.5, 1, TH, H); part(-0.5, 0.5, TH, 1.1); part(-0.5, 0.5, 2.2, H); }
-        else { part(-1, -0.5, TH, H); part(0.5, 1, TH, H); part(-0.5, 0.5, 2.4, H); }
+        if (k === 1) part(-1, 1, 0, H);
+        else if (k === 2) { part(-1, -0.5, 0, H); part(0.5, 1, 0, H); part(-0.5, 0.5, 0, 1.1); part(-0.5, 0.5, 2.2, H); }
+        else { part(-1, -0.5, 0, H); part(0.5, 1, 0, H); part(-0.5, 0.5, 2.4, H); }
+        for (const e of alongX ? [[ex - 1, ez], [ex + 1, ez]] : [[ex, ez - 1], [ex, ez + 1]]) {
+          const key = Math.round(e[0] * 10) / 10 + ',' + Math.round(e[1] * 10) / 10 + ',' + L;
+          if (!ends.has(key)) ends.set(key, [e[0], e[1], y0, mm]);
+        }
       } else if (k === 4) {
-        const rise = 2.2, len = Math.hypot(2, rise), sl = mesh(boxM(2.2, 0.15, len, 2), buildM.roof);
-        sl.position.set(cx, y0 + TH + rise / 2, cz); sl.rotation.order = 'YXZ'; sl.rotation.y = -(r | 0) * Math.PI / 2; sl.rotation.x = Math.atan2(rise, 2);
+        const n = chain(pc), [dx, dz] = DIR[r | 0], len = Math.hypot(2, RISE) + 0.06, mm = M(m);
+        const sl = mesh(boxM(2.06, 0.15, len, 2), buildM.roof);
+        sl.position.set(cx, y0 + (n + 0.5) * RISE + 0.08, cz); sl.rotation.order = 'YXZ'; sl.rotation.y = -(r | 0) * Math.PI / 2; sl.rotation.x = Math.atan2(RISE, 2);
         g.add(sl);
+        for (const side of [1, -1]) {   /* the gable: the side closed from the floor up to the slope */
+          const px = -dz * side, pz = dx * side;
+          const nb = slopeAt.get(Math.round((cx + 2 * px) * 10) / 10 + ',' + Math.round((cz + 2 * pz) * 10) / 10 + ',' + L + ',' + (r | 0));
+          if (nb && chain(nb) === n) continue;
+          const sx = cx + px, sz = cz + pz, lo = y0, a = n * RISE, b = (n + 1) * RISE;
+          const P = [[sx - dx, lo, sz - dz], [sx + dx, lo, sz + dz], [sx + dx, lo + b, sz + dz], [sx - dx, lo + a, sz - dz]];
+          const geo = new T.BufferGeometry(), v = [0, 1, 2, 0, 2, 3].flatMap(i => P[i]);
+          geo.setAttribute('position', new T.Float32BufferAttribute(v, 3));
+          geo.setAttribute('uv', new T.Float32BufferAttribute([0, 0, 1, 0, 1, b / 2, 0, 0, 1, b / 2, 0, a / 2], 2));
+          geo.computeVertexNormals();
+          const gm = new T.Mesh(geo, mm.side === T.DoubleSide ? mm : (mm._two = mm._two || Object.assign(mm.clone(), { side: T.DoubleSide })));
+          gm.castShadow = gm.receiveShadow = true; g.add(gm);
+        }
       } else if (k === 5) {
-        const dx = [0, 1, 0, -1][r | 0], dz = [-1, 0, 1, 0][r | 0];
+        const dx = DIR[r | 0][0], dz = DIR[r | 0][1];
         for (let i = 0; i < 8; i++) {
           const along = -1 + 0.25 * i + 0.125, top = 0.375 * (i + 1) + TH;
           const x = cx + dx * along, z = cz + dz * along;
@@ -1345,6 +1372,8 @@
         }
       }
     }
+    /* a post where walls end: it closes the corner where two meet, and stands a little proud of them */
+    for (const [x, z, y0, mm] of ends.values()) box(0.26, H, 0.26, x, y0, z, mm);
     joinByMaterial(g);
     ctx.scene.add(g);
     return { group: g, solids };
@@ -2336,5 +2365,5 @@
     return { groundAt, polys, segs, half, spawn, inside, stats: { buildings: buildings.length, trees: trees.length } };
   };
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('art', { api: 1, v: 19 }, () => art);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('art', { api: 1, v: 20 }, () => art);
 })(typeof globalThis !== 'undefined' ? globalThis : this);
