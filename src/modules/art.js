@@ -1308,12 +1308,17 @@
      side), 4 a roof slope (rising towards r: 0 north, 1 east, 2 south, 3 west), 5 stairs (up towards r, 8 steps to the
      next storey). Materials: 0 wood, 1 stone, 2 plaster. art.building(ctx, pieces, base) -> {group, solids: [{min, max}]};
      the group's parts are joined by material, a few draw calls for a whole house. */
-  art.BUILD = { CELL: 2, STOREY: 3, KINDS: ['floor', 'wall', 'window', 'door', 'slope', 'stairs'], MATS: ['wood', 'stone', 'plaster'] };
+  art.BUILD = { CELL: 2, STOREY: 3, KINDS: ['floor', 'wall', 'window', 'door', 'slope', 'stairs', 'chest', 'bed'], MATS: ['wood', 'stone', 'plaster'] };
   let buildM = null;
   art.building = function (ctx, pieces, base) {
     buildM = buildM || { wood: [mat('planks'), mat('planks', { m: { color: '#d8b48a' } })], stone: [mat('stone', { m: { bumpScale: 1.2 } }), mat('stone')],
                          plaster: [plain('#efe7d8'), plain('#d9cfbd')], roof: mat('rooftiles') };
-    const g = new T.Group(), solids = [], H = 3, TH = 0.2;
+    const g = new T.Group(), solids = [], doors = [], furniture = [], H = 3, TH = 0.2;
+    buildM.glass = buildM.glass || new T.MeshStandardMaterial({ color: '#a8d4f0', transparent: true, opacity: 0.32, roughness: 0.05, metalness: 0.1, depthWrite: false });
+    buildM.leaf = buildM.leaf || mat('planks', { m: { color: '#b07a4a' } });
+    buildM.iron = buildM.iron || plain('#3a3632', { metalness: 0.6, roughness: 0.45 });
+    const floorAt = new Set(); for (const pc of pieces) if (pc[0] === 0) floorAt.add(pc[1] + ',' + pc[2] + ',' + pc[3]);
+    const slotKey = pc => (pc[0] >= 1 && pc[0] <= 3 ? 'e' : pc[0] >= 6 ? 'f' : 'c') + ':' + pc[1] + ':' + pc[2] + ':' + pc[3] + (pc[0] >= 1 && pc[0] <= 3 ? ':' + (pc[4] % 2) : '');
     const M = (m, floor) => (buildM[art.BUILD.MATS[m] || 'wood'] || buildM.wood)[floor ? 1 : 0];
     const box = (w, h, d, x, y, z, material, solid) => {
       const b = mesh(boxM(w, h, d, 2), material); b.position.set(x, y + h / 2, z); g.add(b);
@@ -1340,8 +1345,23 @@
           if (alongX) box(w, y2 - y1, TH, ex + mid, y0 + y1, ez, mm); else box(TH, y2 - y1, w, ex, y0 + y1, ez + mid, mm);
         };
         if (k === 1) part(-1, 1, 0, H);
-        else if (k === 2) { part(-1, -0.5, 0, H); part(0.5, 1, 0, H); part(-0.5, 0.5, 0, 1.1); part(-0.5, 0.5, 2.2, H); }
-        else { part(-1, -0.5, 0, H); part(0.5, 1, 0, H); part(-0.5, 0.5, 2.4, H); }
+        else if (k === 2) {
+          part(-1, -0.5, 0, H); part(0.5, 1, 0, H); part(-0.5, 0.5, 0, 1.1); part(-0.5, 0.5, 2.2, H);
+          /* a pane of glass: you see through it, you do not climb through it */
+          const pn = new T.Mesh(new T.BoxGeometry(alongX ? 1 : 0.04, 1.1, alongX ? 0.04 : 1), buildM.glass); pn.position.set(ex, y0 + 1.65, ez); g.add(pn);
+          solids.push({ min: [ex - (alongX ? 0.5 : 0.1), y0 + 1.1, ez - (alongX ? 0.1 : 0.5)], max: [ex + (alongX ? 0.5 : 0.1), y0 + 2.2, ez + (alongX ? 0.1 : 0.5)] });
+        } else {
+          part(-1, -0.5, 0, H); part(0.5, 1, 0, H); part(-0.5, 0.5, 2.4, H);
+          /* the door itself, on a hinge at one side of the opening; it swings in when open (the engine turns it) */
+          const id = 'bd:' + slotKey(pc), pivot = new T.Group(), hx = alongX ? ex - 0.5 : ex, hz = alongX ? ez : ez - 0.5;
+          pivot.position.set(hx, y0 + TH, hz); pivot.userData.keep = true;
+          const leaf = mesh(new T.BoxGeometry(alongX ? 1 : 0.07, 2.2, alongX ? 0.07 : 1), buildM.leaf);
+          leaf.position.set(alongX ? 0.5 : 0, 1.1, alongX ? 0 : 0.5); pivot.add(leaf);
+          const knob = mesh(new T.SphereGeometry(0.05, 8, 6), buildM.iron); knob.position.set(alongX ? 0.85 : 0.06, 1.05, alongX ? 0.06 : 0.85); pivot.add(knob);
+          ctx.scene.add(pivot);
+          const box = { min: [ex - (alongX ? 0.5 : 0.08), y0, ez - (alongX ? 0.08 : 0.5)], max: [ex + (alongX ? 0.5 : 0.08), y0 + 2.4, ez + (alongX ? 0.08 : 0.5)] };
+          doors.push({ id, pivot, panel: leaf, swing: alongX ? -Math.PI / 2 : Math.PI / 2, box });
+        }
         for (const e of alongX ? [[ex - 1, ez], [ex + 1, ez]] : [[ex, ez - 1], [ex, ez + 1]]) {
           const key = Math.round(e[0] * 10) / 10 + ',' + Math.round(e[1] * 10) / 10 + ',' + L;
           if (!ends.has(key)) ends.set(key, [e[0], e[1], y0, mm]);
@@ -1373,11 +1393,37 @@
         }
       }
     }
+    /* FURNITURE: a chest (what you keep) and a bed (where you wake), on the floor if there is one; the engine makes
+       them usable (furniture: [{id, kind, hit, pos}]) */
+    for (const pc of pieces) {
+      const [k, cx, cz, L, r] = pc;
+      if (k !== 6 && k !== 7) continue;
+      const y0 = base + L * H + (floorAt.has(cx + ',' + cz + ',' + L) ? TH : 0), turn = (r | 0) % 2 === 1, fg = new T.Group();
+      if (k === 6) {
+        const body = mesh(boxM(1.1, 0.55, 0.65, 1), buildM.leaf); body.position.y = 0.275; fg.add(body);
+        const lid = mesh(boxM(1.14, 0.16, 0.69, 1), buildM.leaf); lid.position.y = 0.63; fg.add(lid);
+        for (const sx of [-0.4, 0.4]) { const band = mesh(new T.BoxGeometry(0.06, 0.72, 0.71), buildM.iron); band.position.set(sx, 0.36, 0); fg.add(band); }
+        const lock = mesh(new T.BoxGeometry(0.12, 0.14, 0.04), plain('#c8a040', { metalness: 0.7, roughness: 0.3 })); lock.position.set(0, 0.5, -0.35); fg.add(lock);
+      } else {
+        const frame = mesh(boxM(1.1, 0.35, 2.0, 1), buildM.leaf); frame.position.y = 0.175; fg.add(frame);
+        const mat2 = mesh(new T.BoxGeometry(1.0, 0.16, 1.9), plain('#e8e0d0')); mat2.position.y = 0.43; fg.add(mat2);
+        const blanket = mesh(new T.BoxGeometry(1.04, 0.06, 1.25), plain('#7a2a2a')); blanket.position.set(0, 0.53, 0.3); fg.add(blanket);
+        const pillow = mesh(new T.BoxGeometry(0.7, 0.12, 0.35), plain('#f4efe6')); pillow.position.set(0, 0.56, -0.7); fg.add(pillow);
+        const head = mesh(boxM(1.1, 0.7, 0.1, 1), buildM.leaf); head.position.set(0, 0.35, -0.97); fg.add(head);
+      }
+      fg.rotation.y = -(r | 0) * Math.PI / 2; fg.position.set(cx, y0, cz); g.add(fg);
+      const w = k === 6 ? (turn ? 0.35 : 0.57) : (turn ? 1.0 : 0.55), d = k === 6 ? (turn ? 0.57 : 0.35) : (turn ? 0.55 : 1.0), h = k === 6 ? 0.72 : 0.6;
+      solids.push({ min: [cx - w, y0, cz - d], max: [cx + w, y0 + h, cz + d] });
+      const hit = new T.Mesh(new T.BoxGeometry(w * 2 + 0.2, h + 0.4, d * 2 + 0.2), new T.MeshBasicMaterial({ visible: false }));
+      hit.position.set(cx, y0 + h / 2, cz); ctx.scene.add(hit);
+      furniture.push({ id: 'bf:' + slotKey(pc), kind: k === 6 ? 'chest' : 'bed', hit, pos: [cx, y0, cz] });
+    }
     /* a post where walls end: it closes the corner where two meet, and stands a little proud of them */
     for (const [x, z, y0, mm] of ends.values()) box(0.26, H, 0.26, x, y0, z, mm);
+    for (const c of g.children.slice()) if (c.isGroup) { c.updateMatrix(); for (const m of c.children.slice()) { m.applyMatrix4(c.matrix); g.add(m); } g.remove(c); }   /* furniture into the join */
     joinByMaterial(g);
     ctx.scene.add(g);
-    return { group: g, solids };
+    return { group: g, solids, doors, furniture, dispose() { for (const d of doors) ctx.scene.remove(d.pivot); for (const f of furniture) ctx.scene.remove(f.hit); } };
   };
   /* A CITY WALL (tbuuol 2026-10-31: a wall round Genesis, "damit wir schonmal einen Eindruck davon haben wo die Stadt
      mal stehen wird und wie groß sie werden kann" -- "vergiss nicht ein hübsches Stadttor an der Straße"): a stone ring
@@ -1534,6 +1580,14 @@
       const ring = mesh(new T.CylinderGeometry(0.3, 0.3, 0.02, 10), plain('#c9a27a')); ring.position.y = 0.46; left.add(ring);
       use = mesh(new T.CylinderGeometry(0.6, 0.6, 2.4, 8), new T.MeshBasicMaterial({ visible: false })); use.position.y = 1.2;
       ctx.solid([x - 0.45, y0, z - 0.45], [x + 0.45, y0 + 3, z + 0.45]);
+    } else if (def.kind === 'stone') {   /* a quarry's block: pale, square-ish, no ore in it */
+      const geo = new T.DodecahedronGeometry(0.85, 0), p = geo.attributes.position;
+      for (let i = 0; i < p.count; i++) { const k = 0.9 + rnd() * 0.2; p.setXYZ(i, p.getX(i) * k * 1.25, p.getY(i) * k * 0.95, p.getZ(i) * k * 1.1); }
+      geo.computeVertexNormals();
+      const stone = mesh(geo, mat('stone', { m: { color: '#c9c3b6' } })); stone.position.y = 0.6; full.add(stone);
+      const chips = mesh(new T.CylinderGeometry(0.8, 0.9, 0.08, 9), plain('#a8a296')); chips.position.y = 0.04; left.add(chips);
+      use = mesh(new T.SphereGeometry(1.1, 8, 6), new T.MeshBasicMaterial({ visible: false })); use.position.y = 0.6;
+      ctx.solid([x - 0.9, y0, z - 0.8], [x + 0.9, y0 + 1.2, z + 0.8], () => full.visible);
     } else if (def.kind === 'rock') {
       const geo = new T.DodecahedronGeometry(0.9, 1), p = geo.attributes.position;
       for (let i = 0; i < p.count; i++) { const k = 0.85 + rnd() * 0.3; p.setXYZ(i, p.getX(i) * k * 1.2, p.getY(i) * k * 0.8, p.getZ(i) * k); }
@@ -2366,5 +2420,5 @@
     return { groundAt, polys, segs, half, spawn, inside, stats: { buildings: buildings.length, trees: trees.length } };
   };
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('art', { api: 1, v: 21 }, () => art);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('art', { api: 1, v: 23 }, () => art);
 })(typeof globalThis !== 'undefined' ? globalThis : this);

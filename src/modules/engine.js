@@ -140,7 +140,7 @@
     const aabb = (def, on) => ({ min: def.pos.map((p, i) => p - def.size[i] / 2), max: def.pos.map((p, i) => p + def.size[i] / 2), on: on || (() => true) });
     /* the level's things, built by the art module; the engine keeps what can be used and what blocks the way */
     const doors = {}, switches = {}, pickups = {}, shrines = {}, npcs = {}, resources = {}, portals = [];
-    const RES_NAME = { tree: 'oak', rock: 'ore boulder', herb: 'herbs' };
+    const RES_NAME = { tree: 'oak', rock: 'ore boulder', herb: 'herbs', stone: 'quarry stone' };
     const yawTo = (dx, dz) => Math.atan2(-dx, -dz);
     let forge = null, forgeDef = null;
     const plots = [];   /* Genesis' plots, for "where am I" */
@@ -476,12 +476,17 @@
       for (const [dx, dz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) if (!inMine(cx + dx, cz + dz)) return null;
       return holder(cx, cz);
     }
-    const slotOf = pc => (pc[0] >= 1 && pc[0] <= 3 ? 'e' : 'c') + ':' + pc[1] + ':' + pc[2] + ':' + pc[3] + (pc[0] >= 1 && pc[0] <= 3 ? ':' + (pc[4] % 2) : '');
+    /* WHAT A PIECE COSTS (2026-11-07): wood takes oak logs, stone and plaster take rough stone (the quarry by Genesis,
+       and the ore boulders now and then); taken from your bag when the house puts the piece, given back when it comes
+       down */
+    const PIECE_N = [1, 2, 2, 2, 1, 2, 3, 4];
+    const costOf = pc => ({ [(pc[5] | 0) === 0 || pc[0] >= 6 ? 'oak_log' : 'stone_block']: PIECE_N[pc[0] | 0] || 1 });   /* a chest and a bed: oak */
+    const slotOf = pc => (pc[0] >= 1 && pc[0] <= 3 ? 'e' : pc[0] >= 6 ? 'f' : 'c') + ':' + pc[1] + ':' + pc[2] + ':' + pc[3] + (pc[0] >= 1 && pc[0] <= 3 ? ':' + (pc[4] % 2) : '');
     function pieceAt(slot) { for (const id in built) for (const pc of built[id]) if (slotOf(pc) === slot) return [id, pc]; return null; }
     function houseBuild(from, a, d) {
       if (!builtLoaded) { notice(from.id, 'The builders are not here yet. Try again in a moment.'); return; }
       const k = d.k | 0, L = Math.max(0, Math.min(5, d.L | 0)), r = ((d.r | 0) % 4 + 4) % 4, m = Math.max(0, Math.min(2, d.m | 0));
-      if (!Array.isArray(d.c) || k < 0 || k > 5) return;
+      if (!Array.isArray(d.c) || k < 0 || k > 7) return;
       const pc = [k, r1(+d.c[0]), r1(+d.c[1]), L, k >= 1 && k <= 3 ? (r % 2 ? 3 : 0) : r, m];
       if (!isFinite(pc[1]) || !isFinite(pc[2])) return;
       const home = pieceHome(pc, a);
@@ -490,26 +495,106 @@
       if (d.x === 'del') {
         if (!had || !pieceHome(had[1], a)) return;
         built = Object.assign({}, built, { [had[0]]: built[had[0]].filter(q => q !== had[1]) });
+        if (book.refund) { book.refund(a, costOf(had[1])); dirty.add(a); }
         builtDirty.add(had[0]); applyBuilt(had[0]); sendBuilt(had[0]); return;
       }
       if (had) return;
       if ((built[home.id] || []).length >= BUILD_MAX) { notice(from.id, 'Plot ' + home.id + ' holds ' + BUILD_MAX + ' pieces, as many as it can.'); return; }
+      if (book.pay) { const paid = book.pay(a, costOf(pc)); if (!paid.ok) { notice(from.id, 'You cannot build that: ' + paid.why + '.'); return; } dirty.add(a); }
       built = Object.assign({}, built, { [home.id]: (built[home.id] || []).concat([pc]) });
       builtDirty.add(home.id); applyBuilt(home.id); sendBuilt(home.id);
+    }
+    /* a bed: you wake there; a chest: what you keep, the same in every chest of yours. Only your own, and only close */
+    function houseFurniture(from, a, d) {
+      const f = furniture[String(d.f)], r = remotes.get(from.id), at = r ? whereIs(r) : null;
+      if (!f || ownerOfPlot(f.plot) !== a) return;
+      if (at && Math.hypot(at[0] - f.pos[0], at[1] - f.pos[2]) > 4) { notice(from.id, 'You are too far away.'); return; }
+      const rr = book.of(a);
+      if (d.Q === 'home') {
+        if (f.kind !== 'bed') return;
+        rr.home = [r1(f.pos[0] + 1.2), r1(f.pos[1] + 0.3), r1(f.pos[2])]; dirty.add(a);
+        notice(from.id, 'You rest a while. From now on you wake here.'); return;
+      }
+      if (f.kind !== 'chest') return;
+      const ch = rr.chest = rr.chest || { mat: {}, bag: [] }, n = Math.max(1, Math.min(999, d.n | 0));
+      if (d.m) {   /* materials, by kind and number */
+        const m = String(d.m), from_ = d.x === 'put' ? rr.mat : ch.mat, to_ = d.x === 'put' ? ch.mat : rr.mat;
+        const k = Math.min(n, from_[m] || 0); if (!k) return;
+        from_[m] -= k; if (!from_[m]) delete from_[m]; to_[m] = (to_[m] || 0) + k;
+      } else if (d.u != null) {   /* a thing, by its number; nothing you wear */
+        const uid = +d.u, src = d.x === 'put' ? rr.bag : ch.bag, dst = d.x === 'put' ? ch.bag : rr.bag;
+        if (d.x === 'put' && Object.values(rr.eq || {}).some(v => +v === uid)) { notice(from.id, 'Take it off first.'); return; }
+        const i = src.findIndex(e => +e[0] === uid); if (i < 0) return;
+        dst.push(src.splice(i, 1)[0]);
+      } else return;
+      dirty.add(a);
+    }
+    /* the chest's panel: your bag and your chest side by side, a click moves a thing across */
+    let chestBox = null, chestOpen = null;
+    function openChest(fid) {
+      try { document.exitPointerLock(); } catch (e) { /* not locked */ }
+      chestOpen = fid;
+      if (!chestBox) {
+        chestBox = document.createElement('div');
+        chestBox.style.cssText = 'position:absolute;inset:0;z-index:16;display:flex;align-items:center;justify-content:center;background:rgba(10,8,4,.72);font:14px Georgia,serif;color:#f3e3c3';
+        el.appendChild(chestBox);
+        chestBox.addEventListener('click', e => {
+          const b = e.target.closest('[data-mv]');
+          if (e.target.closest('[data-x]')) { chestBox.style.display = 'none'; chestOpen = null; return; }
+          if (!b) return;
+          const [x, kind, v] = b.dataset.mv.split('|');
+          askHouse(Object.assign({ Q: 'chest', f: chestOpen, x }, kind === 'm' ? { m: v, n: e.shiftKey ? 999 : 1 } : { u: +v }));
+        });
+      }
+      chestBox.style.display = 'flex'; drawChest();
+    }
+    function drawChest() {
+      if (!chestBox || !chestOpen || chestBox.style.display === 'none') return;
+      const R = rec || {}, ch = R.chest || { mat: {}, bag: [] }, nm = id => (rpg && rpg.ITEMS[id] ? rpg.ITEMS[id].name : id);
+      const worn = new Set(Object.values(R.eq || {}).map(Number));
+      const col = (title, mats, bag, x) => '<div style="flex:1;min-width:220px"><b>' + title + '</b><div style="margin-top:6px;display:flex;flex-direction:column;gap:3px">' +
+        Object.keys(mats || {}).map(m => '<button data-mv="' + x + '|m|' + esc(m) + '" style="text-align:left;background:#3a2c1a;color:#f3e3c3;border:1px solid #6a5030;border-radius:4px;padding:3px 8px;cursor:pointer">' + esc(nm(m)) + ' × ' + mats[m] + '</button>').join('') +
+        (bag || []).filter(e => !worn.has(+e[0])).map(e => '<button data-mv="' + x + '|u|' + e[0] + '" style="text-align:left;background:#2a2433;color:#f3e3c3;border:1px solid #5a4a70;border-radius:4px;padding:3px 8px;cursor:pointer">' + esc(nm(e[1])) + '</button>').join('') +
+        '</div></div>';
+      chestBox.innerHTML = '<div style="background:#2a2016;border:2px solid #8a6a3a;border-radius:8px;padding:12px;width:min(560px,94vw);max-height:90vh;overflow:auto">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center"><b style="font-size:17px">Your chest</b><button data-x style="background:#5a4630;color:#f3e3c3;border:1px solid #8a6a3a;border-radius:4px;padding:3px 10px;cursor:pointer">Close</button></div>' +
+        '<div style="font-size:12px;opacity:.8;margin:4px 0 8px">Click moves one across; Shift-click all of a material. Every chest of yours holds the same.</div>' +
+        '<div style="display:flex;gap:14px;flex-wrap:wrap">' + col('In your bag', R.mat, R.bag, 'put') + col('In your chest', ch.mat, ch.bag, 'take') + '</div></div>';
     }
     function sendBuilt(id, to) {
       if (!room || !iAmHouse) return;
       const ids = to ? [to].filter(linked) : directPlayers();
       if (ids.length) room.to(ids, { BU: [id, built[id] || []] }, true);
     }
+    const furniture = {};   /* 'bf:<slot>' -> {kind, pos, plot} */
     function applyBuilt(id) {
       const old = builtLook.get(id);
-      if (old) { scene.remove(old.group); old.group.traverse(o => { if (o.geometry) o.geometry.dispose(); }); builtLook.delete(id); }
+      if (old) {
+        scene.remove(old.group); old.group.traverse(o => { if (o.geometry) o.geometry.dispose(); });
+        if (old.dispose) old.dispose();
+        const gone = new Set(old.uses || []);
+        for (let i = usable.length - 1; i >= 0; i--) if (gone.has(usable[i])) usable.splice(i, 1);
+        for (const did of old.doorIds || []) delete doors[did];
+        for (const fid of old.furnIds || []) delete furniture[fid];
+        builtLook.delete(id);
+      }
       const p = plots.find(q => q.id === id), list = built[id] || [];
       if (!p || !list.length || !art.building) return;
-      const look = art.building(ctx, list, plotBase(p));
-      builtLook.set(id, { group: look.group, solids: look.solids, c: [(p.rect[0] + p.rect[2]) / 2, (p.rect[1] + p.rect[3]) / 2] });
+      const look = art.building(ctx, list, plotBase(p)), uses = [], doorIds = [], furnIds = [];
+      /* your own doors open for you only (the house checks); a closed one stops everybody */
+      for (const d of look.doors || []) {
+        doors[d.id] = { def: { id: d.id, label: 'Door', opens: 'owner', plot: id }, mesh: d.panel, pivots: [{ p: d.pivot, swing: d.swing }] };
+        d.panel.userData = { kind: 'door', id: d.id }; usable.push(d.panel); uses.push(d.panel); doorIds.push(d.id);
+        look.solids.push(Object.assign({}, d.box, { on: () => !W.open[d.id] }));
+      }
+      for (const f of look.furniture || []) {
+        furniture[f.id] = { kind: f.kind, pos: f.pos, plot: id };
+        f.hit.userData = { kind: f.kind, id: f.id }; usable.push(f.hit); uses.push(f.hit); furnIds.push(f.id);
+      }
+      builtLook.set(id, { group: look.group, solids: look.solids, c: [(p.rect[0] + p.rect[2]) / 2, (p.rect[1] + p.rect[3]) / 2], dispose: look.dispose, uses, doorIds, furnIds });
     }
+    const ownerOfPlot = id => (plotOwn[id] || [])[1] || null;
+    const isMineFurn = fid => !!furniture[fid] && ownerOfPlot(furniture[fid].plot) === myAddr();
     /* the build bar and the ghost of the piece you are about to put */
     function setBuilding(on) {
       if (on && !ownedBy(myAddr()).length) { log('You own no plot to build on. Registrar Aldous in Genesis sells them.'); return; }
@@ -525,9 +610,11 @@
     }
     function drawBuildBar() {
       if (!bBar) return;
-      const names = ['Floor', 'Wall', 'Window', 'Door', 'Roof', 'Stairs'];
+      const names = ['Floor', 'Wall', 'Window', 'Door', 'Roof', 'Stairs', 'Chest', 'Bed'];
       bBar.innerHTML = 'BUILD · ' + names.map((n, i) => (i === bKind ? '<b style="color:#ffd65a">[' + (i + 1) + '] ' + n + '</b>' : '[' + (i + 1) + '] ' + n)).join(' ') +
-        ' · T: <b>' + ['wood', 'stone', 'plaster'][bMat] + '</b> · storey <b>' + bLevel + '</b> (Z / X)' + (bKind >= 4 ? ' · R: turn' : '');
+        ' · T: <b>' + ['wood', 'stone', 'plaster'][bMat] + '</b> · storey <b>' + bLevel + '</b> (Z / X)' + (bKind >= 4 ? ' · R: turn' : '') +
+        ' · costs ' + Object.entries(costOf([bKind, 0, 0, 0, 0, bMat])).map(([m, n]) => n + ' ' + ((rpg && rpg.ITEMS[m]) ? rpg.ITEMS[m].name : m)).join(', ') +
+        (rec ? ' (you have ' + ((rec.mat || {})[bMat === 0 ? 'oak_log' : 'stone_block'] || 0) + ')' : '');
     }
     function buildTarget() {
       if (!building || !TR) return null;
@@ -563,6 +650,9 @@
         const alongX = pc[4] === 0;
         bGhost.scale.set(alongX ? 2 : 0.25, 3, alongX ? 0.25 : 2);
         bGhost.position.set(alongX ? pc[1] : pc[1] - 1, y0 + 1.5, alongX ? pc[2] - 1 : pc[2]);
+      } else if (pc[0] >= 6) {
+        const turn = pc[4] % 2 === 1, w = pc[0] === 6 ? 1.1 : 1.1, d = pc[0] === 6 ? 0.7 : 2.0;
+        bGhost.scale.set(turn ? d : w, 0.7, turn ? w : d); bGhost.position.set(pc[1], y0 + 0.35, pc[2]);
       } else {
         const h = pc[0] === 0 ? 0.25 : 3;
         bGhost.scale.set(2, h, 2); bGhost.position.set(pc[1], y0 + h / 2, pc[2]);
@@ -948,7 +1038,7 @@
       if (down && e.code === 'KeyF' && !e.repeat) attack();
       if (down && !e.repeat && e.code === 'KeyB' && plots.length) setBuilding(!building);
       if (building && down && !e.repeat) {
-        if (/^Digit[1-6]$/.test(e.code)) { bKind = +e.code.slice(5) - 1; drawBuildBar(); return; }
+        if (/^Digit[1-8]$/.test(e.code)) { bKind = +e.code.slice(5) - 1; drawBuildBar(); return; }
         if (e.code === 'KeyT') { bMat = (bMat + 1) % 3; drawBuildBar(); return; }
         if (e.code === 'KeyR') { bRot = (bRot + 1) % 4; drawBuildBar(); return; }
         if (e.code === 'KeyZ') { bLevel = Math.max(0, bLevel - 1); drawBuildBar(); return; }
@@ -976,7 +1066,7 @@
       }
       for (const bl of builtLook.values()) {   /* what players built, only on plots near here */
         if (Math.abs(x - bl.c[0]) > 40 || Math.abs(z - bl.c[1]) > 40) continue;
-        for (const B of bl.solids) if (a[0] < B.max[0] && b[0] > B.min[0] && a[1] < B.max[1] && b[1] > B.min[1] && a[2] < B.max[2] && b[2] > B.min[2]) return B;
+        for (const B of bl.solids) if ((!B.on || B.on()) && a[0] < B.max[0] && b[0] > B.min[0] && a[1] < B.max[1] && b[1] > B.min[1] && a[2] < B.max[2] && b[2] > B.min[2]) return B;
       }
       if (land) for (const B of land.solids(x, z)) {   /* the trunks of the land near here */
         if (a[0] < B.max[0] && b[0] > B.min[0] && a[1] < B.max[1] && b[1] > B.min[1] && a[2] < B.max[2] && b[2] > B.min[2]) return B;
@@ -1116,10 +1206,13 @@
       if (u.kind === 'door') {
         const d = doors[u.id].def, word = d.label.toLowerCase();
         if (d.opens === 'hand') return 'E: ' + (W.open[u.id] ? 'close' : 'open') + ' the ' + word;
+        if (d.opens === 'owner') return ownerOfPlot(d.plot) === myAddr() ? 'E: ' + (W.open[u.id] ? 'close' : 'open') + ' your door' : (W.open[u.id] ? '' : 'Locked: ' + ((plotOwn[d.plot] || [])[0] || 'someone') + "'s door");
         if (W.open[u.id]) return '';
         return d.opens === 'key' ? (hasItem(d.key) ? 'E: unlock the ' + word : d.label + ': it needs a key') : d.label + ': opened somewhere else';
       }
       if (u.kind === 'npc') return 'E: talk to ' + npcs[u.id].def.name;
+      if (u.kind === 'chest') return isMineFurn(u.id) ? 'E: open your chest' : 'A chest (not yours)';
+      if (u.kind === 'bed') return isMineFurn(u.id) ? 'E: sleep here (you will wake here)' : 'A bed (not yours)';
       if (u.kind === 'forge') return 'E: work at the forge';
       if (u.kind === 'res') {
         const n = resources[u.id].def, name = RES_NAME[n.kind], g = rpg && rpg.GATHER[n.kind];
@@ -1138,11 +1231,14 @@
       if (u.kind === 'shrine') { offer(shrines[u.id].def); return; }
       if (u.kind === 'npc') { speak(u.id); return; }
       if (u.kind === 'res') { gather(u.id); return; }
+      if (u.kind === 'chest') { if (isMineFurn(u.id)) openChest(u.id); else log('It is not your chest.'); return; }
+      if (u.kind === 'bed') { if (isMineFurn(u.id)) { askHouse({ Q: 'home', f: u.id }); act('interact-right'); } else log('It is not your bed.'); return; }
       if (u.kind === 'forge') { if (menu) { try { document.exitPointerLock(); } catch (e) { /* not locked */ } menu.open('craft'); } return; }
       if (u.kind === 'door') {
         const d = doors[u.id].def;
         if (d.opens === 'switch' || (d.opens === 'key' && W.open[u.id])) return;
         if (d.opens === 'key' && !hasItem(d.key)) { log('It is locked. Somewhere there is a key.'); return; }
+        if (d.opens === 'owner' && ownerOfPlot(d.plot) !== myAddr()) { log('It is locked.'); return; }
       }
       act(u.kind === 'pickup' ? 'pick-up' : 'interact-right');
       intent(u.kind === 'pickup' ? 'take' : 'use', u.id);
@@ -1219,7 +1315,7 @@
         }
       }
       placed = true;
-      rec = r; mine = rpg.stats(r);
+      rec = r; mine = rpg.stats(r); if (chestOpen) setTimeout(drawChest, 0);
       P.max = mine.hp; P.hp = Math.min(P.hp, P.max);
       dressHands(); drawStats();
       if (menu) menu.update(rec, mine);
@@ -1490,8 +1586,9 @@
         P.dead = true;
         /* the world: you wake at the nearest place that takes the fallen in (LV.revives: {at, spawn, yaw, text}) */
         const rv = (LV.revives || []).reduce((b, r) => !b || Math.hypot(me.x - r.at[0], me.z - r.at[1]) < Math.hypot(me.x - b.at[0], me.z - b.at[1]) ? r : b, null);
-        const back = rv ? rv.spawn : SPAWN;
-        log((from ? aName(from, true) + ' strikes you down.' : 'You fall.') + ' ' + ((rv && rv.text) || LV.revive || 'Brother Anselm carries you back inside.'));
+        const home = rec && Array.isArray(rec.home) && rec.home.length === 3 ? rec.home : null;   /* your bed in Genesis */
+        const back = home || (rv ? rv.spawn : SPAWN);
+        log((from ? aName(from, true) + ' strikes you down.' : 'You fall.') + ' ' + (home ? 'You wake in your own bed.' : (rv && rv.text) || LV.revive || 'Brother Anselm carries you back inside.'));
         setTimeout(() => {
           P.dead = false; P.hp = P.max; wokeAt = performance.now();
           me.x = prev.x = back[0]; me.y = prev.y = back[1]; me.z = prev.z = back[2]; me.vy = 0; me.yaw = rv && rv.yaw != null ? rv.yaw : LV.spawnYaw || 0;
@@ -1554,6 +1651,10 @@
       } else if (op === 'use' && doors[id]) {
         const d = doors[id].def;
         if (d.opens === 'hand') { N.open[id] = !N.open[id]; changed = true; }
+        else if (d.opens === 'owner') {   /* a door on a plot: its owner's */
+          const r = remotes.get(by), a = by === myId() ? myAddr() : r && r.from.address;
+          if (a && a === ownerOfPlot(d.plot)) { N.open[id] = !N.open[id]; changed = true; }
+        }
         else if (d.opens === 'key' && !N.open[id] && N.taken[d.key] === by) { N.open[id] = true; changed = true; }
       } else if (op === 'take' && pickups[id] && N.taken[id] == null) {
         N.taken[id] = by; changed = true;
@@ -1758,6 +1859,7 @@
         else if (d.Q === 'unequip') book.unequip(a, String(d.s));
         else if (d.Q === 'plot') housePlot(from, a, String(d.p));
         else if (d.Q === 'build') houseBuild(from, a, d);
+        else if (d.Q === 'home' || d.Q === 'chest') houseFurniture(from, a, d);
         else if (d.Q === 'quest') {
           const q = (LV.quests || []).find(x => x.id === String(d.q)), r = remotes.get(from.id), N = q && npcs[q.npc];
           if (!q) return;
@@ -2233,6 +2335,6 @@
     };
   }
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 33, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 35, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
     D => ({ start: (el, opts) => start(D, el, opts) }));
 })(typeof globalThis !== 'undefined' ? globalThis : this);

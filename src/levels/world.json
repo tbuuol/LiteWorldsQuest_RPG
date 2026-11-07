@@ -2,7 +2,7 @@
  "lwq": "module",
  "name": "level.world",
  "api": 1,
- "v": 7,
+ "v": 8,
  "data": {
   "id": "world",
   "title": "LiteWorldsQuest",
@@ -2417,6 +2417,240 @@
        "pos": [
         506.1,
         -683.0
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.stone.133",
+       "kind": "stone",
+       "pos": [
+        522.3,
+        -82.1
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.stone.134",
+       "kind": "stone",
+       "pos": [
+        498.7,
+        -149.0
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.stone.135",
+       "kind": "stone",
+       "pos": [
+        505.8,
+        -134.9
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.stone.136",
+       "kind": "stone",
+       "pos": [
+        452.2,
+        -97.2
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.stone.137",
+       "kind": "stone",
+       "pos": [
+        536.5,
+        -94.3
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.stone.138",
+       "kind": "stone",
+       "pos": [
+        532.0,
+        -114.7
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.stone.139",
+       "kind": "stone",
+       "pos": [
+        466.2,
+        -142.5
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.stone.140",
+       "kind": "stone",
+       "pos": [
+        449.6,
+        -123.4
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.stone.141",
+       "kind": "stone",
+       "pos": [
+        522.9,
+        -146.3
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.stone.142",
+       "kind": "stone",
+       "pos": [
+        490.9,
+        -77.5
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.stone.143",
+       "kind": "stone",
+       "pos": [
+        505.3,
+        -70.2
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.stone.144",
+       "kind": "stone",
+       "pos": [
+        469.9,
+        -101.1
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.stone.145",
+       "kind": "stone",
+       "pos": [
+        544.5,
+        -141.0
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.stone.146",
+       "kind": "stone",
+       "pos": [
+        501.7,
+        -122.4
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.tree.147",
+       "kind": "tree",
+       "pos": [
+        461.2,
+        124.1
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.tree.148",
+       "kind": "tree",
+       "pos": [
+        531.8,
+        91.4
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.tree.149",
+       "kind": "tree",
+       "pos": [
+        507.1,
+        49.1
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.tree.150",
+       "kind": "tree",
+       "pos": [
+        438.5,
+        61.1
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.tree.151",
+       "kind": "tree",
+       "pos": [
+        494.0,
+        124.0
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.tree.152",
+       "kind": "tree",
+       "pos": [
+        532.5,
+        46.5
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.tree.153",
+       "kind": "tree",
+       "pos": [
+        538.8,
+        73.5
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.tree.154",
+       "kind": "tree",
+       "pos": [
+        515.0,
+        96.7
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.tree.155",
+       "kind": "tree",
+       "pos": [
+        427.8,
+        105.0
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.tree.156",
+       "kind": "tree",
+       "pos": [
+        424.4,
+        87.9
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.tree.157",
+       "kind": "tree",
+       "pos": [
+        455.1,
+        87.9
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.tree.158",
+       "kind": "tree",
+       "pos": [
+        454.3,
+        66.6
        ],
        "ground": true
       }

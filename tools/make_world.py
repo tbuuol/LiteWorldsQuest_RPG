@@ -26,7 +26,7 @@ import subprocess
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 LEVELS = ROOT / "src" / "levels"
 OUT = LEVELS / "world.json"
-VERSION = 7
+VERSION = 8
 
 
 def probe(land: dict, points: list) -> list:
@@ -281,6 +281,9 @@ def main() -> None:
         [[[-260, -700], [0, -660], [200, -560], [215, -500], [100, -590], [-260, -660]], {"rock": 6, "herb": 6}],
         [[[500, -790], [380, -735], [350, -630], [420, -560], [600, -525], [700, -545], [760, -605], [775, -700], [735, -780], [650, -805]],
          {"tree": 10, "rock": 10, "herb": 8}],
+        # for building Genesis (2026-11-07): a quarry by the road west of the gate, and oaks south of the road
+        [[[430, -150], [545, -150], [545, -70], [430, -70]], {"stone": 14}],
+        [[[420, 40], [545, 40], [545, 140], [420, 140]], {"tree": 12}],
     ]
     KEEP_OFF = [[0, 0, 85], [SW.at[0], SW.at[1], 50], [sx, sz, 25]]
     nodes = []
@@ -297,9 +300,9 @@ def main() -> None:
             for q, (h, coast, river, road, slope) in zip(cand, res):
                 if got >= n:
                     break
-                if h < 0.5 or road > 0.02 or river < 6 or coast < (2 if kind == "rock" else 6):
+                if h < 0.5 or road > 0.02 or river < 6 or coast < (2 if kind in ("rock", "stone") else 6):
                     continue
-                if slope > (0.8 if kind == "rock" else 0.45) or (kind == "tree" and coast < 25):
+                if slope > (0.8 if kind in ("rock", "stone") else 0.45) or (kind == "tree" and coast < 25):
                     continue
                 if any(math.hypot(q[0] - m["pos"][0], q[1] - m["pos"][1]) < 12 for m in nodes):
                     continue

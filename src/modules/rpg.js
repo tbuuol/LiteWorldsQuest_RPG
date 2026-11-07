@@ -97,7 +97,7 @@
     leather_boots: { name: 'Leather Boots', slot: 'feet', def: 2 },
     leather_belt: { name: 'Leather Belt', slot: 'belt', def: 1, at: { sta: 1 } },
     herb_amulet: { name: 'Herb Amulet', slot: 'amulet', at: { int: 2, sta: 1 }, req: { int: 11 } },
-    oak_log: { name: 'Oak Log', material: true }, copper_ore: { name: 'Copper Ore', material: true },
+    oak_log: { name: 'Oak Log', material: true }, stone_block: { name: 'Rough Stone', material: true }, copper_ore: { name: 'Copper Ore', material: true },
     iron_ore: { name: 'Iron Ore', material: true }, wild_herb: { name: 'Wild Herb', material: true }, flax: { name: 'Flax', material: true },
     /* from the beasts of the Greenwood (Etappe 3) */
     boar_hide: { name: 'Boar Hide', material: true }, boar_tusk: { name: 'Boar Tusk', material: true },
@@ -125,7 +125,9 @@
      its profession, how hard it is (for the effort), and the attributes it trains */
   const GATHER = {
     tree: { skill: 'woodcutting', prof: 'woodcutter', lvl: 0, verb: 'chop', yields: [['oak_log', 1, 0.15]], at: { str: 0.3, sta: 0.2 } },
-    rock: { skill: 'mining', prof: 'miner', lvl: 1, verb: 'mine', yields: [['copper_ore', 0.8, 0.05], ['iron_ore', 0.12, 0.1]], at: { str: 0.4, sta: 0.2 } },
+    rock: { skill: 'mining', prof: 'miner', lvl: 1, verb: 'mine', yields: [['copper_ore', 0.8, 0.05], ['iron_ore', 0.12, 0.1], ['stone_block', 0.5, 0.05]], at: { str: 0.4, sta: 0.2 } },
+    /* the quarry's stone (2026-11-07): what building in Genesis takes, besides oak */
+    stone: { skill: 'mining', prof: 'miner', lvl: 0, verb: 'quarry', yields: [['stone_block', 1, 0.2]], at: { str: 0.4, sta: 0.2 } },
     herb: { skill: 'herbalism', prof: 'herbalist', lvl: 0, verb: 'gather', yields: [['wild_herb', 1, 0.15], ['flax', 0.35, 0.05]], at: { dex: 0.3, int: 0.2 } }
   };
   /* RECIPES: the craft's skill, its profession and the level of it they need; known: everybody knows it from the
@@ -367,6 +369,14 @@
         }
         return { ok: true, made: ITEMS[rid].name, up: ups(r, before), learnt: learnt && ITEMS[learnt].name };
       },
+      /* building (Genesis, 2026-11-07): materials taken for a piece, and given back when it is taken down */
+      pay(a, needs) {
+        const r = of(a);
+        for (const m in needs) if ((r.mat[m] || 0) < needs[m]) return { ok: false, why: 'not enough ' + (ITEMS[m] ? ITEMS[m].name : m) + ' (' + (r.mat[m] || 0) + ' of ' + needs[m] + ')' };
+        for (const m in needs) { r.mat[m] -= needs[m]; if (!r.mat[m]) delete r.mat[m]; }
+        return { ok: true };
+      },
+      refund(a, mats) { const r = of(a); for (const m in mats) r.mat[m] = (r.mat[m] || 0) + mats[m]; },
       unequip(a, slot) { const r = of(a); if (!r.eq[slot]) return { ok: false, why: 'nothing there' }; delete r.eq[slot]; return { ok: true }; },
       /* the herbal salve: a Wild Herb used up; heals by the herbalist's skill and intelligence; teaches herbalism */
       salve(a) {
@@ -436,5 +446,5 @@
   }
 
   const rpg = { api: 1, SLOTS, SKILLS, PROFS, ATTRS, RANKS, ITEMS, FISTS, LOOT, GATHER, RECIPES, CODEX, ABILITIES, abilities, questState, questProgress, knows, fresh, stats, profs, rank, meets, itemOf, attr, book };
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('rpg', { api: 1, v: 7 }, () => rpg);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('rpg', { api: 1, v: 8 }, () => rpg);
 })(typeof globalThis !== 'undefined' ? globalThis : this);
