@@ -29,7 +29,7 @@
     },
     "art": {
       "file": "src/modules/art.js",
-      "v": 16,
+      "v": 17,
       "api": 1,
       "kind": "js",
       "id": null,
@@ -61,7 +61,7 @@
     },
     "terrain": {
       "file": "src/modules/terrain.js",
-      "v": 5,
+      "v": 6,
       "api": 1,
       "kind": "js",
       "id": null,

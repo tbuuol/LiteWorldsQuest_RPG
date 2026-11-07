@@ -117,7 +117,9 @@
         else k = edge + (Math.max(h, edge) - edge) * smooth((d - w - 3) / 15);
         cut = cut == null ? k : Math.min(cut, k);
       }
-      if (cut != null) h = cut;
+      /* the river only ever lowers the ground: where it meets the sea its bank used to lift the sea floor to the bank's
+         0.15 m round its end, a sand bar across the mouth (tbuuol 2026-11-07: "wieder eine Sandbank am Meer") */
+      if (cut != null) h = Math.min(h, cut);
       return h;
     }
     /* THE GROUND AS IT IS DRAWN (tbuuol 2026-10-31: "map und Collider sollten 1:1 gleich sein"): the land's mesh is
@@ -224,6 +226,6 @@
   }
 
   const terrain = { api: 1, create, I, EXT, SEA };
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('terrain', { api: 1, v: 5 }, () => terrain);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('terrain', { api: 1, v: 6 }, () => terrain);
   if (typeof module !== 'undefined') module.exports = terrain;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

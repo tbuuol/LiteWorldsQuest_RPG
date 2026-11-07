@@ -1308,6 +1308,8 @@
       if (nr[0] * (gx - cx) + nr[1] * (gz - cz) < 0) nr = [-nr[0], -nr[1]];   /* outward */
       gates.push({ x: gx, z: gz, d, nr });
     }
+    /* a road through one of the ring's corners crosses both its sides there: one gate, not two (2026-11-07) */
+    for (let i = gates.length - 1; i > 0; i--) if (gates.slice(0, i).some(g => Math.hypot(g.x - gates[i].x, g.z - gates[i].z) < 12)) gates.splice(i, 1);
     const nearGate = (x, z, m) => gates.some(g => Math.hypot(x - g.x, z - g.z) < m);
     function tower(x, z, r, rise) {
       const g = Math.min(ground(x, z), ground(x + r, z), ground(x - r, z), ground(x, z + r), ground(x, z - r)), lo = g - 1.5, top = ground(x, z) + H + rise;
@@ -2267,5 +2269,5 @@
     return { groundAt, polys, segs, half, spawn, inside, stats: { buildings: buildings.length, trees: trees.length } };
   };
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('art', { api: 1, v: 16 }, () => art);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('art', { api: 1, v: 17 }, () => art);
 })(typeof globalThis !== 'undefined' ? globalThis : this);
