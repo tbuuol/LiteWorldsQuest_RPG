@@ -430,6 +430,132 @@
       const bb = info.querySelector('[data-buy]');
       if (bb) bb.onclick = () => { askHouse({ Q: 'plot', p: p.id }); bb.disabled = true; bb.textContent = 'Asking…'; };
     }
+    /* --- BUILDING ON YOUR PLOTS (tbuuol 2026-11-07: "erstmal grob mit 2 m") ---------------------------------------- */
+    /* B: build mode on your own plots. 1-6 the piece (floor, wall, window, door, roof slope, stairs), T the material,
+       R turns it, Z / X a storey down / up, click puts it, right click takes away what is there. The house checks
+       every piece (your plots, a free place, at most BUILD_MAX a plot), keeps them in its database, and tells everyone.
+       Over two plots of yours side by side you build as over one. */
+    const BUILD_MAX = 300, BLD = art.BUILD || { CELL: 2, STOREY: 3, KINDS: [], MATS: [] };
+    let built = {}, builtLoaded = false;
+    const builtDirty = new Set(), builtLook = new Map();
+    let building = false, bKind = 0, bMat = 0, bRot = 0, bLevel = 0, bTarget = null, bGhost = null, bBar = null;
+    const plotOf = (x, z) => plotAt(x, z);
+    const plotBase = p => TR ? Math.round(TR.walk((p.rect[0] + p.rect[2]) / 2, (p.rect[1] + p.rect[3]) / 2) * 10) / 10 : 0;
+    const ownedBy = a => plots.filter(p => plotOwn[p.id] && plotOwn[p.id][1] === a);
+    const r1 = v => Math.round(v * 10) / 10;
+    /* where a piece stands, and which of the owner's plots holds it (null: not on their ground) */
+    function pieceHome(pc, a) {
+      const [k, cx, cz, , r] = pc, mine = ownedBy(a);
+      const inMine = (x, z) => mine.some(p => x >= p.rect[0] - 0.01 && x <= p.rect[2] + 0.01 && z >= p.rect[1] - 0.01 && z <= p.rect[3] + 0.01);
+      const holder = (x, z) => mine.find(p => x > p.rect[0] && x < p.rect[2] && z > p.rect[1] && z < p.rect[3]) || null;
+      if (k >= 1 && k <= 3) {   /* an edge: both its ends on your ground; held by the plot of the cell on either side */
+        const alongX = r % 2 === 0, ex = alongX ? cx : cx - 1, ez = alongX ? cz - 1 : cz;
+        const e0 = alongX ? [ex - 1, ez] : [ex, ez - 1], e1 = alongX ? [ex + 1, ez] : [ex, ez + 1];
+        if (!inMine(...e0) || !inMine(...e1)) return null;
+        return holder(cx, cz) || holder(alongX ? cx : cx - 2, alongX ? cz - 2 : cz);
+      }
+      for (const [dx, dz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) if (!inMine(cx + dx, cz + dz)) return null;
+      return holder(cx, cz);
+    }
+    const slotOf = pc => (pc[0] >= 1 && pc[0] <= 3 ? 'e' : 'c') + ':' + pc[1] + ':' + pc[2] + ':' + pc[3] + (pc[0] >= 1 && pc[0] <= 3 ? ':' + (pc[4] % 2) : '');
+    function pieceAt(slot) { for (const id in built) for (const pc of built[id]) if (slotOf(pc) === slot) return [id, pc]; return null; }
+    function houseBuild(from, a, d) {
+      if (!builtLoaded) { notice(from.id, 'The builders are not here yet. Try again in a moment.'); return; }
+      const k = d.k | 0, L = Math.max(0, Math.min(3, d.L | 0)), r = ((d.r | 0) % 4 + 4) % 4, m = Math.max(0, Math.min(2, d.m | 0));
+      if (!Array.isArray(d.c) || k < 0 || k > 5) return;
+      const pc = [k, r1(+d.c[0]), r1(+d.c[1]), L, k >= 1 && k <= 3 ? (r % 2 ? 3 : 0) : r, m];
+      if (!isFinite(pc[1]) || !isFinite(pc[2])) return;
+      const home = pieceHome(pc, a);
+      if (!home) { notice(from.id, 'You can build only on your own plots.'); return; }
+      const slot = slotOf(pc), had = pieceAt(slot);
+      if (d.x === 'del') {
+        if (!had || !pieceHome(had[1], a)) return;
+        built = Object.assign({}, built, { [had[0]]: built[had[0]].filter(q => q !== had[1]) });
+        builtDirty.add(had[0]); applyBuilt(had[0]); sendBuilt(had[0]); return;
+      }
+      if (had) return;
+      if ((built[home.id] || []).length >= BUILD_MAX) { notice(from.id, 'Plot ' + home.id + ' holds ' + BUILD_MAX + ' pieces, as many as it can.'); return; }
+      built = Object.assign({}, built, { [home.id]: (built[home.id] || []).concat([pc]) });
+      builtDirty.add(home.id); applyBuilt(home.id); sendBuilt(home.id);
+    }
+    function sendBuilt(id, to) {
+      if (!room || !iAmHouse) return;
+      const ids = to ? [to].filter(linked) : directPlayers();
+      if (ids.length) room.to(ids, { BU: [id, built[id] || []] }, true);
+    }
+    function applyBuilt(id) {
+      const old = builtLook.get(id);
+      if (old) { scene.remove(old.group); old.group.traverse(o => { if (o.geometry) o.geometry.dispose(); }); builtLook.delete(id); }
+      const p = plots.find(q => q.id === id), list = built[id] || [];
+      if (!p || !list.length || !art.building) return;
+      const look = art.building(ctx, list, plotBase(p));
+      builtLook.set(id, { group: look.group, solids: look.solids, c: [(p.rect[0] + p.rect[2]) / 2, (p.rect[1] + p.rect[3]) / 2] });
+    }
+    /* the build bar and the ghost of the piece you are about to put */
+    function setBuilding(on) {
+      if (on && !ownedBy(myAddr()).length) { log('You own no plot to build on. Registrar Aldous in Genesis sells them.'); return; }
+      building = !!on;
+      if (!bBar) {
+        bBar = document.createElement('div');
+        bBar.style.cssText = 'position:absolute;left:50%;bottom:118px;transform:translateX(-50%);z-index:9;padding:6px 12px;border-radius:6px;background:rgba(20,14,8,.78);color:#f3e3c3;font:13px Georgia,serif;white-space:nowrap;pointer-events:none';
+        el.appendChild(bBar);
+      }
+      bBar.style.display = building ? 'block' : 'none';
+      if (!building && bGhost) { scene.remove(bGhost); bGhost.geometry.dispose(); bGhost = null; }
+      if (building) { log('Build mode: 1-6 piece, T material, R turn, Z / X storey, click build, right click remove, B to stop.'); drawBuildBar(); }
+    }
+    function drawBuildBar() {
+      if (!bBar) return;
+      const names = ['Floor', 'Wall', 'Window', 'Door', 'Roof', 'Stairs'];
+      bBar.innerHTML = 'BUILD · ' + names.map((n, i) => (i === bKind ? '<b style="color:#ffd65a">[' + (i + 1) + '] ' + n + '</b>' : '[' + (i + 1) + '] ' + n)).join(' ') +
+        ' · T: <b>' + ['wood', 'stone', 'plaster'][bMat] + '</b> · storey <b>' + bLevel + '</b> (Z / X)' + (bKind >= 4 ? ' · R: turn' : '');
+    }
+    function buildTarget() {
+      if (!building || !TR) return null;
+      const cp = Math.cos(me.pitch), dir = [-Math.sin(me.yaw) * cp, Math.sin(me.pitch), -Math.cos(me.yaw) * cp];
+      const ex = me.x, ey = me.y + EYE, ez = me.z, mine = ownedBy(myAddr());
+      if (!mine.length) return null;
+      /* the plane of the storey you build on: its floor (a floor piece itself sits on it) */
+      const anchor = mine.reduce((b, p) => !b || Math.hypot(me.x - (p.rect[0] + p.rect[2]) / 2, me.z - (p.rect[1] + p.rect[3]) / 2) < Math.hypot(me.x - (b.rect[0] + b.rect[2]) / 2, me.z - (b.rect[1] + b.rect[3]) / 2) ? p : b, null);
+      const py = plotBase(anchor) + bLevel * BLD.STOREY;
+      if (Math.abs(dir[1]) < 1e-3) return null;
+      const t = (py - ey) / dir[1];
+      if (t <= 0 || t > 14) return null;
+      const hx = ex + dir[0] * t, hz = ez + dir[2] * t, ox = anchor.rect[0], oz = anchor.rect[1];
+      const cx = r1(ox + 2 * Math.floor((hx - ox) / 2) + 1), cz = r1(oz + 2 * Math.floor((hz - oz) / 2) + 1);
+      let r = bRot;
+      if (bKind >= 1 && bKind <= 3) {   /* a wall goes on the cell's edge nearest the point you look at */
+        const fx = hx - cx, fz = hz - cz;
+        if (Math.abs(fx) > Math.abs(fz)) return { pc: [bKind, fx > 0 ? r1(cx + 2) : cx, cz, bLevel, 3, bMat], base: plotBase(anchor) };
+        return { pc: [bKind, cx, fz > 0 ? r1(cz + 2) : cz, bLevel, 0, bMat], base: plotBase(anchor) };
+      }
+      return { pc: [bKind, cx, cz, bLevel, r, bMat], base: plotBase(anchor) };
+    }
+    function buildTick() {
+      if (!building) return;
+      bTarget = buildTarget();
+      if (!bTarget) { if (bGhost) bGhost.visible = false; return; }
+      const pc = bTarget.pc, ok = !!pieceHome(pc, myAddr()), taken = pieceAt(slotOf(pc));
+      if (!bGhost) { bGhost = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.35, depthWrite: false })); bGhost.userData.keep = true; scene.add(bGhost); }
+      bGhost.visible = true;
+      bGhost.material.color.set(!ok ? '#ff3a2a' : taken ? '#ffa020' : '#5aff7a');
+      const y0 = bTarget.base + pc[3] * BLD.STOREY;
+      if (pc[0] >= 1 && pc[0] <= 3) {
+        const alongX = pc[4] === 0;
+        bGhost.scale.set(alongX ? 2 : 0.25, 3, alongX ? 0.25 : 2);
+        bGhost.position.set(alongX ? pc[1] : pc[1] - 1, y0 + 1.5, alongX ? pc[2] - 1 : pc[2]);
+      } else {
+        const h = pc[0] === 0 ? 0.25 : pc[0] === 4 ? 2.2 : 3;
+        bGhost.scale.set(2, h, 2); bGhost.position.set(pc[1], y0 + h / 2, pc[2]);
+      }
+    }
+    function buildClick(remove) {
+      if (!building || !bTarget) return;
+      const pc = bTarget.pc;
+      if (!pieceHome(pc, myAddr())) { log('Not on your plot.'); return; }
+      askHouse({ Q: 'build', x: remove ? 'del' : 'add', k: pc[0], c: [pc[1], pc[2]], L: pc[3], r: pc[4], m: pc[5] });
+      act(remove ? 'pick-up' : 'interact-right');
+    }
     function speak(id) {
       const N = npcs[id], lines = N.def.lines || ['…'];
       if (N.def.office === 'plots' && plots.length) { log(N.def.name + ': ' + (N.def.greet || 'The registry is open. Which plot do you want?')); openPlots(); return; }
@@ -617,7 +743,8 @@
       try { canvas.requestPointerLock(); } catch (e) { /* no pointer lock here */ }
     });
     on(canvas, 'click', () => { if (!TOUCH && !locked()) try { canvas.requestPointerLock(); } catch (e) { /* ignore */ } });
-    on(canvas, 'mousedown', e => { if (e.button === 0 && locked()) attack(); });
+    on(canvas, 'mousedown', e => { if (!locked()) return; if (building) { if (e.button === 0 || e.button === 2) buildClick(e.button === 2); return; } if (e.button === 0) attack(); });
+    on(canvas, 'contextmenu', e => e.preventDefault());
     on(document, 'pointerlockchange', () => { if (!TOUCH) $('.lwq-start').style.display = locked() ? 'none' : 'flex'; });
 
     /* --- phones: full screen, a joystick and buttons ------------------------------------------------------- */
@@ -800,6 +927,14 @@
       keys[e.code] = down;
       if (down && e.code === 'KeyE') useAim();
       if (down && e.code === 'KeyF' && !e.repeat) attack();
+      if (down && !e.repeat && e.code === 'KeyB' && plots.length) setBuilding(!building);
+      if (building && down && !e.repeat) {
+        if (/^Digit[1-6]$/.test(e.code)) { bKind = +e.code.slice(5) - 1; drawBuildBar(); return; }
+        if (e.code === 'KeyT') { bMat = (bMat + 1) % 3; drawBuildBar(); return; }
+        if (e.code === 'KeyR') { bRot = (bRot + 1) % 4; drawBuildBar(); return; }
+        if (e.code === 'KeyZ') { bLevel = Math.max(0, bLevel - 1); drawBuildBar(); return; }
+        if (e.code === 'KeyX') { bLevel = Math.min(3, bLevel + 1); drawBuildBar(); return; }
+      }
       if (down && !e.repeat && /^Digit[1-6]$/.test(e.code)) { const k = +e.code.slice(5); if (k === 1) attack(); else ability(k - 2); }
       if (down && (e.code === 'KeyI' || e.code === 'Tab') && !e.repeat && menu) { e.preventDefault(); toggleMenu(); }
       if (down && e.code === 'F3') { showFps = !showFps; drawNet(); e.preventDefault(); }
@@ -819,6 +954,10 @@
       for (const B of boxes) {
         if (!B.on()) continue;
         if (a[0] < B.max[0] && b[0] > B.min[0] && a[1] < B.max[1] && b[1] > B.min[1] && a[2] < B.max[2] && b[2] > B.min[2]) return B;
+      }
+      for (const bl of builtLook.values()) {   /* what players built, only on plots near here */
+        if (Math.abs(x - bl.c[0]) > 40 || Math.abs(z - bl.c[1]) > 40) continue;
+        for (const B of bl.solids) if (a[0] < B.max[0] && b[0] > B.min[0] && a[1] < B.max[1] && b[1] > B.min[1] && a[2] < B.max[2] && b[2] > B.min[2]) return B;
       }
       if (land) for (const B of land.solids(x, z)) {   /* the trunks of the land near here */
         if (a[0] < B.max[0] && b[0] > B.min[0] && a[1] < B.max[1] && b[1] > B.min[1] && a[2] < B.max[2] && b[2] > B.min[2]) return B;
@@ -1415,7 +1554,7 @@
       const dep = {}; for (const id in W.dep) if (W.dep[id]) dep[id] = 1;
       const ids = to ? [to].filter(linked) : directPlayers();
       if (ids.length) room.to(ids, { W: { seq: W.seq, open, taken, dep } }, true);
-      if (plots.length) sendPlots(to);
+      if (plots.length) { sendPlots(to); if (to) for (const id in built) if ((built[id] || []).length) sendBuilt(id, to); }
       lastWorldSent = performance.now();
     }
     /* the world as the host says it is: what changed is said in the log, each change once */
@@ -1576,6 +1715,9 @@
       /* the world only from the house */
       if (d.W && typeof d.W === 'object' && from.id === hostId() && +d.W.seq > W.seq) applyWorld(d.W);
       if (d.PL && typeof d.PL === 'object' && from.id === hostId()) applyPlots(d.PL);
+      if (Array.isArray(d.BU) && from.id === hostId() && Array.isArray(d.BU[1]) && plots.some(p => p.id === String(d.BU[0]))) {
+        built = Object.assign({}, built, { [String(d.BU[0])]: d.BU[1].filter(q => Array.isArray(q) && q.length >= 6).slice(0, BUILD_MAX) }); applyBuilt(String(d.BU[0]));
+      }
       if (d.H && amHost()) sendWorld(from.id);
       /* the fight: the host's picture of it, a player's blow for the host, and what the host says happened to me */
       if (fight) {
@@ -1595,6 +1737,7 @@
         if (d.Q === 'equip') { const res = book.equip(a, +d.u); if (!res.ok) notice(from.id, 'Cannot wear that: ' + res.why + '.'); }
         else if (d.Q === 'unequip') book.unequip(a, String(d.s));
         else if (d.Q === 'plot') housePlot(from, a, String(d.p));
+        else if (d.Q === 'build') houseBuild(from, a, d);
         else if (d.Q === 'quest') {
           const q = (LV.quests || []).find(x => x.id === String(d.q)), r = remotes.get(from.id), N = q && npcs[q.npc];
           if (!q) return;
@@ -1913,7 +2056,7 @@
       const t = now / 1000, fdt = Math.min(dt, 0.1);
       if (!iAmHouse) for (const fn of updates) fn(fdt, t);   /* flames, smoke, water: nothing the house needs */
       npcTick(fdt, t);
-      if (!iAmHouse) { gateTick(now); if (live()) portalTick(); zoneTick(); drawAbilities(); compassTick(); posTick(); if (mapOpen && now - (mapT || 0) > 200) { mapT = now; mapTick(); } }
+      if (!iAmHouse) { gateTick(now); if (live()) portalTick(); zoneTick(); drawAbilities(); compassTick(); posTick(); buildTick(); if (mapOpen && now - (mapT || 0) > 200) { mapT = now; mapTick(); } }
       if (env && !iAmHouse) env.update(fdt, t, camera.position);
       if (land && !iAmHouse) land.update(camera.position);
       /* things to gather out in the land are drawn near you only: there are a hundred and more, each a few meshes */
@@ -1995,6 +2138,14 @@
       housePlotsLoaded: () => plotsLoaded || !plots.length,
       housePlots(json) { const all = typeof json === 'string' ? JSON.parse(json) : json; plotsLoaded = true; applyPlots(all || {}); sendPlots(); return Object.keys(plotOwn).length; },
       housePlotsTake() { const out = {}; for (const id of plotsDirty) out[id] = plotOwn[id] || null; plotsDirty.clear(); return JSON.stringify(out); },
+      houseBuiltLoaded: () => builtLoaded || !plots.length,
+      houseBuilt(json) { const all = typeof json === 'string' ? JSON.parse(json) : json; builtLoaded = true; built = {}; for (const id in all || {}) if (Array.isArray(all[id])) { built[id] = all[id]; applyBuilt(id); sendBuilt(id); } return Object.keys(built).length; },
+      houseBuiltTake() { const out = {}; for (const id of builtDirty) out[id] = built[id] && built[id].length ? built[id] : null; builtDirty.clear(); return JSON.stringify(out); },
+      build(on) { setBuilding(on !== false); return building; },   /* tests: build mode, a piece, a click */
+      buildPick(k, m, L, r) { bKind = k | 0; bMat = m | 0; bLevel = L | 0; bRot = r | 0; drawBuildBar(); },
+      buildAt() { buildTick(); return bTarget ? bTarget.pc : null; },
+      buildClick(remove) { buildTick(); buildClick(!!remove); },
+      built: () => JSON.parse(JSON.stringify(built)),
       plots: () => Object.assign({}, plotOwn),
       buyPlot(id) { askHouse({ Q: 'plot', p: String(id) }); },   /* what the registry's Buy does (tests) */
       registry(on) { if (on === false) closePlots(); else openPlots(); return plotsOpen; },
@@ -2039,6 +2190,6 @@
     };
   }
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 30, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 31, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
     D => ({ start: (el, opts) => start(D, el, opts) }));
 })(typeof globalThis !== 'undefined' ? globalThis : this);

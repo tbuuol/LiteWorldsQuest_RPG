@@ -1301,6 +1301,54 @@
     }
     return { group: g, owners };
   };
+
+  /* BUILDING ON A PLOT (tbuuol 2026-11-07, "erstmal grob mit 2 m"): pieces on a 2 m grid, storeys 3 m apart.
+     piece: [kind, cx, cz, level, r, material]; (cx, cz) the cell's middle. Kinds: 0 floor (2 x 2, 0.2 thick), 1 wall,
+     2 wall with a window, 3 wall with a doorway (walls stand on an edge of the cell: r 0 its north side, 3 its west
+     side), 4 a roof slope (rising towards r: 0 north, 1 east, 2 south, 3 west), 5 stairs (up towards r, 8 steps to the
+     next storey). Materials: 0 wood, 1 stone, 2 plaster. art.building(ctx, pieces, base) -> {group, solids: [{min, max}]};
+     the group's parts are joined by material, a few draw calls for a whole house. */
+  art.BUILD = { CELL: 2, STOREY: 3, KINDS: ['floor', 'wall', 'window', 'door', 'slope', 'stairs'], MATS: ['wood', 'stone', 'plaster'] };
+  let buildM = null;
+  art.building = function (ctx, pieces, base) {
+    buildM = buildM || { wood: [mat('planks'), mat('planks', { m: { color: '#d8b48a' } })], stone: [mat('stone', { m: { bumpScale: 1.2 } }), mat('stone')],
+                         plaster: [plain('#efe7d8'), plain('#d9cfbd')], roof: mat('rooftiles') };
+    const g = new T.Group(), solids = [], H = 3, TH = 0.2;
+    const M = (m, floor) => (buildM[art.BUILD.MATS[m] || 'wood'] || buildM.wood)[floor ? 1 : 0];
+    const box = (w, h, d, x, y, z, material, solid) => {
+      const b = mesh(boxM(w, h, d, 2), material); b.position.set(x, y + h / 2, z); g.add(b);
+      if (solid !== false) solids.push({ min: [x - w / 2, y, z - d / 2], max: [x + w / 2, y + h, z + d / 2] });
+    };
+    for (const pc of pieces) {
+      const [k, cx, cz, L, r, m] = pc, y0 = base + L * H;
+      if (k === 0) box(2, TH, 2, cx, y0, cz, M(m, true));
+      else if (k <= 3) {
+        /* a wall on the cell's north edge (r 0) runs along x, on its west edge (r 3) along z */
+        const alongX = (r | 0) % 2 === 0, ex = alongX ? cx : cx - 1, ez = alongX ? cz - 1 : cz, mm = M(m);
+        const part = (u0, u1, y1, y2) => {   /* a piece of the wall from u0 to u1 along it, y1 to y2 up */
+          const w = u1 - u0, mid = (u0 + u1) / 2;
+          if (alongX) box(w, y2 - y1, TH, ex + mid, y0 + y1, ez, mm); else box(TH, y2 - y1, w, ex, y0 + y1, ez + mid, mm);
+        };
+        if (k === 1) part(-1, 1, TH, H);
+        else if (k === 2) { part(-1, -0.5, TH, H); part(0.5, 1, TH, H); part(-0.5, 0.5, TH, 1.1); part(-0.5, 0.5, 2.2, H); }
+        else { part(-1, -0.5, TH, H); part(0.5, 1, TH, H); part(-0.5, 0.5, 2.4, H); }
+      } else if (k === 4) {
+        const rise = 2.2, len = Math.hypot(2, rise), sl = mesh(boxM(2.2, 0.15, len, 2), buildM.roof);
+        sl.position.set(cx, y0 + TH + rise / 2, cz); sl.rotation.order = 'YXZ'; sl.rotation.y = -(r | 0) * Math.PI / 2; sl.rotation.x = Math.atan2(rise, 2);
+        g.add(sl);
+      } else if (k === 5) {
+        const dx = [0, 1, 0, -1][r | 0], dz = [-1, 0, 1, 0][r | 0];
+        for (let i = 0; i < 8; i++) {
+          const along = -1 + 0.25 * i + 0.125, top = 0.375 * (i + 1) + TH;
+          const x = cx + dx * along, z = cz + dz * along;
+          box(dx ? 0.25 : 2, top, dz ? 0.25 : 2, x, y0, z, M(m, true));
+        }
+      }
+    }
+    joinByMaterial(g);
+    ctx.scene.add(g);
+    return { group: g, solids };
+  };
   /* A CITY WALL (tbuuol 2026-10-31: a wall round Genesis, "damit wir schonmal einen Eindruck davon haben wo die Stadt
      mal stehen wird und wie groß sie werden kann" -- "vergiss nicht ein hübsches Stadttor an der Straße"): a stone ring
      on the land's ground in pieces of up to 4 m, battlements on its outer edge, a round tower with a slate cone at
@@ -2288,5 +2336,5 @@
     return { groundAt, polys, segs, half, spawn, inside, stats: { buildings: buildings.length, trees: trees.length } };
   };
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('art', { api: 1, v: 18 }, () => art);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('art', { api: 1, v: 19 }, () => art);
 })(typeof globalThis !== 'undefined' ? globalThis : this);

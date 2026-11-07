@@ -28,6 +28,28 @@ class Store:
         self.db.execute("CREATE TABLE IF NOT EXISTS hashes (day TEXT PRIMARY KEY, sha TEXT NOT NULL, n INTEGER NOT NULL, at REAL NOT NULL)")
         # Genesis' plots (2026-11-07): who owns which, as the game keeps it ([tag, address, bought at, deed])
         self.db.execute("CREATE TABLE IF NOT EXISTS plots (plot TEXT PRIMARY KEY, own TEXT NOT NULL, updated REAL NOT NULL)")
+        # what owners built on their plots (2026-11-07): the pieces of each plot, as the game keeps them
+        self.db.execute("CREATE TABLE IF NOT EXISTS built (plot TEXT PRIMARY KEY, pieces TEXT NOT NULL, updated REAL NOT NULL)")
+
+    def built(self) -> dict:
+        out = {}
+        for p, pieces in self.db.execute("SELECT plot, pieces FROM built"):
+            try:
+                out[p] = json.loads(pieces)
+            except ValueError:
+                pass
+        return out
+
+    def put_built(self, changed: dict) -> int:
+        now = time.time()
+        with self.db:
+            for p, pieces in changed.items():
+                if not pieces:
+                    self.db.execute("DELETE FROM built WHERE plot = ?", (p,))
+                else:
+                    self.db.execute("INSERT INTO built (plot, pieces, updated) VALUES (?, ?, ?) ON CONFLICT(plot) DO UPDATE SET "
+                                    "pieces = excluded.pieces, updated = excluded.updated", (p, json.dumps(pieces, separators=(",", ":")), now))
+        return len(changed)
 
     def plots(self) -> dict:
         out = {}
@@ -129,6 +151,13 @@ async def sync(frame, store: Store, zone: str = "") -> tuple[int, int]:
         changed = json.loads(await frame.evaluate("window.LWQGAME.housePlotsTake()") or "{}")
         if changed:
             store.put_plots(changed)
+    # and what was built on them, the same way
+    if await frame.evaluate("window.LWQGAME.houseBuiltLoaded ? window.LWQGAME.houseBuiltLoaded() : true") is False:
+        await frame.evaluate("json => window.LWQGAME.houseBuilt(json)", json.dumps(store.built()))
+    elif await frame.evaluate("!!window.LWQGAME.houseBuiltTake"):
+        changed = json.loads(await frame.evaluate("window.LWQGAME.houseBuiltTake()") or "{}")
+        if changed:
+            store.put_built(changed)
     wants = await frame.evaluate("window.LWQGAME.houseWants()")
     if held:
         wants = [a for a in wants if HELD.get(a, zone) == zone]
