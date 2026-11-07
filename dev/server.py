@@ -9,6 +9,7 @@ What it serves, and what it stands in for:
                          answers the page's postMessage doors -- realtime (tabs of this browser meet over a
                          BroadcastChannel; the fast lane is "direct") and storage (this browser's localStorage, per ?as=)
   /content/game          dist/liteworldsquest.html, rebuilt on every load, with the arcade's Content-Security-Policy
+  /content/beta          the beta page (src/beta.html), with /content/lwq-beta/... from dist/beta/site (?beta=1)
   /content/<id>          any other inscription, fetched once from the local arcade node (three.js) and kept in dev/cache
   /r/realtime.js         the arcade's own SDK (copied from arcade/web/templates), unchanged
   /r/storage.js          the same
@@ -97,6 +98,24 @@ class Handler(BaseHTTPRequestHandler):
             except SystemExit as exc:
                 return self.send(500, str(exc).encode(), "text/plain")
             return self.send(200, body, "text/html; charset=utf-8", {"Content-Security-Policy": CSP})
+        if path == "/content/beta":   # the beta page (build.build_beta), built afresh with its site on every load
+            with BUILD_LOCK:
+                importlib.reload(build)
+                body = build.build_beta().read_bytes()
+            return self.send(200, body, "text/html; charset=utf-8", {"Content-Security-Policy": CSP})
+        if path.startswith("/content/lwq-beta/"):   # what pepecoinarcade.com's Caddy serves the beta page
+            site = ROOT / "dist" / "beta" / "site"
+            f = (site / path[len("/content/lwq-beta/"):]).resolve()
+            if not f.is_file() or site.resolve() not in f.parents:
+                return self.send(404, b"not in the beta", "text/plain")
+            body = f.read_bytes()
+            if f.name == "registry.json":   # the dev viewer's ?as=house keeps the beta's world too
+                reg = json.loads(body)
+                reg["house"] = reg.get("house", []) + ["nDevhouse"]
+                body = json.dumps(reg).encode()
+            ctype = {".json": "application/json", ".gz": "application/gzip", ".webp": "image/webp",
+                     ".png": "image/png", ".glb": "model/gltf-binary"}.get(f.suffix, "application/octet-stream")
+            return self.send(200, body, ctype, {"Cache-Control": "no-store"})
         if path == "/content/release-bundle":   # the release page's packed modules, until the bundle is inscribed
             f = ROOT / "dist" / "release" / "bundle.json.gz"
             return self.send(200, f.read_bytes(), "application/gzip") if f.is_file() else self.send(404, b"build the release first", "text/plain")

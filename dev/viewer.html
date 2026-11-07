@@ -34,6 +34,7 @@
   const frame = document.getElementById('game');
   const level = (q.get('level') || '').replace(/[^a-z0-9_]/gi, '');
   const page = /^[0-9a-f]{64}(i\d+)?$/.test(q.get('page') || '') ? '/content/' + q.get('page')   /* ?page=<id>: an inscribed version, as it is on the chain */
+    : q.get('beta') ? '/content/beta'   /* ?beta=1: the beta page, its game fetched from /content/lwq-beta/ */
     : q.get('release') ? '/content/release' : '/content/game';   /* ?release=1: the page exactly as it will be inscribed */
   frame.src = page + (level ? '?level=' + level : '');
   const bar = document.getElementById('bar');

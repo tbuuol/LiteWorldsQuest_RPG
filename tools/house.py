@@ -3,6 +3,7 @@
 and the fight at the gate are kept by it rather than by a player (engine v10: the registry names the house).
 
     tools/.venv/bin/python -I tools/house.py          (systemd: ~/.config/systemd/user/lwq-house.service)
+    tools/.venv/bin/python -I tools/house.py --beta   the beta's house (lwq-house-beta.service), see BETA below
 
 A headless browser with its own copy of the account's browser profile (.publisher/house-browser, made from
 .publisher/arcade-browser the first time) unlocks the wallet, makes sure Wallet access is on for the current card
@@ -25,16 +26,22 @@ import house_store  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SECRET = ROOT / ".publisher"
-PROFILE = SECRET / "house-browser"
-LOG = SECRET / "log" / "house.log"
+#: THE BETA (2026-11-07): the same account keeps the beta page's world (config.json "beta_page_id"), a game of its own
+#: ("liteworldsquest-beta", so other rooms), with a browser, a log and a database of its own, and it starts again when
+#: tools/beta_push.sh has put a new build up. It writes nobody when it is out: the beta is for testing.
+BETA = "--beta" in sys.argv
+_B = "-beta" if BETA else ""
+BETA_REGISTRY = pathlib.Path("/var/www/lwq-beta/registry.json")
+PROFILE = SECRET / f"house-browser{_B}"
+LOG = SECRET / "log" / f"house{_B}.log"
 NODE = "http://127.0.0.1:8420"
 CHECK_EVERY, FRESH_EVERY = 30, 6 * 3600
 #: out of the game this long, and the house writes to its keeper (tools/notify.py), once; and once more when it is back
 ALERT_AFTER, ALERT_TO = 15 * 60, "banana"
-PLAYERS = SECRET / "players.json"          # the house's book of every player, kept here between starts and page versions
-STORE = SECRET / "players.sqlite"          # Etappe 4: the database a house in store mode asks (tools/house_store.py)
-BACKUPS = SECRET / "backups"
-GOOD_FILE = SECRET / "house.last_good"   # kept on disk, so a house that keeps crashing still gets reported
+PLAYERS = SECRET / f"{'beta-' if BETA else ''}players.json"          # the house's book of every player, kept here between starts and page versions
+STORE = SECRET / f"{'beta-' if BETA else ''}players.sqlite"          # Etappe 4: the database a house in store mode asks (tools/house_store.py)
+BACKUPS = SECRET / f"backups{_B}"
+GOOD_FILE = SECRET / f"house{_B}.last_good"   # kept on disk, so a house that keeps crashing still gets reported
 try:
     LAST_GOOD = float(GOOD_FILE.read_text())   # the last time the house was in the game, keeping it
 except (OSError, ValueError):
@@ -177,7 +184,7 @@ def let_in_next(level: str) -> None:
 async def _session(p, level: str = "") -> None:
     DOOR.held_by = level
     cfg = json.loads((ROOT / "config.json").read_text())
-    game = cfg["page_id"]
+    game = cfg["beta_page_id"] if BETA else cfg["page_id"]
     password = json.loads((SECRET / "arcade-account.json").read_text())["password"]
     store = frame = None
     # a copy per zone, so no two houses (and no other tool) fight over one profile
@@ -289,9 +296,13 @@ async def _session(p, level: str = "") -> None:
         let_in_next(level)   # in its zone: the next house may come through the door
         log("started:", await frame.evaluate("(() => { const s = window.LWQGAME.state; return {online: s.online, house: s.house, players: s.players, seq: s.world.seq, engine: (window.LWQ.get('$report').find(r => r[0] === 'engine') || [])[1]}; })()"))
         worker = node_pid()
+        build = beta_build()
         while time.time() - started < FRESH_EVERY:
             if worker and node_pid() not in (None, worker):
                 log("the arcade's web worker restarted; joining again")
+                return
+            if BETA and beta_build() != build:
+                log("a new beta build:", beta_build(), "; starting again")
                 return
             frame = await find_game(pg)
             if not frame:
@@ -338,6 +349,14 @@ async def _session(p, level: str = "") -> None:
         await ctx.close()
 
 
+def beta_build() -> str:
+    """The bundle the beta page would load now (tools/beta_push.sh writes the registry last)."""
+    try:
+        return json.loads(BETA_REGISTRY.read_text())["bundle"]
+    except (OSError, ValueError, KeyError):
+        return ""
+
+
 async def tell_keeper(text: str) -> None:
     proc = await asyncio.create_subprocess_exec(sys.executable, "-I", str(ROOT / "tools" / "notify.py"), ALERT_TO, text,
                                                 stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT)
@@ -376,9 +395,10 @@ async def keep(p, level: str) -> None:
 async def main() -> None:
     #: the zones to keep: config.json "house_levels" (e.g. ["blockshire", "beach", "pirateship"]); an empty name is
     #: the page's own first level. A page that knows no other levels keeps the one house it always had.
-    levels = json.loads((ROOT / "config.json").read_text()).get("house_levels") or [""]
-    log("house starting:", ", ".join(levels))
-    asyncio.get_running_loop().create_task(watchdog())
+    levels = [""] if BETA else json.loads((ROOT / "config.json").read_text()).get("house_levels") or [""]
+    log("house starting:", ", ".join(levels) or "the page's own level")
+    if not BETA:
+        asyncio.get_running_loop().create_task(watchdog())
     async with async_playwright() as p:
         await asyncio.gather(*(keep(p, lv) for lv in levels))
 

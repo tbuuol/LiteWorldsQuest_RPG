@@ -143,6 +143,57 @@ def build(release: bool = False) -> pathlib.Path:
     return target
 
 
+def build_beta() -> pathlib.Path:
+    """The beta (tbuuol 2026-11-07): what the beta page (src/beta.html) fetches from /content/lwq-beta/ instead of the
+    chain, so a new build is played without inscribing anything.
+
+        dist/beta/site/registry.json            the registry, naming the bundle and the house
+        dist/beta/site/bundle-<hash>.json.gz    every module and level, readable (not minified), gzip
+        dist/beta/site/assets/<file>            the assets that have no inscription yet
+        dist/beta/liteworldsquest-beta.html     the page to inscribe, once
+    tools/beta_push.sh copies site/ to where pepecoinarcade.com's Caddy serves it."""
+    import gzip
+    import hashlib
+    import shutil
+    cfg = json.loads((ROOT / "config.json").read_text())
+    site = ROOT / "dist" / "beta" / "site"
+    if site.exists():
+        shutil.rmtree(site)
+    (site / "assets").mkdir(parents=True)
+    registry = {"lwq": "registry", "version": cfg["registry_version"], "loader": 2, "beta": True, "modules": {
+        "three": {"id": cfg["three_id"], "v": "0.160.0", "api": 160, "kind": "esm"}, "levels": {}}}
+    bundle = []
+    for name, m in cfg["modules"].items():
+        bundle.append({"n": name, "k": "js", "t": (ROOT / m["file"]).read_text()})
+        registry["modules"][name] = {"v": m["v"], "api": m["api"], "kind": m["kind"]}
+    for name, m in cfg["levels"].items():
+        data = json.loads((ROOT / m["file"]).read_text())
+        bundle.append({"n": f"level.{name}", "k": "json", "t": json.dumps(data, separators=(",", ":"), ensure_ascii=False)})
+        registry["modules"]["levels"][name] = {"v": m["v"], "api": m["api"], "kind": "json"}
+    packed = gzip.compress(json.dumps(bundle, separators=(",", ":"), ensure_ascii=False).encode(), 6, mtime=0)
+    registry["bundle"] = f"bundle-{hashlib.sha256(packed).hexdigest()[:12]}.json.gz"   # a new name, never a stale copy
+    (site / registry["bundle"]).write_bytes(packed)
+    man_path = ROOT / "assets" / "manifest.json"
+    manifest = json.loads(man_path.read_text()) if man_path.exists() else {}
+    ids = cfg.get("asset_ids", {})
+    registry["modules"]["assets"] = {}
+    for k, v in manifest.items():
+        if not ids.get(k):
+            shutil.copyfile(ROOT / "assets" / v["file"], site / "assets" / v["file"])
+        registry["modules"]["assets"][k] = {"id": ids.get(k) or f"lwq-beta/assets/{v['file']}", "file": v["file"]}
+    registry["house"] = list(cfg.get("house") or [])
+    (site / "registry.json").write_text(json.dumps(registry, separators=(",", ":")))
+
+    html = (ROOT / "src/beta.html").read_text()
+    html = (html.replace("/*@@LOADER@@*/", minify((ROOT / "src/loader.js").read_text(), "src/loader.js"))
+                .replace("/*@@THREE_ID@@*/", cfg["three_id"]))
+    assert "@@" not in html, "a placeholder was left in the beta page"
+    page = ROOT / "dist" / "beta" / "liteworldsquest-beta.html"
+    page.write_text(html)
+    print(f"beta: page {page.stat().st_size / 1024:.1f} KB, bundle {len(packed) / 1024:.0f} KB ({registry['bundle']})")
+    return page
+
+
 #: The "Hybrid" tier (decided 2026-10-21): the whole game, page and every file it brings, stays under this.
 #: three.js is not counted: it is ASHVALE's inscription, shared at no cost.
 BUDGET_MB = 5.0
@@ -162,5 +213,8 @@ def budget(page: pathlib.Path, manifest: dict, packed: pathlib.Path | None = Non
 
 
 if __name__ == "__main__":
+    if "--beta" in sys.argv:
+        build_beta()
+        sys.exit(0)
     t = build(release="--release" in sys.argv)
     print(f"{t.relative_to(ROOT)}: {t.stat().st_size / 1024:.1f} KB")

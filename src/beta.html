@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en"><head>
+<title>LiteWorldsQuest Beta</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<style>html,body{margin:0;height:100%;background:#000;overflow:hidden}
+#lwq{position:relative;width:100%;height:100%}
+#boot{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:0 16px;color:#ddd;font:16px system-ui,sans-serif}
+#beta{position:absolute;left:8px;bottom:8px;z-index:60;padding:2px 7px;border-radius:4px;background:#b8402a;color:#fff;font:bold 11px system-ui,sans-serif;letter-spacing:.08em;pointer-events:none;opacity:.85}</style>
+</head><body>
+<div id="lwq"></div><div id="boot">Loading LiteWorldsQuest Beta…</div><div id="beta">BETA</div>
+<script src="/r/realtime.js"></script>
+<script src="/r/storage.js"></script>
+<script>
+/*@@LOADER@@*/
+</script>
+<script type="module">
+/* THE BETA (tbuuol 2026-11-07: "eine Beta App, die sich ihre Daten nur vom Server zieht"): inscribed once, it carries
+   no game at all. The game -- a registry and one gzip bundle of every module -- comes from /content/lwq-beta/ on the
+   arcade that shows it, which pepecoinarcade.com's Caddy serves from this machine (tools/beta_push.sh puts a new
+   build there). A reload plays the newest build: nothing to inscribe. Its rooms are a game of their own
+   ("liteworldsquest-beta"), so it never meets the live game, and its house keeps a database of its own. */
+import * as THREE from '/content//*@@THREE_ID@@*/';
+LWQ.defineValue('three', { api: 160, v: '0.160.0' }, THREE);
+const HERE = '/content/lwq-beta/';
+const say = t => { document.getElementById('boot').textContent = t; };
+try {
+  const r = await fetch(HERE + 'registry.json?t=' + Date.now(), { cache: 'no-store' });
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  const reg = await r.json();
+  await LWQ.unpack(HERE + reg.bundle);
+  const m = await LWQ.boot({ baked: reg });
+  document.getElementById('boot').remove();
+  let level; try { level = new URLSearchParams(location.search).get('level') || undefined; } catch (e) { level = undefined; }
+  window.LWQGAME = m.engine.start(document.getElementById('lwq'), { level: level, game: 'liteworldsquest-beta' });
+} catch (e) {
+  console.error(e);
+  say(/HTTP 404/.test(String(e && e.message)) ? 'The beta is not on this arcade. Open it on pepecoinarcade.com.'
+                                              : 'LiteWorldsQuest Beta could not start: ' + (e && e.message || e));
+}
+</script>
+</body></html>
