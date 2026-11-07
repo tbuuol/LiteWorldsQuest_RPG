@@ -1319,10 +1319,11 @@
       const b = mesh(boxM(w, h, d, 2), material); b.position.set(x, y + h / 2, z); g.add(b);
       if (solid !== false) solids.push({ min: [x - w / 2, y, z - d / 2], max: [x + w / 2, y + h, z + d / 2] });
     };
-    /* ROOFS THAT MEET (tbuuol 2026-11-07, "es entstehen Lücken"): a slope with another one of the same way just below
-       it carries on from that one's top, 1.5 m a cell, so two rows from each side meet at the ridge a storey up; and
+    /* ROOFS THAT MEET (tbuuol 2026-11-07, "es entstehen Lücken"): a slope rises 3 m over its 2 m cell, a whole storey,
+       so a roof built one row in each storey up (as @banana did) is one surface; one with another of the same way just
+       below it on the same storey carries on from that one's top; and
        where a slope has no neighbour beside it, its side is closed down to the storey's floor (the gable) */
-    const RISE = 1.5, DIR = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+    const RISE = H, DIR = [[0, -1], [1, 0], [0, 1], [-1, 0]];   /* a slope rises a whole storey: one storey up, the next row of the roof carries on */
     const slopeAt = new Map();
     for (const pc of pieces) if (pc[0] === 4) slopeAt.set(pc[1] + ',' + pc[2] + ',' + pc[3] + ',' + (pc[4] | 0), pc);
     const chain = pc => { const [dx, dz] = DIR[pc[4] | 0]; let n = 0, x = pc[1], z = pc[2];
@@ -2365,5 +2366,5 @@
     return { groundAt, polys, segs, half, spawn, inside, stats: { buildings: buildings.length, trees: trees.length } };
   };
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('art', { api: 1, v: 20 }, () => art);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('art', { api: 1, v: 21 }, () => art);
 })(typeof globalThis !== 'undefined' ? globalThis : this);

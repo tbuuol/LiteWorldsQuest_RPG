@@ -461,7 +461,7 @@
     function pieceAt(slot) { for (const id in built) for (const pc of built[id]) if (slotOf(pc) === slot) return [id, pc]; return null; }
     function houseBuild(from, a, d) {
       if (!builtLoaded) { notice(from.id, 'The builders are not here yet. Try again in a moment.'); return; }
-      const k = d.k | 0, L = Math.max(0, Math.min(3, d.L | 0)), r = ((d.r | 0) % 4 + 4) % 4, m = Math.max(0, Math.min(2, d.m | 0));
+      const k = d.k | 0, L = Math.max(0, Math.min(5, d.L | 0)), r = ((d.r | 0) % 4 + 4) % 4, m = Math.max(0, Math.min(2, d.m | 0));
       if (!Array.isArray(d.c) || k < 0 || k > 5) return;
       const pc = [k, r1(+d.c[0]), r1(+d.c[1]), L, k >= 1 && k <= 3 ? (r % 2 ? 3 : 0) : r, m];
       if (!isFinite(pc[1]) || !isFinite(pc[2])) return;
@@ -545,7 +545,7 @@
         bGhost.scale.set(alongX ? 2 : 0.25, 3, alongX ? 0.25 : 2);
         bGhost.position.set(alongX ? pc[1] : pc[1] - 1, y0 + 1.5, alongX ? pc[2] - 1 : pc[2]);
       } else {
-        const h = pc[0] === 0 ? 0.25 : pc[0] === 4 ? 2.2 : 3;
+        const h = pc[0] === 0 ? 0.25 : 3;
         bGhost.scale.set(2, h, 2); bGhost.position.set(pc[1], y0 + h / 2, pc[2]);
       }
     }
@@ -933,7 +933,7 @@
         if (e.code === 'KeyT') { bMat = (bMat + 1) % 3; drawBuildBar(); return; }
         if (e.code === 'KeyR') { bRot = (bRot + 1) % 4; drawBuildBar(); return; }
         if (e.code === 'KeyZ') { bLevel = Math.max(0, bLevel - 1); drawBuildBar(); return; }
-        if (e.code === 'KeyX') { bLevel = Math.min(3, bLevel + 1); drawBuildBar(); return; }
+        if (e.code === 'KeyX') { bLevel = Math.min(5, bLevel + 1); drawBuildBar(); return; }
       }
       if (down && !e.repeat && /^Digit[1-6]$/.test(e.code)) { const k = +e.code.slice(5); if (k === 1) attack(); else ability(k - 2); }
       if (down && (e.code === 'KeyI' || e.code === 'Tab') && !e.repeat && menu) { e.preventDefault(); toggleMenu(); }
@@ -2190,6 +2190,6 @@
     };
   }
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 31, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 32, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
     D => ({ start: (el, opts) => start(D, el, opts) }));
 })(typeof globalThis !== 'undefined' ? globalThis : this);
