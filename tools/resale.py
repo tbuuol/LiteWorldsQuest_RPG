@@ -114,7 +114,7 @@ def listed(db) -> list:
     """the sales the game shows: [{plot, price, total, seller, tag, state}]"""
     setup(db)
     out = []
-    for plot, seller, tag, price, state in db.execute("SELECT plot, seller, tag, price, state FROM sales WHERE state IN ('escrow', 'open', 'paid', 'return')"):
+    for plot, seller, tag, price, state in db.execute("SELECT plot, seller, tag, price, state FROM sales WHERE state IN ('escrow', 'open', 'paid', 'return', 'back')"):
         total = f"{float(price) * (1 + LEVY):.8f}".rstrip("0").rstrip(".")
         out.append({"plot": plot, "price": price, "total": total, "seller": seller, "tag": tag, "state": state})
     return out
@@ -143,7 +143,7 @@ def step_at(path, pay_key_path=None) -> list:
         tell.append(("owners", owners))
         esc, now = escrow(), time.time()
         for plot, seller, price, deed, state, buyer, btag, payout_tx in db.execute(
-                "SELECT plot, seller, price, deed, state, buyer, btag, payout FROM sales WHERE state IN ('escrow', 'paid', 'return')").fetchall():
+                "SELECT plot, seller, price, deed, state, buyer, btag, payout FROM sales WHERE state IN ('escrow', 'paid', 'return', 'back')").fetchall():
             def save(**kw):
                 cols = ", ".join(f"{k} = ?" for k in kw)
                 with db:
@@ -164,10 +164,12 @@ def step_at(path, pay_key_path=None) -> list:
                     save(err=out[-200:]); continue
                 save(state="done", err=None); deeds.log("deed", plot, "handed to", buyer)
                 tell.append(("resold", plot, buyer, btag or ""))
+            elif state == "back" and owners.get(deed) == seller:
+                save(state="gone")
             elif state == "return":
                 code, out = deeds.run(["--send-nft", deed, seller, "--intent", f"return-{plot}-{int(now // 3600)}"], timeout=600)
                 if code == 0 and deeds.tail_json(out):
-                    save(state="gone"); deeds.log("deed", plot, "back to", seller)
+                    save(state="back"); deeds.log("deed", plot, "back to", seller)   # 'gone' once the chain shows it there
                 else:
                     save(err=out[-200:])
     finally:

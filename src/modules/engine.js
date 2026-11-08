@@ -388,7 +388,8 @@
       const price = +d.price;
       if (!(price >= 0.001 && price <= 100)) { notice(from.id, 'A price between 0.001 and 100 tLTC, please.'); return; }
       if (!/^[0-9a-f]{64}$/.test(o[3] || '')) { notice(from.id, 'Your deed is still on its way to your wallet. Offer the plot once it is there.'); return; }
-      if (sales[id] && ['escrow', 'open', 'paid', 'return'].includes(sales[id].state)) { notice(from.id, 'Plot ' + id + ' is on offer already.'); return; }
+      if (sales[id] && ['escrow', 'open', 'paid'].includes(sales[id].state)) { notice(from.id, 'Plot ' + id + ' is on offer already.'); return; }
+      if (sales[id] && ['return', 'back'].includes(sales[id].state)) { notice(from.id, 'The deed to plot ' + id + ' is still on its way back to you. Offer it again once it is there.'); return; }
       saleAsks.push({ x: 'sell', plot: id, addr: a, tag: tagOf(from), price: String(+price.toFixed(8)), deed: o[3] });
       notice(from.id, 'Plot ' + id + ' offered at ' + +price.toFixed(8) + ' tLTC. Now hand your deed to the registry (the button in the registry), and the sale opens.');
     }
@@ -494,7 +495,7 @@
           else if (sale.state === 'escrow') h = 'Offered at <b>' + esc(sale.price) + '</b> tLTC. Hand your deed to the registry to open the sale:' + btn('hand', 'Hand over the deed', '#2f5a7a') + btn('unsell', 'Take it back');
           else if (sale.state === 'open') h = 'On sale at <b>' + esc(sale.price) + '</b> tLTC (the buyer pays ' + esc(sale.total) + ' with the levy). The registry keeps your deed.' + btn('unsell', 'Take it back');
           else if (sale.state === 'paid') h = 'Sold: your price is being paid out, and the deed handed to the buyer.';
-          else if (sale.state === 'return') h = 'Your deed is on its way back to you.';
+          else if (sale.state === 'return' || sale.state === 'back') h = 'Your deed is on its way back to you. Once a block has it there (a minute or two), you can offer the plot again.';
         } else if (sale && sale.state === 'open') {
           h = 'For sale by ' + esc(sale.tag || 'its owner') + ': <b>' + esc(sale.price) + '</b> tLTC + 10 % city levy = <b>' + esc(sale.total) + '</b> tLTC' + (me2 ? btn('buy2', 'Buy', '#3f6a2a') : ' · sign in to buy');
         }
@@ -2451,6 +2452,6 @@
     };
   }
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 39, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 40, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
     D => ({ start: (el, opts) => start(D, el, opts) }));
 })(typeof globalThis !== 'undefined' ? globalThis : this);
