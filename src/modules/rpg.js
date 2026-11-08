@@ -180,9 +180,16 @@
   const bpOf = (r, rid) => { let best = null; for (const e of r.bag) if (e[1] === BP + rid && (!best || ((e[2] || {}).qr || 0) > ((best[2] || {}).qr || 0))) best = e; return best; };
   const knows = (r, rid) => !!RECIPES[rid] && !!bpOf(r, rid);
   const giveBp = (r, rid) => { r.bag.push([r.n++, BP + rid, { qr: 0 }]); return 'Blueprint: ' + ITEMS[rid].name; };
-  /* what a made thing comes out as: 35 % to 125 % of its kind, rolled -- a skilled maker rolls higher, but 125 % stays
-     rare for everybody (tbuuol 2026-11-08) */
-  const qualityRoll = (lv, rnd) => Math.round((35 + 90 * Math.pow(rnd(), clamp(2.6 - 0.35 * lv, 0.9, 2.6))) * 10) / 10;
+  /* HOW WELL A THING IS MADE (tbuuol 2026-11-08): each blueprint has the level it can be used from (its recipe's
+     level) and the level it is fully understood at (master). The maker's standing between the two gives at most 75 %
+     of the result, the blueprint's QR the other 25 %: grade = 0.75 * skill + 0.25 * QR / 100, from 0 to 1.
+       success:  35 % (just enough skill, QR 0) to 95 % (mastered, QR 100)
+       quality:  35 % up to a ceiling of 35 + 90 * grade %, the top of it rare -- 125 % only for a mastered blueprint
+                 at QR 100, and seldom even then */
+  const MASTER = { 0: 5, 1: 8, 2: 10 };
+  const masterOf = rc => rc.master || MASTER[rc.level] || rc.level + 6;
+  const gradeOf = (rc, lv, qr) => 0.75 * clamp((lv - rc.level) / (masterOf(rc) - rc.level), 0, 1) + 0.25 * (qr || 0) / 100;
+  const qualityRoll = (grade, rnd) => Math.round((35 + 90 * grade * Math.pow(rnd(), 1.8)) * 10) / 10;
   const FISTS = { name: 'Fists', skill: 'unarmed', model: 'fists', dmg: [2, 4] };
   /* what a raider leaves, each by its own chance */
   const LOOT = [['torn_cloth', 0.35], ['scrap_iron', 0.2], ['leather_scrap', 0.2], ['rusty_sword', 0.05], ['leather_cap', 0.05],
@@ -382,15 +389,17 @@
         /* the blueprint's QR goes up with every use, quickly at first, slowly near 100 */
         x.qr = Math.min(100, Math.round((qr + 0.5 * (1 - qr / 100) + 0.02) * 100) / 100);
         const sk = Object.assign({}, CRAFT_AT[rc.skill] || {}); sk[rc.skill] = 6 + rc.level * 2;
-        /* it can fail: 70 % success at QR 0, 95 % at QR 100; a failure costs half of what was put in, and teaches less */
-        if (rnd() >= 0.7 + 0.25 * qr / 100) {
+        /* it can fail: 35 % success with just enough skill and QR 0, up to 95 %; a failure costs half of what was put
+           in, and teaches less */
+        const grade = gradeOf(rc, lv, qr);
+        if (rnd() >= 0.35 + 0.6 * grade) {
           const lost = [];
           for (const m in rc.needs) { const n = Math.max(1, Math.floor(rc.needs[m] / 2)); r.mat[m] -= n; if (r.mat[m] <= 0) delete r.mat[m]; lost.push(ITEMS[m].name + ' ×' + n); }
           learn(r, sk, effortOf(rc.level, lv) * 0.4);
           return { ok: true, failed: true, lost, qr: x.qr, up: ups(r, before) };
         }
         for (const m in rc.needs) { r.mat[m] -= rc.needs[m]; if (!r.mat[m]) delete r.mat[m]; }
-        const item = ITEMS[rid], q = item.slot ? qualityRoll(lv, rnd) : null;
+        const item = ITEMS[rid], q = item.slot ? qualityRoll(grade, rnd) : null;
         r.bag.push(q ? [r.n++, rid, { q }] : [r.n++, rid]);
         learn(r, sk, effortOf(rc.level, lv));
         const after = profs(r)[rc.prof];
@@ -529,6 +538,6 @@
 
   /* a bag entry's name as shown (a blueprint with its QR, a made thing with its quality) */
   const entryName = e => { const it = itemOf({ bag: [e] }, e[0]); return it ? it.name : String(e[1]); };
-  const rpg = { api: 1, entryName, SLOTS, SKILLS, PROFS, ATTRS, RANKS, ITEMS, FISTS, LOOT, GATHER, RECIPES, CODEX, ABILITIES, abilities, questState, questProgress, knows, fresh, stats, profs, rank, meets, itemOf, attr, book };
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('rpg', { api: 1, v: 9 }, () => rpg);
+  const rpg = { api: 1, entryName, masterOf, gradeOf, SLOTS, SKILLS, PROFS, ATTRS, RANKS, ITEMS, FISTS, LOOT, GATHER, RECIPES, CODEX, ABILITIES, abilities, questState, questProgress, knows, fresh, stats, profs, rank, meets, itemOf, attr, book };
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('rpg', { api: 1, v: 10 }, () => rpg);
 })(typeof globalThis !== 'undefined' ? globalThis : this);

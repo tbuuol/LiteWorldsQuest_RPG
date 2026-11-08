@@ -45,7 +45,7 @@
     },
     "rpg": {
       "file": "src/modules/rpg.js",
-      "v": 9,
+      "v": 10,
       "api": 1,
       "kind": "js",
       "id": null,
@@ -53,7 +53,7 @@
     },
     "menu": {
       "file": "src/modules/menu.js",
-      "v": 5,
+      "v": 6,
       "api": 1,
       "kind": "js",
       "id": null,

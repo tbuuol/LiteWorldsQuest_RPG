@@ -167,7 +167,7 @@
       } else if (tab === 'craft') {
         /* the recipes this player knows, by craft: what each needs (have / need), what it makes, and Make -- at the forge */
         const at = o.atForge ? o.atForge() : false;
-        let h = (at ? '<p class="muted">At the forge. You make from the blueprints in your bag; each use raises its QR (0 to 100), and a higher QR fails less. Now and then a new blueprint turns up while you work.</p>'
+        let h = (at ? '<p class="muted">At the forge. You make from the blueprints in your bag. Your skill (up to the blueprint\'s master level) gives three quarters of how well it goes, the blueprint\'s QR (0 to 100, up with each use) the last quarter. Now and then a new blueprint turns up while you work.</p>'
                     : '<p class="bad">Walk to the forge in Blockshire (east of the square) to make things. You can look at your blueprints here.</p>') +
                 '<p class="muted">The smith at the forge has the first blueprints for those who help him.</p>';
         let hidden = 0;
@@ -182,7 +182,7 @@
             let enough = true;
             const needs = Object.keys(rc.needs).map(m => { const have = rec.mat[m] || 0, ok = have >= rc.needs[m]; if (!ok) enough = false;
               return '<span class="' + (ok ? 'good' : 'bad') + '">' + esc(rpg.ITEMS[m].name) + ' ' + have + '/' + rc.needs[m] + '</span>'; }).join(' · ');
-            h += '<div class="detail" style="margin-top:6px"><b>' + esc(it.name) + '</b> <span class="muted">' + esc(statLine(it) || '') + ' · blueprint QR ' + qr.toFixed(1) + ' · ' + Math.round(70 + 25 * qr / 100) + ' % success</span>' +
+            h += '<div class="detail" style="margin-top:6px"><b>' + esc(it.name) + '</b> <span class="muted">' + esc(statLine(it) || '') + ' · blueprint QR ' + qr.toFixed(1) + ' · ' + Math.round(100 * (0.35 + 0.6 * rpg.gradeOf(rc, lv, qr))) + ' % success · best ' + Math.round(35 + 90 * rpg.gradeOf(rc, lv, qr)) + ' % quality · mastered at level ' + rpg.masterOf(rc) + '</span>' +
               '<div>' + needs + (rc.level ? ' · <span class="' + (tooLow ? 'bad' : 'good') + '">' + esc(sk.name) + ' level ' + rc.level + '</span>' : '') + '</div>' +
               '<button class="act" data-act="make" data-recipe="' + rid + '"' + (at && enough && !tooLow ? '' : ' disabled') + '>Make</button></div>';
           }
@@ -224,5 +224,5 @@
   }
 
   const menu = { api: 1, create };
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('menu', { api: 1, v: 5 }, () => menu);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('menu', { api: 1, v: 6 }, () => menu);
 })(typeof globalThis !== 'undefined' ? globalThis : this);
