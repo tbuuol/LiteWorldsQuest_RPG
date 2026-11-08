@@ -441,7 +441,9 @@
         const reward = [['copper_ore', 3], ['iron_ore', 2], ['oak_log', 4], ['stone_block', 6], ['leather_scrap', 2], ['flax', 2], ['wild_herb', 3]][Math.floor(rnd() * 7)];
         r.mat[reward[0]] = (r.mat[reward[0]] || 0) + reward[1]; got.push(ITEMS[reward[0]].name + ' ×' + reward[1]);
         const sk = t[0] === 'kill' ? { melee: 6, toughness: 4 } : t[0] === 'gather' ? { [GATHER[t[1]] ? GATHER[t[1]].skill : 'mining']: 8 } : { str: 3, sta: 3 };
-        learn(r, sk, 1); got.push('skill');
+        const was = {}; for (const k in sk) was[k] = (ATTRS[k] ? r.at[k] : r.sk[k]) || 0;
+        learn(r, sk, 1);
+        for (const k in sk) { const d = ((ATTRS[k] ? r.at[k] : r.sk[k]) || 0) - was[k]; if (d > 0) got.push('+' + d.toFixed(2) + ' ' + (ATTRS[k] || (SKILLS[k] || {}).name || k)); }
         if (rnd() < 0.08) { const open = Object.keys(RECIPES).filter(k => !knows(r, k)); if (open.length) got.push(giveBp(r, open[Math.floor(rnd() * open.length)])); }
         return { ok: true, got, up: ups(r, before) };
       },
@@ -539,5 +541,5 @@
   /* a bag entry's name as shown (a blueprint with its QR, a made thing with its quality) */
   const entryName = e => { const it = itemOf({ bag: [e] }, e[0]); return it ? it.name : String(e[1]); };
   const rpg = { api: 1, entryName, masterOf, gradeOf, SLOTS, SKILLS, PROFS, ATTRS, RANKS, ITEMS, FISTS, LOOT, GATHER, RECIPES, CODEX, ABILITIES, abilities, questState, questProgress, knows, fresh, stats, profs, rank, meets, itemOf, attr, book };
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('rpg', { api: 1, v: 10 }, () => rpg);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('rpg', { api: 1, v: 11 }, () => rpg);
 })(typeof globalThis !== 'undefined' ? globalThis : this);
