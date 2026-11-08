@@ -2,7 +2,7 @@
  "lwq": "module",
  "name": "level.world",
  "api": 1,
- "v": 8,
+ "v": 9,
  "data": {
   "id": "world",
   "title": "LiteWorldsQuest",
@@ -877,6 +877,32 @@
        "Tag! You're it! ...You're not very fast, are you?",
        "Did you see the well glow? Mum says it grants wishes.",
        "I'm the fastest in Blockshire. Also the only kid."
+      ]
+     },
+     {
+      "id": "odo",
+      "name": "Odo the Smith",
+      "pos": [
+       17.6,
+       5.4
+      ],
+      "lookAt": [
+       15.2,
+       3.6
+      ],
+      "talkTurn": true,
+      "look": {
+       "person": "a",
+       "skin": "#c98b62",
+       "shirt": "#4a3a2a",
+       "pants": "#2a2620",
+       "hair": "#2a1a10",
+       "beard": "#3a2a1a",
+       "gloves": "#3a2a1a"
+      },
+      "lines": [
+       "Steel wants a steady hand and a good plan. The plans I have; the hands are yours.",
+       "A blueprint gets better the more you work from it. Mine are worn smooth."
       ]
      }
     ],
@@ -2821,7 +2847,9 @@
        "The Adventurers' Guild. Out there are boars, wolves, goblins and worse, and the city needs what they guard.",
        "Soon this board will hold work for every day: hunts, deliveries, things to fetch. Come back, and come back again.",
        "Until then: Blockshire's elder and the people of Saltwind have tasks for you."
-      ]
+      ],
+      "office": "guild",
+      "greet": "The board has work for you, as every day."
      }
     ],
     "props": [
@@ -6405,7 +6433,7 @@
     "id": "forge",
     "npc": "bram",
     "title": "Steel for the Gate",
-    "after": "wood",
+    "after": "smith1",
     "offer": "The wilds grow bolder every night. Go to the forge east of the square and make a weapon with your own hands.",
     "done": "A fine first piece. The village is stronger for it. Take this shield; you will need it.",
     "need": {
@@ -6553,6 +6581,81 @@
      "sk": {
       "sword": 40,
       "toughness": 30
+     }
+    }
+   },
+   {
+    "id": "smith1",
+    "npc": "odo",
+    "giver": "Odo the Smith",
+    "title": "First Blueprints",
+    "offer": "You want to make things? Bring me three lumps of copper ore from the boulders out in the hills, and I will give you my first blueprints: a sword, an axe and bracers.",
+    "done": "Good ore. Here are the plans. Use them at the forge; they get better every time you do.",
+    "need": {
+     "bring": {
+      "copper_ore": 3
+     }
+    },
+    "reward": {
+     "bp": [
+      "copper_sword",
+      "copper_axe",
+      "copper_bracers"
+     ],
+     "sk": {
+      "smithing": 10
+     }
+    }
+   },
+   {
+    "id": "smith2",
+    "npc": "odo",
+    "giver": "Odo the Smith",
+    "title": "Wood and Hide",
+    "after": "smith1",
+    "offer": "Not everything is iron. Three oak logs and a scrap of leather, and you shall have my woodwork: a shield, a charm and a tusk amulet.",
+    "done": "That will do. These are the plans; the wood is yours to work.",
+    "need": {
+     "bring": {
+      "oak_log": 3,
+      "leather_scrap": 1
+     }
+    },
+    "reward": {
+     "bp": [
+      "oak_shield",
+      "oak_belt_charm",
+      "tusk_amulet"
+     ],
+     "sk": {
+      "woodworking": 10
+     }
+    }
+   },
+   {
+    "id": "smith3",
+    "npc": "odo",
+    "giver": "Odo the Smith",
+    "title": "Cloth and Shell",
+    "after": "smith2",
+    "offer": "Last of what I have: two bundles of flax and two crab shells from the shore, and the plans for a tunic, a belt, a jerkin, a shell shield and a coral ring are yours.",
+    "done": "That is all I can teach from paper. The rest you will find yourself, or buy.",
+    "need": {
+     "bring": {
+      "flax": 2,
+      "crab_shell": 2
+     }
+    },
+    "reward": {
+     "bp": [
+      "flax_tunic",
+      "leather_belt",
+      "hide_jerkin",
+      "shell_shield",
+      "coral_ring"
+     ],
+     "sk": {
+      "tailoring": 10
      }
     }
    }

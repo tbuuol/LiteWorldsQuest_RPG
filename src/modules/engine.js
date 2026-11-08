@@ -417,7 +417,7 @@
     let stock = {}, shopsLoaded = false, shopView = {};
     const shopsDirty = new Set(), LEVY = 0.1;
     const withLevy = price => String(+(+price * (1 + LEVY)).toFixed(8));
-    const thingName = (k, what) => { const id = k === 'm' ? what : what[1]; return (rpg && rpg.ITEMS[id]) ? rpg.ITEMS[id].name : id; };
+    const thingName = (k, what) => k === 'm' ? ((rpg && rpg.ITEMS[what]) ? rpg.ITEMS[what].name : what) : (rpg && rpg.entryName ? rpg.entryName(what) : what[1]);
     const hasCounter = id => (built[id] || []).some(pc => pc[0] === 8);
     function shopFor(id) { return stock[id] || (stock[id] = { items: [], owed: [], next: 1 }); }
     function viewOf() {   /* what buyers see: {plot: [[offer, name, n, price, total, held]]} */
@@ -725,12 +725,46 @@
       const worn = new Set(Object.values(R.eq || {}).map(Number));
       const col = (title, mats, bag, x) => '<div style="flex:1;min-width:220px"><b>' + title + '</b><div style="margin-top:6px;display:flex;flex-direction:column;gap:3px">' +
         Object.keys(mats || {}).map(m => '<button data-mv="' + x + '|m|' + esc(m) + '" style="text-align:left;background:#3a2c1a;color:#f3e3c3;border:1px solid #6a5030;border-radius:4px;padding:3px 8px;cursor:pointer">' + esc(nm(m)) + ' × ' + mats[m] + '</button>').join('') +
-        (bag || []).filter(e => !worn.has(+e[0])).map(e => '<button data-mv="' + x + '|u|' + e[0] + '" style="text-align:left;background:#2a2433;color:#f3e3c3;border:1px solid #5a4a70;border-radius:4px;padding:3px 8px;cursor:pointer">' + esc(nm(e[1])) + '</button>').join('') +
+        (bag || []).filter(e => !worn.has(+e[0])).map(e => '<button data-mv="' + x + '|u|' + e[0] + '" style="text-align:left;background:#2a2433;color:#f3e3c3;border:1px solid #5a4a70;border-radius:4px;padding:3px 8px;cursor:pointer">' + esc(rpg.entryName(e)) + '</button>').join('') +
         '</div></div>';
       chestBox.innerHTML = '<div style="background:#2a2016;border:2px solid #8a6a3a;border-radius:8px;padding:12px;width:min(560px,94vw);max-height:90vh;overflow:auto">' +
         '<div style="display:flex;justify-content:space-between;align-items:center"><b style="font-size:17px">Your chest</b><button data-x style="background:#5a4630;color:#f3e3c3;border:1px solid #8a6a3a;border-radius:4px;padding:3px 10px;cursor:pointer">Close</button></div>' +
         '<div style="font-size:12px;opacity:.8;margin:4px 0 8px">Click moves one across; Shift-click all of a material. Every chest of yours holds the same.</div>' +
         '<div style="display:flex;gap:14px;flex-wrap:wrap">' + col('In your bag', R.mat, R.bag, 'put') + col('In your chest', ch.mat, ch.bag, 'take') + '</div></div>';
+    }
+    /* the guild's board: today's three tasks, how far along, and Turn in */
+    let guildBox = null, guildOpen = false;
+    function openGuild() {
+      try { document.exitPointerLock(); } catch (e) { /* not locked */ }
+      askHouse({ Q: 'guild', x: 'see' });
+      guildOpen = true;
+      if (!guildBox) {
+        guildBox = document.createElement('div');
+        guildBox.style.cssText = 'position:absolute;inset:0;z-index:16;display:flex;align-items:center;justify-content:center;background:rgba(10,8,4,.72);font:14px Georgia,serif;color:#f3e3c3';
+        el.appendChild(guildBox);
+        guildBox.addEventListener('click', e => {
+          if (e.target.closest('[data-x]')) { guildBox.style.display = 'none'; guildOpen = false; return; }
+          const b = e.target.closest('[data-turn]'); if (b) { askHouse({ Q: 'guild', x: 'turn', i: +b.dataset.turn }); b.disabled = true; b.textContent = 'Asking…'; }
+        });
+      }
+      guildBox.style.display = 'flex'; drawGuild();
+    }
+    function drawGuild() {
+      if (!guildBox || !guildOpen) return;
+      const gd = (rec || {}).gd, today = new Date().toISOString().slice(0, 10);
+      const nm = x => (rpg && rpg.ITEMS[x] ? rpg.ITEMS[x].name : (LV.wild && LV.wild.species[x] ? LV.wild.species[x].name : ({ tree: 'oak', rock: 'ore boulder', herb: 'herbs', stone: 'quarry stone' }[x] || x)));
+      let h = '<div style="background:#2a2016;border:2px solid #8a6a3a;border-radius:8px;padding:12px;width:min(520px,94vw)">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center"><b style="font-size:17px">The Adventurers\' Guild · today\'s work</b><button data-x style="background:#5a4630;color:#f3e3c3;border:1px solid #8a6a3a;border-radius:4px;padding:3px 10px;cursor:pointer">Close</button></div>' +
+        '<div style="font-size:12px;opacity:.8;margin:4px 0 10px">Three tasks a day, new at midnight (UTC). Each pays in materials and skill, and now and then in a blueprint.</div>';
+      if (!gd || gd.day !== today) h += '<i>Rowan looks for today\'s list…</i>';
+      else for (let i = 0; i < gd.t.length; i++) {
+        const [type, what, n, got, done] = gd.t[i];
+        const have = type === 'bring' ? Math.min(n, ((rec.mat || {})[what] || 0)) : got;
+        const word = type === 'kill' ? 'Hunt ' + n + ' × ' + nm(what) : type === 'bring' ? 'Bring ' + n + ' × ' + nm(what) : 'Gather from ' + n + ' × ' + nm(what);
+        h += '<div style="margin:6px 0;padding:6px 8px;border:1px solid #6a5030;border-radius:6px;background:#2f2418">' + esc(word) + ' — ' + (done ? '<b style="color:#8fd06a">done</b>' : have + ' / ' + n +
+          (have >= n ? ' <button data-turn="' + i + '" style="background:#3f6a2a;color:#fff;border:1px solid #8fbf5a;border-radius:4px;padding:2px 10px;cursor:pointer;margin-left:6px">Turn in</button>' : '')) + '</div>';
+      }
+      guildBox.innerHTML = h + '</div>';
     }
     let shopBox = null, shopOpen = null;
     function openShop(id) {
@@ -775,7 +809,7 @@
       if (mine) {
         h += '<b>From your chest</b><div style="margin:6px 0;display:flex;flex-direction:column;gap:4px">' +
           Object.keys(ch.mat || {}).map(m => '<div data-row="m' + esc(m) + '">' + esc(nm(m)) + ' (' + ch.mat[m] + ') · <input data-n type="number" min="1" max="' + ch.mat[m] + '" value="1" style="width:56px"> for <input data-pr type="number" min="0.0001" step="0.001" placeholder="tLTC" style="width:80px"> tLTC' + btn('put|m|' + m, 'Offer', '#3f6a2a') + '</div>').join('') +
-          (ch.bag || []).map(e => '<div data-row="u' + e[0] + '">' + esc(nm(e[1])) + ' · for <input data-pr type="number" min="0.0001" step="0.001" placeholder="tLTC" style="width:80px"> tLTC' + btn('put|u|' + e[0], 'Offer', '#3f6a2a') + '</div>').join('') +
+          (ch.bag || []).map(e => '<div data-row="u' + e[0] + '">' + esc(rpg.entryName(e)) + ' · for <input data-pr type="number" min="0.0001" step="0.001" placeholder="tLTC" style="width:80px"> tLTC' + btn('put|u|' + e[0], 'Offer', '#3f6a2a') + '</div>').join('') +
           (!Object.keys(ch.mat || {}).length && !(ch.bag || []).length ? '<i>Your chest is empty: put things in it first.</i>' : '') + '</div>';
       }
       const iv = myInvoice && String(myInvoice.plot).startsWith('shop:' + id + ':') && myInvoice.until > Date.now() ? myInvoice : null;
@@ -828,12 +862,42 @@
       }
       bBar.style.display = building ? 'block' : 'none';
       if (!building && bGhost) { scene.remove(bGhost); bGhost.geometry.dispose(); bGhost = null; }
-      if (building) { log('Build mode: 1-6 piece, T material, R turn, Z / X storey, click build, right click remove, B to stop.'); drawBuildBar(); }
+      if (building) { log('Build mode: Q picks a piece (or the mouse wheel), T material, R turn, Z / X storey, click build, right click remove, B to stop.'); drawBuildBar(); }
+    }
+    /* THE PICKER (tbuuol 2026-11-08: "die Zahlen sind bald alle belegt"): Q in build mode shows every piece with what it
+       costs; a click takes it and goes back to building. The mouse wheel goes through them too. */
+    let pickerBox = null;
+    const PIECES = [['Floor', '▭'], ['Wall', '▮'], ['Window', '◫'], ['Door', '🚪'], ['Roof', '◢'], ['Stairs', '⌸'], ['Chest', '🧰'], ['Bed', '🛏'], ['Counter', '🏪']];
+    function openPicker() {
+      try { document.exitPointerLock(); } catch (e) { /* not locked */ }
+      if (!pickerBox) {
+        pickerBox = document.createElement('div');
+        pickerBox.style.cssText = 'position:absolute;inset:0;z-index:16;display:flex;align-items:center;justify-content:center;background:rgba(10,8,4,.6);font:14px Georgia,serif;color:#f3e3c3';
+        el.appendChild(pickerBox);
+        pickerBox.addEventListener('click', e => {
+          const b = e.target.closest('[data-k]');
+          if (b) { bKind = +b.dataset.k; drawBuildBar(); }
+          const m = e.target.closest('[data-m]');
+          if (m) { bMat = +m.dataset.m; drawPicker(); return; }
+          if (b || e.target === pickerBox) { pickerBox.style.display = 'none'; try { canvas.requestPointerLock(); } catch (er) { /* the next click */ } }
+        });
+      }
+      pickerBox.style.display = 'flex'; drawPicker();
+    }
+    function drawPicker() {
+      const have = m => ((rec || {}).mat || {})[m] || 0;
+      pickerBox.innerHTML = '<div style="background:#2a2016;border:2px solid #8a6a3a;border-radius:8px;padding:12px;width:min(560px,94vw)"><b style="font-size:17px">Build</b>' +
+        '<div style="margin:8px 0">Material: ' + ['wood', 'stone', 'plaster'].map((n, i) => '<button data-m="' + i + '" style="margin-right:6px;padding:3px 10px;border-radius:4px;cursor:pointer;border:1px solid #c8a050;background:' + (i === bMat ? '#c8a050;color:#2a2016' : '#3a2c1a;color:#f3e3c3') + '">' + n + '</button>').join('') + '</div>' +
+        '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">' + PIECES.map(([n, ic], k) => {
+          const c = costOf([k, 0, 0, 0, 0, bMat]), m = Object.keys(c)[0];
+          return '<button data-k="' + k + '" style="padding:10px 6px;border-radius:6px;cursor:pointer;border:1px solid ' + (k === bKind ? '#ffd65a' : '#6a5030') + ';background:#3a2c1a;color:#f3e3c3;text-align:center">' +
+            '<div style="font-size:24px">' + ic + '</div><b>' + n + '</b><div style="font-size:12px;opacity:.8">' + c[m] + ' ' + esc((rpg && rpg.ITEMS[m]) ? rpg.ITEMS[m].name : m) + ' (you have ' + have(m) + ')</div>' + (k === 8 ? '<div style="font-size:11px;opacity:.7">shop plots only</div>' : '') + '</button>';
+        }).join('') + '</div><div style="font-size:12px;opacity:.8;margin-top:8px">Q opens this · the mouse wheel goes through the pieces · R turns · Z / X a storey down / up</div></div>';
     }
     function drawBuildBar() {
       if (!bBar) return;
       const names = ['Floor', 'Wall', 'Window', 'Door', 'Roof', 'Stairs', 'Chest', 'Bed', 'Counter'];
-      bBar.innerHTML = 'BUILD · ' + names.map((n, i) => (i === bKind ? '<b style="color:#ffd65a">[' + (i + 1) + '] ' + n + '</b>' : '[' + (i + 1) + '] ' + n)).join(' ') +
+      bBar.innerHTML = 'BUILD · <b style="color:#ffd65a">' + names[bKind] + '</b> (Q: all pieces, wheel: next)' +
         ' · T: <b>' + ['wood', 'stone', 'plaster'][bMat] + '</b> · storey <b>' + bLevel + '</b> (Z / X)' + (bKind >= 4 ? ' · R: turn' : '') +
         ' · costs ' + Object.entries(costOf([bKind, 0, 0, 0, 0, bMat])).map(([m, n]) => n + ' ' + ((rpg && rpg.ITEMS[m]) ? rpg.ITEMS[m].name : m)).join(', ') +
         (rec ? ' (you have ' + ((rec.mat || {})[bMat === 0 ? 'oak_log' : 'stone_block'] || 0) + ')' : '');
@@ -889,6 +953,7 @@
     }
     function speak(id) {
       const N = npcs[id], lines = N.def.lines || ['…'];
+      if (N.def.office === 'guild') { log(N.def.name + ': ' + (N.def.greet || 'The board has work for you.')); openGuild(); return; }
       if (N.def.office === 'plots' && plots.length) { log(N.def.name + ': ' + (N.def.greet || 'The registry is open. Which plot do you want?')); openPlots(); return; }
       /* QUESTS (Etappe 3): E shows the quest, E again takes it or hands it in (the house decides) */
       if (talk && talk.id === id && talk.quest) {
@@ -1043,7 +1108,7 @@
       menu = D.menu.create({ el, rpg: D.rpg, touch: TOUCH, wild: LV.wild || null, quests: LV.quests || [], atForge: () => nearForge(me.x, me.z),
         ask(q) {
           if (!live()) return;
-          sendIntent(Object.assign({ Q: q.op }, q.op === 'equip' ? { u: q.uid } : q.op === 'craft' ? { r: q.recipe } : q.op === 'codex' ? { sp: q.species, k: q.skill } : { s: q.slot }));
+          sendIntent(Object.assign({ Q: q.op }, q.op === 'equip' || q.op === 'salvage' ? { u: q.uid } : q.op === 'craft' ? { r: q.recipe } : q.op === 'codex' ? { sp: q.species, k: q.skill } : { s: q.slot }));
         } });
     }
     function askHouse(msg) { if (live()) sendIntent(msg); }
@@ -1076,6 +1141,7 @@
     on(canvas, 'click', () => { if (!TOUCH && !locked()) try { canvas.requestPointerLock(); } catch (e) { /* ignore */ } });
     on(canvas, 'mousedown', e => { if (!locked()) return; if (building) { if (e.button === 0 || e.button === 2) buildClick(e.button === 2); return; } if (e.button === 0) attack(); });
     on(canvas, 'contextmenu', e => e.preventDefault());
+    on(canvas, 'wheel', e => { if (!building) return; e.preventDefault(); bKind = (bKind + (e.deltaY > 0 ? 1 : 8)) % 9; drawBuildBar(); }, { passive: false });
     on(document, 'pointerlockchange', () => { if (!TOUCH) $('.lwq-start').style.display = locked() ? 'none' : 'flex'; });
 
     /* --- phones: full screen, a joystick and buttons ------------------------------------------------------- */
@@ -1262,6 +1328,7 @@
       if (building && down && !e.repeat) {
         if (/^Digit[1-9]$/.test(e.code)) { bKind = +e.code.slice(5) - 1; drawBuildBar(); return; }
         if (e.code === 'KeyT') { bMat = (bMat + 1) % 3; drawBuildBar(); return; }
+        if (e.code === 'KeyQ') { openPicker(); return; }
         if (e.code === 'KeyR') { bRot = (bRot + 1) % 4; drawBuildBar(); return; }
         if (e.code === 'KeyZ') { bLevel = Math.max(0, bLevel - 1); drawBuildBar(); return; }
         if (e.code === 'KeyX') { bLevel = Math.min(5, bLevel + 1); drawBuildBar(); return; }
@@ -1539,7 +1606,7 @@
         }
       }
       placed = true;
-      rec = r; mine = rpg.stats(r); if (chestOpen) setTimeout(drawChest, 0); if (shopOpen) setTimeout(drawShop, 0);
+      rec = r; mine = rpg.stats(r); if (chestOpen) setTimeout(drawChest, 0); if (shopOpen) setTimeout(drawShop, 0); if (guildOpen) setTimeout(drawGuild, 0);
       P.max = mine.hp; P.hp = Math.min(P.hp, P.max);
       dressHands(); drawStats();
       if (menu) menu.update(rec, mine);
@@ -1688,6 +1755,7 @@
       const kind = res.def.kind, conf = LV.resources || {};
       if (charges[id] == null) charges[id] = (conf.charges && conf.charges[kind]) || 3;
       const out = book.gather(a, kind);
+      if (book.guildCount) for (const line of book.guildCount(a, 'gather', kind)) notice(from.id, line);
       dirty.add(a);
       notice(from.id, out.got.length ? 'Into your bag: ' + out.got.join(', ') + '.' : 'Nothing this time.');
       for (const u of out.up) notice(from.id, u + '!');
@@ -1732,6 +1800,7 @@
               const k = book.kill(r.from.address, e.species), sp = LV.wild && LV.wild.species[e.species];
               if (k.rank) notice(e.by, 'Codex: ' + (sp ? sp.name : e.species) + ' rank ' + k.rank + '! Open the Codex in your book to choose a skill for the reward.');
               for (const line of book.questKill(r.from.address, e.species, LV.quests)) notice(e.by, line);
+              if (book.guildCount) for (const line of book.guildCount(r.from.address, 'kill', e.species)) notice(e.by, line);
             }
             dirty.add(r.from.address);
           }
@@ -2093,6 +2162,16 @@
         else if (d.Q === 'unequip') book.unequip(a, String(d.s));
         else if (d.Q === 'plot') housePlot(from, a, String(d.p));
         else if (d.Q === 'build') houseBuild(from, a, d);
+        else if (d.Q === 'guild' && book.guildDay) {   /* today's tasks; a task turned in */
+          book.guildDay(a, new Date().toISOString().slice(0, 10));
+          if (d.x === 'turn') { const res = book.guildTurn(a, d.i | 0); notice(from.id, res.ok ? 'Guildmaster Rowan: well done. Your reward: ' + res.got.join(', ') + '.' : 'Guildmaster Rowan: ' + res.why + '.'); if (res.ok) for (const u of res.up) notice(from.id, u + '!'); }
+          dirty.add(a);
+        }
+        else if (d.Q === 'salvage') {   /* taking a made thing apart, at the forge (the only workbench there is yet) */
+          const r = remotes.get(from.id);
+          if (r && !nearForge(whereIs(r)[0], whereIs(r)[1])) notice(from.id, 'You are not at the forge.');
+          else { const res = book.salvage(a, +d.u); notice(from.id, res.ok ? 'You took apart the ' + res.of + ': ' + res.got.join(', ') + '.' : 'Cannot take that apart: ' + res.why + '.'); }
+        }
         else if (d.Q === 'sell' || d.Q === 'unsell' || d.Q === 'levy') houseSell(from, a, d);
         else if (d.Q === 'home' || d.Q === 'chest') houseFurniture(from, a, d);
         else if (d.Q === 'shop') houseShop(from, a, d);
@@ -2114,8 +2193,9 @@
           else {
             const res = book.craft(a, String(d.r));
             if (!res.ok) notice(from.id, 'Cannot make that: ' + res.why + '.');
+            else if (res.failed) { notice(from.id, 'It went wrong. Lost: ' + res.lost.join(', ') + '. The blueprint\'s QR is now ' + res.qr.toFixed(2) + '.'); for (const u of res.up) notice(from.id, u + '!'); }
             else {
-              notice(from.id, 'You made: ' + res.made + '. It is in your bag.');
+              notice(from.id, 'You made: ' + res.made + '. It is in your bag. The blueprint\'s QR is now ' + res.qr.toFixed(2) + '.');
               for (const line of book.questMade(a, String(d.r), LV.quests)) notice(from.id, line);
               if (res.learnt) notice(from.id, 'While you worked, you worked out a new recipe: ' + res.learnt + '!');
               for (const u of res.up) notice(from.id, u + '!');
@@ -2639,6 +2719,6 @@
     };
   }
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 44, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 45, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
     D => ({ start: (el, opts) => start(D, el, opts) }));
 })(typeof globalThis !== 'undefined' ? globalThis : this);

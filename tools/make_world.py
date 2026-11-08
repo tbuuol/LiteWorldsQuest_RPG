@@ -26,7 +26,7 @@ import subprocess
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 LEVELS = ROOT / "src" / "levels"
 OUT = LEVELS / "world.json"
-VERSION = 8
+VERSION = 9
 
 
 def probe(land: dict, points: list) -> list:
@@ -137,6 +137,8 @@ def make_genesis(ring: list) -> dict:
         npc = {"id": nid, "name": name, "pos": [round(hx, 1), round(hz - 9, 1)], "lookAt": [round(hx, 1), round(hz + 11, 1)], "talkTurn": True, "look": look, "lines": lines}
         if b["id"] == "townhall":   # the registry of plots (engine: E on him opens it)
             npc.update({"office": "plots", "greet": "Welcome to the registry of Genesis. Pick a plot on the plan, and it can be yours."})
+        if b["id"] == "guild":   # the guild's board: three tasks a day (engine: E on him opens it)
+            npc.update({"office": "guild", "greet": "The board has work for you, as every day."})
         npcs.append(npc)
     props = []
     for k in range(8):   # benches round the plaza, facing the fountain
@@ -336,6 +338,30 @@ def main() -> None:
             if q["id"] not in seen:
                 seen.add(q["id"])
                 quests.append(q)
+    # THE SMITH'S BLUEPRINTS (tbuuol 2026-11-08): recipes are things now; the first ones come from Odo at the forge, as
+    # the rewards of three errands. Elder Bram's "make a weapon" waits for the first of them.
+    odo = {"id": "odo", "name": "Odo the Smith", "pos": [17.6, 5.4], "lookAt": [15.2, 3.6], "talkTurn": True,
+           "look": {"person": "a", "skin": "#c98b62", "shirt": "#4a3a2a", "pants": "#2a2620", "hair": "#2a1a10", "beard": "#3a2a1a", "gloves": "#3a2a1a"},
+           "lines": ["Steel wants a steady hand and a good plan. The plans I have; the hands are yours.",
+                     "A blueprint gets better the more you work from it. Mine are worn smooth."]}
+    blockshire.setdefault("npcs", []).append(odo)
+    quests += [
+        {"id": "smith1", "npc": "odo", "giver": "Odo the Smith", "title": "First Blueprints",
+         "offer": "You want to make things? Bring me three lumps of copper ore from the boulders out in the hills, and I will give you my first blueprints: a sword, an axe and bracers.",
+         "done": "Good ore. Here are the plans. Use them at the forge; they get better every time you do.",
+         "need": {"bring": {"copper_ore": 3}}, "reward": {"bp": ["copper_sword", "copper_axe", "copper_bracers"], "sk": {"smithing": 10}}},
+        {"id": "smith2", "npc": "odo", "giver": "Odo the Smith", "title": "Wood and Hide", "after": "smith1",
+         "offer": "Not everything is iron. Three oak logs and a scrap of leather, and you shall have my woodwork: a shield, a charm and a tusk amulet.",
+         "done": "That will do. These are the plans; the wood is yours to work.",
+         "need": {"bring": {"oak_log": 3, "leather_scrap": 1}}, "reward": {"bp": ["oak_shield", "oak_belt_charm", "tusk_amulet"], "sk": {"woodworking": 10}}},
+        {"id": "smith3", "npc": "odo", "giver": "Odo the Smith", "title": "Cloth and Shell", "after": "smith2",
+         "offer": "Last of what I have: two bundles of flax and two crab shells from the shore, and the plans for a tunic, a belt, a jerkin, a shell shield and a coral ring are yours.",
+         "done": "That is all I can teach from paper. The rest you will find yourself, or buy.",
+         "need": {"bring": {"flax": 2, "crab_shell": 2}}, "reward": {"bp": ["flax_tunic", "leather_belt", "hide_jerkin", "shell_shield", "coral_ring"], "sk": {"tailoring": 10}}},
+    ]
+    for q in quests:
+        if q["id"] == "forge":
+            q["after"] = "smith1"
 
     # where things are now (2026-10-31): the quests told of the old fence, raiders at the gate, a ship out past
     # Saltwind's dock

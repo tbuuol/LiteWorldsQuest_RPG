@@ -173,7 +173,16 @@
   ];
   const CRAFT_AT = { smithing: { str: 0.5, int: 0.3 }, woodworking: { dex: 0.3, str: 0.2 }, tailoring: { dex: 0.4, int: 0.2 } };
   const RECIPE_DROP = 0.04;   /* very low: a recipe of the craft being done, up to a level above the crafter's */
-  const knows = (r, rid) => !!RECIPES[rid] && (RECIPES[rid].known || (r.rk || []).includes(rid));
+  /* BLUEPRINTS (tbuuol 2026-11-08, like Entropia's): a recipe is a thing in the bag, 'bp:<recipe>' with its quality
+     rating {qr: 0.0 to 100.0}; it is made from only while held, it gets better each time it is used, and it can be kept,
+     traded and sold like anything else. The best one of a kind is the one used. */
+  const BP = 'bp:';
+  const bpOf = (r, rid) => { let best = null; for (const e of r.bag) if (e[1] === BP + rid && (!best || ((e[2] || {}).qr || 0) > ((best[2] || {}).qr || 0))) best = e; return best; };
+  const knows = (r, rid) => !!RECIPES[rid] && !!bpOf(r, rid);
+  const giveBp = (r, rid) => { r.bag.push([r.n++, BP + rid, { qr: 0 }]); return 'Blueprint: ' + ITEMS[rid].name; };
+  /* what a made thing comes out as: 35 % to 125 % of its kind, rolled -- a skilled maker rolls higher, but 125 % stays
+     rare for everybody (tbuuol 2026-11-08) */
+  const qualityRoll = (lv, rnd) => Math.round((35 + 90 * Math.pow(rnd(), clamp(2.6 - 0.35 * lv, 0.9, 2.6))) * 10) / 10;
   const FISTS = { name: 'Fists', skill: 'unarmed', model: 'fists', dmg: [2, 4] };
   /* what a raider leaves, each by its own chance */
   const LOOT = [['torn_cloth', 0.35], ['scrap_iron', 0.2], ['leather_scrap', 0.2], ['rusty_sword', 0.05], ['leather_cap', 0.05],
@@ -198,7 +207,18 @@
     let i = 0; while (i < RANKS.length - 1 && points >= RANKS[i + 1][0]) i++;
     return [RANKS[i][1], RANKS[i][0], i < RANKS.length - 1 ? RANKS[i + 1][0] : null];
   }
-  const itemOf = (r, uid) => { const e = r.bag.find(b => b[0] === uid); return e ? Object.assign({ uid, id: e[1] }, ITEMS[e[1]]) : null; };
+  function itemOf(r, uid) {
+    const e = r.bag.find(b => b[0] === uid); if (!e) return null;
+    const x = e[2] || {};
+    if (String(e[1]).startsWith(BP)) { const rid = e[1].slice(BP.length); return { uid, id: e[1], name: 'Blueprint: ' + ((ITEMS[rid] || {}).name || rid) + ' (QR ' + (x.qr || 0).toFixed(1) + ')', blueprint: rid, qr: x.qr || 0 }; }
+    const it = Object.assign({ uid, id: e[1] }, ITEMS[e[1]]);
+    if (x.q) {   /* its quality: what it does, scaled */
+      const k = x.q / 100; it.q = x.q; it.name = it.name + ' (' + x.q.toFixed(1) + ' %)';
+      if (it.dmg) it.dmg = [Math.max(1, Math.round(it.dmg[0] * k)), Math.max(1, Math.round(it.dmg[1] * k))];
+      if (it.def) it.def = Math.max(1, Math.round(it.def * k));
+    }
+    return it;
+  }
   function stats(r) {
     const at = {}; for (const k in ATTRS) at[k] = attr(r, k);
     let def = 0;
@@ -353,21 +373,82 @@
       craft(a, rid, rnd) {
         const r = of(a), rc = RECIPES[rid]; rnd = rnd || Math.random;
         if (!rc) return { ok: false, why: 'there is no such recipe' };
-        if (!knows(r, rid)) return { ok: false, why: 'you do not know that recipe yet' };
+        const bp = bpOf(r, rid);
+        if (!bp) return { ok: false, why: 'you have no blueprint for it in your bag' };
         const before = profs(r), lv = before[rc.prof];
         if (lv < rc.level) return { ok: false, why: 'it needs ' + PROFS[rc.prof].name + ' level ' + rc.level };
         for (const m in rc.needs) if ((r.mat[m] || 0) < rc.needs[m]) return { ok: false, why: 'not enough ' + ITEMS[m].name };
-        for (const m in rc.needs) { r.mat[m] -= rc.needs[m]; if (!r.mat[m]) delete r.mat[m]; }
-        r.bag.push([r.n++, rid]);
+        const x = bp[2] = bp[2] || { qr: 0 }, qr = x.qr || 0;
+        /* the blueprint's QR goes up with every use, quickly at first, slowly near 100 */
+        x.qr = Math.min(100, Math.round((qr + 0.5 * (1 - qr / 100) + 0.02) * 100) / 100);
         const sk = Object.assign({}, CRAFT_AT[rc.skill] || {}); sk[rc.skill] = 6 + rc.level * 2;
+        /* it can fail: 70 % success at QR 0, 95 % at QR 100; a failure costs half of what was put in, and teaches less */
+        if (rnd() >= 0.7 + 0.25 * qr / 100) {
+          const lost = [];
+          for (const m in rc.needs) { const n = Math.max(1, Math.floor(rc.needs[m] / 2)); r.mat[m] -= n; if (r.mat[m] <= 0) delete r.mat[m]; lost.push(ITEMS[m].name + ' ×' + n); }
+          learn(r, sk, effortOf(rc.level, lv) * 0.4);
+          return { ok: true, failed: true, lost, qr: x.qr, up: ups(r, before) };
+        }
+        for (const m in rc.needs) { r.mat[m] -= rc.needs[m]; if (!r.mat[m]) delete r.mat[m]; }
+        const item = ITEMS[rid], q = item.slot ? qualityRoll(lv, rnd) : null;
+        r.bag.push(q ? [r.n++, rid, { q }] : [r.n++, rid]);
         learn(r, sk, effortOf(rc.level, lv));
         const after = profs(r)[rc.prof];
         let learnt = null;
-        if (rnd() < RECIPE_DROP) {
+        if (rnd() < RECIPE_DROP) {   /* a new blueprint, found while working: into the bag */
           const open = Object.keys(RECIPES).filter(k => !knows(r, k) && RECIPES[k].prof === rc.prof && RECIPES[k].level <= Math.floor(after) + 1);
-          if (open.length) { learnt = open[Math.floor(rnd() * open.length)]; (r.rk = r.rk || []).push(learnt); }
+          if (open.length) { learnt = open[Math.floor(rnd() * open.length)]; giveBp(r, learnt); }
         }
-        return { ok: true, made: ITEMS[rid].name, up: ups(r, before), learnt: learnt && ITEMS[learnt].name };
+        return { ok: true, made: item.name + (q ? ' (' + q.toFixed(1) + ' %)' : ''), qr: x.qr, up: ups(r, before), learnt: learnt && 'Blueprint: ' + ITEMS[learnt].name };
+      },
+      /* THE ADVENTURERS' GUILD (tbuuol 2026-11-08): three tasks a day for each player from Guildmaster Rowan -- a hunt,
+         a delivery and a gathering -- the same all day, new at midnight (UTC). r.gd = {day, t: [[type, what, n, got, done]]} */
+      guildDay(a, day) {
+        const r = of(a);
+        if (r.gd && r.gd.day === day) return r.gd;
+        let h = 2166136261; for (const ch of day + a) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619) >>> 0; }
+        const pick = list => { h = Math.imul(h ^ (h >>> 13), 1274126177) >>> 0; return list[h % list.length]; };
+        const lvl = Math.max(0, Math.floor((profs(r).miner || 0) + (profs(r)[stats(r).hitProf] || 0)) / 2);
+        const more = n => n + Math.floor(n * Math.min(1, lvl * 0.15));
+        const hunt = pick([['boar', 5], ['wolf', 4], ['spider', 3], ['crab', 5], ['goblin', 4], ['drowned', 3]]);
+        const bring = pick([['stone_block', 10], ['oak_log', 8], ['copper_ore', 6], ['wild_herb', 6], ['flax', 4], ['boar_hide', 3]]);
+        const gather = pick([['tree', 5], ['rock', 4], ['herb', 6], ['stone', 6]]);
+        r.gd = { day, t: [['kill', hunt[0], more(hunt[1]), 0, 0], ['bring', bring[0], more(bring[1]), 0, 0], ['gather', gather[0], more(gather[1]), 0, 0]] };
+        return r.gd;
+      },
+      guildCount(a, type, what) {   /* a kill or a gathering, counted for today's tasks; the lines to tell */
+        const r = of(a), out = [];
+        for (const t of (r.gd && r.gd.t) || []) if (t[0] === type && t[1] === what && !t[4] && t[3] < t[2]) { t[3]++; if (t[3] === t[2]) out.push('Guild task done: ' + (type === 'kill' ? 'the hunt' : 'the gathering') + ' -- tell Guildmaster Rowan.'); }
+        return out;
+      },
+      guildTurn(a, i, rnd) {
+        const r = of(a), t = r.gd && r.gd.t && r.gd.t[i | 0]; rnd = rnd || Math.random;
+        if (!t || t[4]) return { ok: false, why: 'there is no such task open' };
+        if (t[0] === 'bring') { if ((r.mat[t[1]] || 0) < t[2]) return { ok: false, why: 'you have ' + (r.mat[t[1]] || 0) + ' of ' + t[2] + ' ' + ITEMS[t[1]].name };
+          r.mat[t[1]] -= t[2]; if (!r.mat[t[1]]) delete r.mat[t[1]]; }
+        else if (t[3] < t[2]) return { ok: false, why: 'it is not done yet (' + t[3] + ' of ' + t[2] + ')' };
+        t[4] = 1;
+        const before = profs(r), got = [];
+        const reward = [['copper_ore', 3], ['iron_ore', 2], ['oak_log', 4], ['stone_block', 6], ['leather_scrap', 2], ['flax', 2], ['wild_herb', 3]][Math.floor(rnd() * 7)];
+        r.mat[reward[0]] = (r.mat[reward[0]] || 0) + reward[1]; got.push(ITEMS[reward[0]].name + ' ×' + reward[1]);
+        const sk = t[0] === 'kill' ? { melee: 6, toughness: 4 } : t[0] === 'gather' ? { [GATHER[t[1]] ? GATHER[t[1]].skill : 'mining']: 8 } : { str: 3, sta: 3 };
+        learn(r, sk, 1); got.push('skill');
+        if (rnd() < 0.08) { const open = Object.keys(RECIPES).filter(k => !knows(r, k)); if (open.length) got.push(giveBp(r, open[Math.floor(rnd() * open.length)])); }
+        return { ok: true, got, up: ups(r, before) };
+      },
+      /* taking a made thing apart at the forge: half of what its recipe needs comes back (at least one of each), never
+         a failure; nothing worn, no blueprint, nothing that has no recipe */
+      salvage(a, uid) {
+        const r = of(a), i = r.bag.findIndex(e => e[0] === uid);
+        if (i < 0) return { ok: false, why: 'it is not in your bag' };
+        const id = r.bag[i][1], rc = RECIPES[id];
+        if (Object.values(r.eq).includes(uid)) return { ok: false, why: 'take it off first' };
+        if (!rc) return { ok: false, why: 'nobody knows how it was made' };
+        r.bag.splice(i, 1);
+        const got = [];
+        for (const m in rc.needs) { const n = Math.max(1, Math.floor(rc.needs[m] / 2)); r.mat[m] = (r.mat[m] || 0) + n; got.push(ITEMS[m].name + ' ×' + n); }
+        const before = profs(r), sk = {}; sk[rc.skill] = 2; learn(r, sk, 0.5);
+        return { ok: true, got, of: ITEMS[id].name, up: ups(r, before) };
       },
       /* building (Genesis, 2026-11-07): materials taken for a piece, and given back when it is taken down */
       pay(a, needs) {
@@ -398,6 +479,7 @@
         for (const m in (q.need || {}).bring || {}) { r.mat[m] -= q.need.bring[m]; if (r.mat[m] <= 0) delete r.mat[m]; }
         const before = profs(r), rw = q.reward || {}, got = [];
         for (const id of rw.items || []) if (ITEMS[id]) { r.bag.push([r.n++, id]); got.push(ITEMS[id].name); }
+        for (const rid of rw.bp || []) if (RECIPES[rid] && ITEMS[rid]) got.push(giveBp(r, rid));   /* the smith's blueprints */
         for (const m in rw.mats || {}) if (ITEMS[m]) { r.mat[m] = (r.mat[m] || 0) + rw.mats[m]; got.push(ITEMS[m].name + ' ×' + rw.mats[m]); }
         for (const k in rw.sk || {}) { const box = ATTRS[k] ? r.at : r.sk; box[k] = Math.round(((box[k] || 0) + rw.sk[k]) * 1000) / 1000; got.push('+' + rw.sk[k] + ' ' + (SKILLS[k] || {}).name); }
         r.qs[q.id] = 'done'; delete r.qk[q.id];
@@ -445,6 +527,8 @@
     };
   }
 
-  const rpg = { api: 1, SLOTS, SKILLS, PROFS, ATTRS, RANKS, ITEMS, FISTS, LOOT, GATHER, RECIPES, CODEX, ABILITIES, abilities, questState, questProgress, knows, fresh, stats, profs, rank, meets, itemOf, attr, book };
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('rpg', { api: 1, v: 8 }, () => rpg);
+  /* a bag entry's name as shown (a blueprint with its QR, a made thing with its quality) */
+  const entryName = e => { const it = itemOf({ bag: [e] }, e[0]); return it ? it.name : String(e[1]); };
+  const rpg = { api: 1, entryName, SLOTS, SKILLS, PROFS, ATTRS, RANKS, ITEMS, FISTS, LOOT, GATHER, RECIPES, CODEX, ABILITIES, abilities, questState, questProgress, knows, fresh, stats, profs, rank, meets, itemOf, attr, book };
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('rpg', { api: 1, v: 9 }, () => rpg);
 })(typeof globalThis !== 'undefined' ? globalThis : this);

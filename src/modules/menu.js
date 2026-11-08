@@ -58,6 +58,7 @@
         if (a.dataset.act === 'wear') o.ask({ op: 'equip', uid: +a.dataset.uid });
         else if (a.dataset.act === 'make') o.ask({ op: 'craft', recipe: a.dataset.recipe });
         else if (a.dataset.act === 'codex') o.ask({ op: 'codex', species: a.dataset.sp, skill: a.dataset.k });
+        else if (a.dataset.act === 'salvage') o.ask({ op: 'salvage', uid: +a.dataset.uid });
         else o.ask({ op: 'unequip', slot: a.dataset.slot });
         a.disabled = true; a.textContent = 'Asking the house…';
         return;
@@ -166,8 +167,9 @@
       } else if (tab === 'craft') {
         /* the recipes this player knows, by craft: what each needs (have / need), what it makes, and Make -- at the forge */
         const at = o.atForge ? o.atForge() : false;
-        let h = at ? '<p class="muted">At the forge. Making teaches the craft; now and then a new recipe turns up while you work.</p>'
-                   : '<p class="bad">Walk to the forge in Blockshire (east of the square) to make things. You can look at your recipes here.</p>';
+        let h = (at ? '<p class="muted">At the forge. You make from the blueprints in your bag; each use raises its QR (0 to 100), and a higher QR fails less. Now and then a new blueprint turns up while you work.</p>'
+                    : '<p class="bad">Walk to the forge in Blockshire (east of the square) to make things. You can look at your blueprints here.</p>') +
+                '<p class="muted">The smith at the forge has the first blueprints for those who help him.</p>';
         let hidden = 0;
         for (const craft of ['smith', 'carpenter', 'tailor']) {
           const sk = rpg.PROFS[craft], lv = stats.prof[craft] || 0;
@@ -176,34 +178,38 @@
             const rc = rpg.RECIPES[rid]; if (rc.prof !== craft) continue;
             if (!rpg.knows(rec, rid)) { hidden++; continue; }
             const it = rpg.ITEMS[rid], tooLow = lv < rc.level;
+            let qr = 0; for (const e of rec.bag) if (e[1] === 'bp:' + rid) qr = Math.max(qr, (e[2] || {}).qr || 0);
             let enough = true;
             const needs = Object.keys(rc.needs).map(m => { const have = rec.mat[m] || 0, ok = have >= rc.needs[m]; if (!ok) enough = false;
               return '<span class="' + (ok ? 'good' : 'bad') + '">' + esc(rpg.ITEMS[m].name) + ' ' + have + '/' + rc.needs[m] + '</span>'; }).join(' · ');
-            h += '<div class="detail" style="margin-top:6px"><b>' + esc(it.name) + '</b> <span class="muted">' + esc(statLine(it) || '') + '</span>' +
+            h += '<div class="detail" style="margin-top:6px"><b>' + esc(it.name) + '</b> <span class="muted">' + esc(statLine(it) || '') + ' · blueprint QR ' + qr.toFixed(1) + ' · ' + Math.round(70 + 25 * qr / 100) + ' % success</span>' +
               '<div>' + needs + (rc.level ? ' · <span class="' + (tooLow ? 'bad' : 'good') + '">' + esc(sk.name) + ' level ' + rc.level + '</span>' : '') + '</div>' +
               '<button class="act" data-act="make" data-recipe="' + rid + '"' + (at && enough && !tooLow ? '' : ' disabled') + '>Make</button></div>';
           }
         }
-        if (hidden) h += '<p class="muted" style="margin-top:12px">' + hidden + ' more recipes are still to be found.</p>';
+        if (hidden) h += '<p class="muted" style="margin-top:12px">' + hidden + ' more blueprints are still to be found (or bought).</p>';
         body.innerHTML = h;
       } else {
         let mats = '';
         for (const id in rec.mat) if (rec.mat[id] > 0) mats += '<div class="row"><span>' + esc(rpg.ITEMS[id] ? rpg.ITEMS[id].name : id) + '</span><b>× ' + rec.mat[id] + '</b></div>';
         let grid = '';
-        for (const [uid, id] of rec.bag) {
-          const it = rpg.ITEMS[id]; if (!it) continue;
+        for (const [uid] of rec.bag) {
+          const it = rpg.itemOf(rec, uid); if (!it || !it.name) continue;
           grid += '<div class="item' + (wornSlot(uid) ? ' worn' : '') + (picked === uid ? ' sel' : '') + '" data-uid="' + uid + '"><b>' + esc(it.name) + '</b><small>' +
-            esc(slotName(it.slot === 'main' ? 'main' : (rpg.SLOTS.find(x => x[1] === it.slot) || [it.slot])[0])) + (wornSlot(uid) ? ' · worn' : '') + '</small></div>';
+            (it.blueprint ? 'blueprint' : esc(slotName(it.slot === 'main' ? 'main' : (rpg.SLOTS.find(x => x[1] === it.slot) || [it.slot])[0]))) + (wornSlot(uid) ? ' · worn' : '') + '</small></div>';
         }
         let detail = '';
         const it = picked != null && rpg.itemOf(rec, picked);
-        if (it) {
+        if (it && it.blueprint) {
+          detail = '<div class="detail"><b>' + esc(it.name) + '</b><div class="muted">Used at the forge to make ' + esc((rpg.ITEMS[it.blueprint] || {}).name || it.blueprint) + '. Its QR grows each time it is used. It can be kept in a chest or sold in a shop.</div></div>';
+        } else if (it) {
           const unmet = rpg.meets(rec, it), worn = wornSlot(it.uid);
           const req = Object.keys(it.req || {}).map(k => reqName(k) + it.req[k]);
           detail = '<div class="detail"><b>' + esc(it.name) + '</b><div>' + esc(statLine(it) || 'no numbers') + '</div>' +
             (req.length ? '<div class="' + (unmet.length ? 'bad' : 'good') + '">Needs ' + esc(req.join(', ')) + '</div>' : '<div class="muted">Anybody can use it</div>') +
             (worn ? '<button class="act" data-act="off" data-slot="' + worn + '">Take off</button>'
-                  : '<button class="act" data-act="wear" data-uid="' + it.uid + '"' + (unmet.length ? ' disabled' : '') + '>Wear</button>') + '</div>';
+                  : '<button class="act" data-act="wear" data-uid="' + it.uid + '"' + (unmet.length ? ' disabled' : '') + '>Wear</button>') +
+            (!worn && rpg.RECIPES[it.id] ? '<button class="act" data-act="salvage" data-uid="' + it.uid + '"' + (o.atForge && o.atForge() ? '' : ' disabled title="at the forge"') + '>Take apart' + (o.atForge && o.atForge() ? '' : ' (at the forge)') + '</button>' : '') + '</div>';
         }
         body.innerHTML = '<div class="cols"><div class="col" style="flex:2"><h4>Things</h4>' + (grid ? '<div class="grid">' + grid + '</div>' : '<p class="muted">Nothing yet.</p>') + detail + '</div>' +
           '<div class="col"><h4>Materials</h4>' + (mats || '<p class="muted">None yet. Raiders drop some; the forest will give more.</p>') + '</div></div>';
@@ -218,5 +224,5 @@
   }
 
   const menu = { api: 1, create };
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('menu', { api: 1, v: 4 }, () => menu);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('menu', { api: 1, v: 5 }, () => menu);
 })(typeof globalThis !== 'undefined' ? globalThis : this);
