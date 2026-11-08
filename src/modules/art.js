@@ -1575,8 +1575,30 @@
       const m = new T.Mesh(geo, material); m.castShadow = shadow; m.receiveShadow = true; group.add(m);
     }
   }
+  /* A BOULDER that holds together (tbuuol 2026-11-08: "zusammengewürfelte Dreiecke, man kann durchschauen"): every
+     corner is moved by its own place, not once per face it belongs to, so the faces stay joined; a flat underside so it
+     sits on the ground. size: its radius; [sx, sy, sz] its stretch; seed: its own shape */
+  function boulder(size, sx, sy, sz, seed) {
+    const g = new T.IcosahedronGeometry(size, 2), p = g.attributes.position, kept = new Map();
+    const noise = (x, y, z) => { let h = Math.sin(x * 12.9898 + y * 78.233 + z * 37.719 + seed * 0.013) * 43758.5453; return h - Math.floor(h); };
+    for (let i = 0; i < p.count; i++) {
+      const x = p.getX(i), y = p.getY(i), z = p.getZ(i), key = Math.round(x * 1000) + ',' + Math.round(y * 1000) + ',' + Math.round(z * 1000);
+      let k = kept.get(key);
+      if (k == null) {   /* lumps: a broad one and a fine one, the same for every face this corner is part of */
+        const u = x / size, v = y / size, w = z / size, o = noise(1, 2, 3) * 6.28, o2 = noise(4, 5, 6) * 6.28;
+        k = 0.95 + 0.09 * Math.sin(u * 2.3 + o) * Math.cos(w * 1.9 + o2) + 0.06 * Math.sin(v * 3.1 + u * 1.7 + o2) + 0.035 * Math.sin(w * 6.1 + v * 5.3 + o);
+        kept.set(key, k);
+      }
+      p.setXYZ(i, x * k * sx, Math.max(y * k * sy, -0.32 * size * sy), z * k * sz);
+    }
+    g.computeVertexNormals();
+    return g;
+  }
+  /* boulders in plain stone colours, faceted: a clean low-poly look (the painted stone's mortar lines made them blotchy) */
+  let boulderM = null;
   art.resource = function (ctx, def) {   /* def.y: the ground it stands on (out in the world's land; 0 in a place) */
     const [x, z] = def.pos, y0 = def.y || 0, g = new T.Group(), rnd = art.rng(Math.round(x * 31 + z * 17)), full = new T.Group(), left = new T.Group();
+    boulderM = boulderM || { pale: plain('#bdb6a8', { flatShading: true, roughness: 0.95 }), grey: plain('#8f8a82', { flatShading: true, roughness: 0.95 }) };
     g.add(full, left);
     let use;
     if (def.kind === 'tree') {
@@ -1587,23 +1609,19 @@
       const ring = mesh(new T.CylinderGeometry(0.3, 0.3, 0.02, 10), plain('#c9a27a')); ring.position.y = 0.46; left.add(ring);
       use = mesh(new T.CylinderGeometry(0.6, 0.6, 2.4, 8), new T.MeshBasicMaterial({ visible: false })); use.position.y = 1.2;
       ctx.solid([x - 0.45, y0, z - 0.45], [x + 0.45, y0 + 3, z + 0.45]);
-    } else if (def.kind === 'stone') {   /* a quarry's block: pale, square-ish, no ore in it */
-      const geo = new T.DodecahedronGeometry(0.85, 0), p = geo.attributes.position;
-      for (let i = 0; i < p.count; i++) { const k = 0.9 + rnd() * 0.2; p.setXYZ(i, p.getX(i) * k * 1.25, p.getY(i) * k * 0.95, p.getZ(i) * k * 1.1); }
-      geo.computeVertexNormals();
-      const stone = mesh(geo, mat('stone', { m: { color: '#c9c3b6' } })); stone.position.y = 0.6; full.add(stone);
+    } else if (def.kind === 'stone') {   /* a quarry's block: pale, broad and squat, no ore in it */
+      const geo = boulder(0.85, 1.3, 0.9, 1.1, Math.round(x * 7 + z * 13));
+      const stone = mesh(geo, boulderM.pale); stone.position.y = 0.26; full.add(stone);
       const chips = mesh(new T.CylinderGeometry(0.8, 0.9, 0.08, 9), plain('#a8a296')); chips.position.y = 0.04; left.add(chips);
       use = mesh(new T.SphereGeometry(1.1, 8, 6), new T.MeshBasicMaterial({ visible: false })); use.position.y = 0.6;
       ctx.solid([x - 0.9, y0, z - 0.8], [x + 0.9, y0 + 1.2, z + 0.8], () => full.visible);
     } else if (def.kind === 'rock') {
-      const geo = new T.DodecahedronGeometry(0.9, 1), p = geo.attributes.position;
-      for (let i = 0; i < p.count; i++) { const k = 0.85 + rnd() * 0.3; p.setXYZ(i, p.getX(i) * k * 1.2, p.getY(i) * k * 0.8, p.getZ(i) * k); }
-      geo.computeVertexNormals();
-      const stone = mesh(geo, mat('stone', { m: { color: '#9a958c' } })); stone.position.y = 0.55; g.add(stone);
+      const geo = boulder(0.9, 1.2, 0.85, 1.0, Math.round(x * 7 + z * 13));
+      const stone = mesh(geo, boulderM.grey); stone.position.y = 0.25; g.add(stone);
       const copper = plain('#c87533', { metalness: 0.6, roughness: 0.35 }), iron = plain('#7d8590', { metalness: 0.7, roughness: 0.3 });
       for (let i = 0; i < 9; i++) {   /* veins: bits of ore in the stone's skin */
         const a = rnd() * Math.PI * 2, h = rnd() * 0.6, v = mesh(new T.BoxGeometry(0.16, 0.12, 0.08), i % 3 ? copper : iron);
-        v.position.set(Math.cos(a) * 0.95, 0.35 + h, Math.sin(a) * 0.75); v.lookAt(0, 0.6, 0); full.add(v);
+        v.position.set(Math.cos(a) * 1.0, 0.3 + h * 0.8, Math.sin(a) * 0.85); v.lookAt(0, 0.45, 0); full.add(v);
       }
       use = mesh(new T.SphereGeometry(1.1, 8, 6), new T.MeshBasicMaterial({ visible: false })); use.position.y = 0.6;
       ctx.solid([x - 0.9, y0, z - 0.75], [x + 0.9, y0 + 1.1, z + 0.75]);
@@ -2427,5 +2445,5 @@
     return { groundAt, polys, segs, half, spawn, inside, stats: { buildings: buildings.length, trees: trees.length } };
   };
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('art', { api: 1, v: 24 }, () => art);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('art', { api: 1, v: 25 }, () => art);
 })(typeof globalThis !== 'undefined' ? globalThis : this);
