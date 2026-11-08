@@ -54,6 +54,22 @@
       };
     },
 
+    /* hand an inscription on (a plot's deed to the registry, 2026-11-08): the wallet's card, then the answer */
+    async sendPiece(inscription, to, note) {
+      let filed;
+      try { filed = await getJSON('/r/send', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                              body: JSON.stringify({ kind: 'inscription', inscription, to, label: 'LiteWorldsQuest', note: note || '' }) }); }
+      catch (e) { return { status: 'failed', error: 'no wallet is answering' }; }
+      if (!filed.ok || !filed.j.id) return { status: 'failed', error: filed.j.error || 'refused' };
+      const until = Date.now() + 10 * 60 * 1000;
+      while (Date.now() < until) {
+        await sleep(1500);
+        let got; try { got = await getJSON('/r/send/' + encodeURIComponent(filed.j.id)); } catch (e) { continue; }
+        const st = got.j.status;
+        if (st && st !== 'pending') return { status: st, txid: got.j.txid || null, error: got.j.error || null };
+      }
+      return { status: 'expired' };
+    },
     async pay(ask, onStatus) {
       const say = s => { try { if (onStatus) onStatus(s); } catch (e) { /* the game's problem */ } };
       const body = { kind: 'coins', to: ask.to, amount: String(ask.amount), label: ask.label || 'LiteWorldsQuest',
@@ -79,5 +95,5 @@
       return { status: 'expired' };
     }
   };
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('wallet', { api: 1, v: 2 }, () => wallet);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('wallet', { api: 1, v: 3 }, () => wallet);
 })(typeof globalThis !== 'undefined' ? globalThis : this);

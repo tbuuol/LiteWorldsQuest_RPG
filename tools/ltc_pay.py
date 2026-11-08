@@ -187,6 +187,10 @@ async def sync(frame, pay: "Pay", tick: int) -> None:
         await frame.evaluate("l => window.LWQGAME.housePlotInvoices(l)", pay.open())
     if tick % 10 == 0:
         for paid in pay.watch():
+            import resale   # noqa: PLC0415 -- it imports this module
+            if resale.paid(pay.db, paid["plot"], paid["addr"], paid.get("tag") or "", paid.get("txid") or ""):
+                pay.done(paid["plot"])   # a plot sold on: tools/resale.py pays the seller and hands the deed over
+                continue
             if await frame.evaluate("p => window.LWQGAME.housePlotPaid(p)", paid):
                 pay.done(paid["plot"])
                 deeds.enqueue(pay.db, paid["plot"], paid["addr"], paid.get("tag") or "", paid.get("txid") or "")   # its deed, as an inscription

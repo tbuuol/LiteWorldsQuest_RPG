@@ -344,6 +344,10 @@
        for an invoice -- the house's tLTC address and an exact amount -- holds the plot for the buyer meanwhile, and
        gives it the moment the keeper has seen the payment on the chain. Without it, buying stays simulated. */
     let payOn = false, plotAsks = [], held = {}, myInvoice = null;
+    /* SOLD ON (2026-11-08, tools/resale.py): an owner offers a plot at a price and hands the deed to the registry; a buyer
+       pays the price and the city's 10 % on top; the seller gets the price, the buyer the deed. sales: what is offered,
+       as the keeper's database says (housePlotSales); saleAsks: what owners asked, for the keeper */
+    let sales = {}, saleAsks = [], escrowAddr = '';
     const tagOf = from => { const r = from && remotes.get(from.id); const t = (from && from.tag) || (r && r.from.tag) || ''; return t ? '@' + String(t).replace(/^@/, '') : ''; };
     const myAddr = () => (room && room.me && room.me.address) || null;
     function plotOwnerText(id) {
@@ -355,6 +359,12 @@
       const p = plots.find(q => q.id === id);
       if (!p) return;
       if (!plotsLoaded) { notice(from.id, 'The registrar is still opening his books. Ask again in a moment.'); return; }
+      const sale = sales[id];
+      if (plotOwn[id] && sale && sale.state === 'open' && plotOwn[id][1] !== a && payOn) {   /* a plot offered by its owner */
+        if (!plotAsks.some(q => q.plot === id)) plotAsks.push({ plot: id, addr: a, tag: tagOf(from), to: from.id, price: sale.total });
+        notice(from.id, 'Registrar Aldous writes your invoice for plot ' + id + ': ' + sale.price + ' tLTC for ' + (sale.tag || 'the owner') + ' and ' + (+sale.total - +sale.price).toFixed(8).replace(/0+$/, '') + ' tLTC city levy…');
+        return;
+      }
       if (plotOwn[id]) { notice(from.id, 'Plot ' + id + ' is not for sale: ' + (plotOwn[id][1] === a ? 'it is yours already.' : 'it belongs to ' + (plotOwn[id][0] || 'someone') + '.')); return; }
       const mine = Object.keys(plotOwn).filter(k => plotOwn[k][1] === a).length;
       if (mine >= PLOT_LIMIT) { notice(from.id, 'You hold ' + mine + ' plots, as many as one citizen may.'); return; }
@@ -369,6 +379,23 @@
       plotOwn = Object.assign({}, plotOwn, { [id]: [tagOf(from), a, at, deed] });
       plotsDirty.add(id); applyPlots(plotOwn); sendPlots();
       notice(from.id, 'Plot ' + id + ' is yours. Your deed: ' + deed + ' (simulated; the price, ' + PLOT_PRICE[p.kind] + ' LTC, is not charged in the beta).');
+    }
+    function houseSell(from, a, d) {
+      const id = String(d.p), o = plotOwn[id];
+      if (!payOn) { notice(from.id, 'The registry does not sell plots on just now.'); return; }
+      if (!o || o[1] !== a) { notice(from.id, 'Only its owner can offer plot ' + id + '.'); return; }
+      if (d.Q === 'unsell') { saleAsks.push({ x: 'unsell', plot: id }); notice(from.id, 'Plot ' + id + ' is taken off the market.'); return; }
+      const price = +d.price;
+      if (!(price >= 0.001 && price <= 100)) { notice(from.id, 'A price between 0.001 and 100 tLTC, please.'); return; }
+      if (!/^[0-9a-f]{64}$/.test(o[3] || '')) { notice(from.id, 'Your deed is still on its way to your wallet. Offer the plot once it is there.'); return; }
+      if (sales[id] && ['escrow', 'open', 'paid', 'return'].includes(sales[id].state)) { notice(from.id, 'Plot ' + id + ' is on offer already.'); return; }
+      saleAsks.push({ x: 'sell', plot: id, addr: a, tag: tagOf(from), price: String(+price.toFixed(8)), deed: o[3] });
+      notice(from.id, 'Plot ' + id + ' offered at ' + +price.toFixed(8) + ' tLTC. Now hand your deed to the registry (the button in the registry), and the sale opens.');
+    }
+    function sendSales(to) {
+      if (!room || !iAmHouse) return;
+      const ids = to ? [to].filter(linked) : directPlayers();
+      if (ids.length) room.to(ids, { SL: [sales, escrowAddr] }, true);
     }
     function sendPlots(to) {
       if (!room || !iAmHouse) return;
@@ -454,6 +481,34 @@
         log(got.status === 'sent' ? 'Paid. The registrar waits for the Litecoin test chain to show it.' : 'The payment did not go out: ' + (got.error || got.status) + '.');
         pb.disabled = false; pb.textContent = 'Pay with my arcade wallet';
       };
+      /* selling on, and buying what others offer */
+      const sale = sales[p.id], deedOf = plotOwn[p.id];
+      if (deedOf) {
+        const btn = (k, t, c) => '<button data-' + k + ' style="background:' + (c || '#5a4630') + ';color:#fff;border:1px solid #c8a050;border-radius:4px;padding:3px 10px;cursor:pointer;margin-left:6px">' + t + '</button>';
+        let h = '';
+        if (deedOf[1] === me2) {
+          if (!sale || ['done', 'gone'].includes(sale.state)) h = 'Offer it for <input data-price type="number" min="0.001" step="0.001" placeholder="tLTC" style="width:90px"> tLTC' + btn('sell', 'Offer for sale', '#3f6a2a') + '<br><small>The buyer pays your price and the city\'s 10 % on top; you get your whole price.</small>';
+          else if (sale.state === 'escrow') h = 'Offered at <b>' + esc(sale.price) + '</b> tLTC. Hand your deed to the registry to open the sale:' + btn('hand', 'Hand over the deed', '#2f5a7a') + btn('unsell', 'Take it back');
+          else if (sale.state === 'open') h = 'On sale at <b>' + esc(sale.price) + '</b> tLTC (the buyer pays ' + esc(sale.total) + ' with the levy). The registry keeps your deed.' + btn('unsell', 'Take it back');
+          else if (sale.state === 'paid') h = 'Sold: your price is being paid out, and the deed handed to the buyer.';
+          else if (sale.state === 'return') h = 'Your deed is on its way back to you.';
+        } else if (sale && sale.state === 'open') {
+          h = 'For sale by ' + esc(sale.tag || 'its owner') + ': <b>' + esc(sale.price) + '</b> tLTC + 10 % city levy = <b>' + esc(sale.total) + '</b> tLTC' + (me2 ? btn('buy2', 'Buy', '#3f6a2a') : ' · sign in to buy');
+        }
+        if (h) info.innerHTML += '<div style="margin-top:8px;padding:8px;border:1px solid #8a6a3a;border-radius:6px;background:#2f2418">' + h + '</div>';
+        const q = sel => info.querySelector(sel);
+        if (q('[data-sell]')) q('[data-sell]').onclick = () => askHouse({ Q: 'sell', p: p.id, price: +(q('[data-price]').value || 0) });
+        if (q('[data-unsell]')) q('[data-unsell]').onclick = () => askHouse({ Q: 'unsell', p: p.id });
+        if (q('[data-buy2]')) q('[data-buy2]').onclick = e => { askHouse({ Q: 'plot', p: p.id }); e.target.disabled = true; e.target.textContent = 'Asking…'; };
+        if (q('[data-hand]')) q('[data-hand]').onclick = async e => {
+          if (!escrowAddr) { log('The registry has no address yet; try again in a moment.'); return; }
+          e.target.disabled = true; e.target.textContent = 'Look at your wallet…';
+          const got = await wallet.sendPiece(deedOf[3], escrowAddr, 'The deed to plot ' + p.id + ', kept by the registry while it is on sale');
+          log(got.status === 'sent' ? 'The deed is on its way to the registry; the sale opens when it is there.' : 'The deed did not go: ' + (got.error || got.status) + '.');
+          e.target.disabled = false; e.target.textContent = 'Hand over the deed';
+        };
+        const pi = q('[data-price]'); if (pi) pi.addEventListener('keydown', ev => ev.stopPropagation());
+      }
       const bb = info.querySelector('[data-buy]');
       if (bb) bb.onclick = () => { askHouse({ Q: 'plot', p: p.id }); bb.disabled = true; bb.textContent = 'Asking…'; };
     }
@@ -1682,7 +1737,7 @@
       const dep = {}; for (const id in W.dep) if (W.dep[id]) dep[id] = 1;
       const ids = to ? [to].filter(linked) : directPlayers();
       if (ids.length) room.to(ids, { W: { seq: W.seq, open, taken, dep } }, true);
-      if (plots.length) { sendPlots(to); if (to) for (const id in built) if ((built[id] || []).length) sendBuilt(id, to); }
+      if (plots.length) { sendPlots(to); sendSales(to); if (to) for (const id in built) if ((built[id] || []).length) sendBuilt(id, to); }
       lastWorldSent = performance.now();
     }
     /* the world as the host says it is: what changed is said in the log, each change once */
@@ -1843,6 +1898,7 @@
       /* the world only from the house */
       if (d.W && typeof d.W === 'object' && from.id === hostId() && +d.W.seq > W.seq) applyWorld(d.W);
       if (d.PL && typeof d.PL === 'object' && from.id === hostId()) applyPlots(d.PL);
+      if (Array.isArray(d.SL) && from.id === hostId()) { sales = d.SL[0] || {}; escrowAddr = String(d.SL[1] || ''); if (plotsOpen) drawPlots(); }
       if (d.IV && typeof d.IV === 'object' && from.id === hostId()) { myInvoice = d.IV; if (plotsOpen) drawPlots(); else openPlots(); }
       if (Array.isArray(d.BU) && from.id === hostId() && Array.isArray(d.BU[1]) && plots.some(p => p.id === String(d.BU[0]))) {
         built = Object.assign({}, built, { [String(d.BU[0])]: d.BU[1].filter(q => Array.isArray(q) && q.length >= 6).slice(0, BUILD_MAX) }); applyBuilt(String(d.BU[0]));
@@ -1867,6 +1923,7 @@
         else if (d.Q === 'unequip') book.unequip(a, String(d.s));
         else if (d.Q === 'plot') housePlot(from, a, String(d.p));
         else if (d.Q === 'build') houseBuild(from, a, d);
+        else if (d.Q === 'sell' || d.Q === 'unsell') houseSell(from, a, d);
         else if (d.Q === 'home' || d.Q === 'chest') houseFurniture(from, a, d);
         else if (d.Q === 'quest') {
           const q = (LV.quests || []).find(x => x.id === String(d.q)), r = remotes.get(from.id), N = q && npcs[q.npc];
@@ -2292,6 +2349,37 @@
         return true;
       },
       /* the deed is on the chain and in the buyer's wallet (tools/deeds.py): its inscription is the plot's deed now */
+      houseSaleAsks() { const out = saleAsks; saleAsks = []; return JSON.stringify(out); },
+      housePlotSales(list, esc) {
+        const next = {}; for (const sl of list || []) next[sl.plot] = sl;
+        const changed = JSON.stringify(next) !== JSON.stringify(sales) || escrowAddr !== esc;
+        sales = next; escrowAddr = String(esc || '');
+        if (changed) sendSales();
+        return Object.keys(sales).length;
+      },
+      /* whoever holds a deed on the chain owns its plot -- however the deed got there (the registry keeps it while on offer) */
+      houseDeedOwners(map, esc) {
+        let n = 0;
+        for (const id in plotOwn) {
+          const o = plotOwn[id], holder = map[o[3]];
+          if (!holder || holder === o[1] || holder === esc) continue;
+          if (sales[id] && sales[id].state === 'paid') continue;   /* it is being handed to its buyer */
+          let tag = ''; for (const [, r] of remotes) if (r.from.address === holder) tag = tagOf(r.from);
+          plotOwn = Object.assign({}, plotOwn, { [id]: [tag, holder, Date.now(), o[3]] }); plotsDirty.add(id); n++;
+        }
+        if (n) { applyPlots(plotOwn); sendPlots(); }
+        return n;
+      },
+      housePlotResold(id, buyer, btag) {
+        const o = plotOwn[id]; if (!o) return false;
+        const seller = o[1];
+        plotOwn = Object.assign({}, plotOwn, { [id]: [btag || '', buyer, Date.now(), o[3]] }); plotsDirty.add(id); applyPlots(plotOwn); sendPlots();
+        for (const [rid, r] of remotes) {
+          if (r.from.address === buyer) notice(rid, 'Plot ' + id + ' is yours: the deed is in your wallet.');
+          if (r.from.address === seller) notice(rid, 'Plot ' + id + ' is sold. Your price is paid out to your Litecoin testnet address.');
+        }
+        return true;
+      },
       housePlotDeed(id, insc) {
         const o = plotOwn[id]; if (!o || !/^[0-9a-f]{64}$/.test(String(insc))) return false;
         plotOwn = Object.assign({}, plotOwn, { [id]: [o[0], o[1], o[2], String(insc)] });
@@ -2351,6 +2439,6 @@
     };
   }
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 37, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 38, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
     D => ({ start: (el, opts) => start(D, el, opts) }));
 })(typeof globalThis !== 'undefined' ? globalThis : this);

@@ -25,6 +25,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import house_store  # noqa: E402
 import ltc_pay  # noqa: E402
 import deeds  # noqa: E402
+import resale  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SECRET = ROOT / ".publisher"
@@ -50,6 +51,7 @@ except (OSError, ValueError):
     LAST_GOOD = time.time()
 LAST_TROUBLE = ""
 DEED_JOB = None   # a deed's step running in a thread (tools/deeds.py)
+SALE_JOB = None   # a round of the sales' jobs (tools/resale.py)
 
 
 def log(*parts) -> None:
@@ -343,6 +345,26 @@ async def _session(p, level: str = "") -> None:
                         await ltc_pay.sync(frame, pay, tick)
                     except Exception as e:   # noqa: BLE001 -- the next second tries again
                         log("pay error:", repr(e)[:200])
+                    # plots sold on (tools/resale.py): what owners asked, the sales as they stand, and a round of its jobs
+                    try:
+                        asks = json.loads(await frame.evaluate("window.LWQGAME.houseSaleAsks ? window.LWQGAME.houseSaleAsks() : '[]'") or "[]")
+                        if asks:
+                            resale.handle_asks(store.db, asks)
+                        if asks or tick % 10 == 0:
+                            await frame.evaluate("a => window.LWQGAME.housePlotSales && window.LWQGAME.housePlotSales(a[0], a[1])", [resale.listed(store.db), resale.escrow()])
+                        global SALE_JOB
+                        if SALE_JOB is None and tick % 30 == 7:
+                            SALE_JOB = asyncio.get_running_loop().run_in_executor(None, resale.step_at, STORE)
+                        elif SALE_JOB is not None and SALE_JOB.done():
+                            for t in SALE_JOB.result():
+                                if t[0] == "owners":
+                                    await frame.evaluate("a => window.LWQGAME.houseDeedOwners(a[0], a[1])", [t[1], resale.escrow()])
+                                elif t[0] == "resold":
+                                    await frame.evaluate("a => window.LWQGAME.housePlotResold(a[0], a[1], a[2])", list(t[1:]))
+                                    log("plot", t[1], "sold on to", t[2])
+                            SALE_JOB = None
+                    except Exception as e:   # noqa: BLE001 -- tried again next round
+                        log("sale error:", repr(e)[:200]); SALE_JOB = None
                     # the deeds (tools/deeds.py): a step at a time, in a thread, the game told when one is handed on
                     global DEED_JOB
                     if DEED_JOB is None and tick % 15 == 0:
