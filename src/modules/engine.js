@@ -459,6 +459,9 @@
       }
       x.fillStyle = '#d0261a'; x.beginPath(); x.arc((me.x - x0) * S, (me.z - z0) * S, 5, 0, Math.PI * 2); x.fill();   /* you */
       const info = plotsBox.querySelector('[data-i]'), p = plotPick;
+      /* the panel is drawn again whenever the registry hears news (owners, offers): what you were typing stays (tbuuol
+         2026-11-08: "das Menü resetet immer wieder") */
+      const typing = info.querySelector('[data-price]'), keepPrice = typing ? { v: typing.value, f: document.activeElement === typing, plot: info.dataset.plot } : null;
       const mine = Object.keys(plotOwn).filter(k => plotOwn[k][1] === me2);
       const head = 'Blue: houses · red: workshops · gold-orange: shops · grey: owned · yellow: yours (' + mine.length + ' of ' + PLOT_LIMIT + ')';
       if (!p) { info.innerHTML = esc(head) + '<br>Click a plot.'; return; }
@@ -507,7 +510,12 @@
           log(got.status === 'sent' ? 'The deed is on its way to the registry; the sale opens when it is there.' : 'The deed did not go: ' + (got.error || got.status) + '.');
           e.target.disabled = false; e.target.textContent = 'Hand over the deed';
         };
-        const pi = q('[data-price]'); if (pi) pi.addEventListener('keydown', ev => ev.stopPropagation());
+        const pi = q('[data-price]');
+        if (pi) {
+          pi.addEventListener('keydown', ev => ev.stopPropagation());
+          if (keepPrice && keepPrice.plot === p.id) { pi.value = keepPrice.v; if (keepPrice.f) { pi.focus(); try { pi.setSelectionRange(pi.value.length, pi.value.length); } catch (e) { /* a number field */ } } }
+        }
+        info.dataset.plot = p.id;
       }
       const bb = info.querySelector('[data-buy]');
       if (bb) bb.onclick = () => { askHouse({ Q: 'plot', p: p.id }); bb.disabled = true; bb.textContent = 'Asking…'; };
@@ -1737,7 +1745,7 @@
       const dep = {}; for (const id in W.dep) if (W.dep[id]) dep[id] = 1;
       const ids = to ? [to].filter(linked) : directPlayers();
       if (ids.length) room.to(ids, { W: { seq: W.seq, open, taken, dep } }, true);
-      if (plots.length) { sendPlots(to); sendSales(to); if (to) for (const id in built) if ((built[id] || []).length) sendBuilt(id, to); }
+      if (plots.length && to) { sendPlots(to); sendSales(to); for (const id in built) if ((built[id] || []).length) sendBuilt(id, to); }
       lastWorldSent = performance.now();
     }
     /* the world as the host says it is: what changed is said in the log, each change once */
@@ -1897,8 +1905,12 @@
       if (d.I && amHost()) hostApply(String(d.I), String(d.o || ''), from.id);
       /* the world only from the house */
       if (d.W && typeof d.W === 'object' && from.id === hostId() && +d.W.seq > W.seq) applyWorld(d.W);
-      if (d.PL && typeof d.PL === 'object' && from.id === hostId()) applyPlots(d.PL);
-      if (Array.isArray(d.SL) && from.id === hostId()) { sales = d.SL[0] || {}; escrowAddr = String(d.SL[1] || ''); if (plotsOpen) drawPlots(); }
+      if (d.PL && typeof d.PL === 'object' && from.id === hostId() && JSON.stringify(d.PL) !== JSON.stringify(plotOwn)) applyPlots(d.PL);
+      if (Array.isArray(d.SL) && from.id === hostId()) {   /* drawn again only when something changed */
+        const was = JSON.stringify([sales, escrowAddr]);
+        sales = d.SL[0] || {}; escrowAddr = String(d.SL[1] || '');
+        if (plotsOpen && JSON.stringify([sales, escrowAddr]) !== was) drawPlots();
+      }
       if (d.IV && typeof d.IV === 'object' && from.id === hostId()) { myInvoice = d.IV; if (plotsOpen) drawPlots(); else openPlots(); }
       if (Array.isArray(d.BU) && from.id === hostId() && Array.isArray(d.BU[1]) && plots.some(p => p.id === String(d.BU[0]))) {
         built = Object.assign({}, built, { [String(d.BU[0])]: d.BU[1].filter(q => Array.isArray(q) && q.length >= 6).slice(0, BUILD_MAX) }); applyBuilt(String(d.BU[0]));
@@ -2439,6 +2451,6 @@
     };
   }
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 38, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 39, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
     D => ({ start: (el, opts) => start(D, el, opts) }));
 })(typeof globalThis !== 'undefined' ? globalThis : this);
