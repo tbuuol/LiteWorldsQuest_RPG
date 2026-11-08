@@ -20,6 +20,8 @@ import secrets
 import subprocess
 import time
 
+import deeds
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 KEY = ROOT / ".publisher" / "ltc-house.json"
 CLI = [str(pathlib.Path.home() / "Litecoin/omnilite-0.18.2/bin/omnilite-cli"), "-datadir=" + str(pathlib.Path.home() / "Litecoin/data"), "-testnet"]
@@ -187,3 +189,4 @@ async def sync(frame, pay: "Pay", tick: int) -> None:
         for paid in pay.watch():
             if await frame.evaluate("p => window.LWQGAME.housePlotPaid(p)", paid):
                 pay.done(paid["plot"])
+                deeds.enqueue(pay.db, paid["plot"], paid["addr"], paid.get("tag") or "", paid.get("txid") or "")   # its deed, as an inscription

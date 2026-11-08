@@ -437,7 +437,7 @@
       if (!p) { info.innerHTML = esc(head) + '<br>Click a plot.'; return; }
       const sz = Math.round(p.rect[2] - p.rect[0]) + ' × ' + Math.round(p.rect[3] - p.rect[1]) + ' m', own = plotOwnerText(p.id);
       info.innerHTML = esc(head) + '<br><b>Plot ' + esc(p.id) + '</b> · ' + esc(PLOT_KIND[p.kind] || p.kind) + ' · ' + sz + ' · ' + esc(own) +
-        (plotOwn[p.id] ? (plotOwn[p.id][1] === me2 ? ' · deed ' + esc(plotOwn[p.id][3] || '') : '')
+        (plotOwn[p.id] ? (plotOwn[p.id][1] === me2 ? (/^[0-9a-f]{64}$/.test(plotOwn[p.id][3] || '') ? ' · deed: inscription ' + esc(plotOwn[p.id][3].slice(0, 12)) + '… (in your wallet)' : ' · deed ' + esc(plotOwn[p.id][3] || '') + ' (the inscription is on its way)') : '')
           : ' · price ' + PLOT_PRICE[p.kind] + ' tLTC (Litecoin testnet) ' + (me2 ? '<button data-buy style="background:#3f6a2a;color:#fff;border:1px solid #8fbf5a;border-radius:4px;padding:3px 12px;cursor:pointer">Buy</button>' : '· sign in to buy'));
       const iv = myInvoice && myInvoice.until > Date.now() ? myInvoice : null;
       if (iv) {
@@ -2291,6 +2291,14 @@
         for (const [rid, r] of remotes) if (r.from.address === paid.addr) notice(rid, 'Payment seen on the Litecoin test chain: plot ' + id + ' is yours. Deed tltc:' + String(paid.txid || '').slice(0, 16) + '.');
         return true;
       },
+      /* the deed is on the chain and in the buyer's wallet (tools/deeds.py): its inscription is the plot's deed now */
+      housePlotDeed(id, insc) {
+        const o = plotOwn[id]; if (!o || !/^[0-9a-f]{64}$/.test(String(insc))) return false;
+        plotOwn = Object.assign({}, plotOwn, { [id]: [o[0], o[1], o[2], String(insc)] });
+        plotsDirty.add(id); applyPlots(plotOwn); sendPlots();
+        for (const [rid, r] of remotes) if (r.from.address === o[1]) notice(rid, 'Your deed to plot ' + id + ' is on the chain and in your wallet: inscription ' + String(insc).slice(0, 12) + '…');
+        return true;
+      },
       houseBuiltLoaded: () => builtLoaded || !plots.length,
       houseBuilt(json) { const all = typeof json === 'string' ? JSON.parse(json) : json; builtLoaded = true; built = {}; for (const id in all || {}) if (Array.isArray(all[id])) { built[id] = all[id]; applyBuilt(id); sendBuilt(id); } return Object.keys(built).length; },
       houseBuiltTake() { const out = {}; for (const id of builtDirty) out[id] = built[id] && built[id].length ? built[id] : null; builtDirty.clear(); return JSON.stringify(out); },
@@ -2343,6 +2351,6 @@
     };
   }
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 36, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 37, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
     D => ({ start: (el, opts) => start(D, el, opts) }));
 })(typeof globalThis !== 'undefined' ? globalThis : this);

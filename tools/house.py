@@ -24,6 +24,7 @@ from playwright.async_api import async_playwright
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import house_store  # noqa: E402
 import ltc_pay  # noqa: E402
+import deeds  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SECRET = ROOT / ".publisher"
@@ -48,6 +49,7 @@ try:
 except (OSError, ValueError):
     LAST_GOOD = time.time()
 LAST_TROUBLE = ""
+DEED_JOB = None   # a deed's step running in a thread (tools/deeds.py)
 
 
 def log(*parts) -> None:
@@ -341,6 +343,18 @@ async def _session(p, level: str = "") -> None:
                         await ltc_pay.sync(frame, pay, tick)
                     except Exception as e:   # noqa: BLE001 -- the next second tries again
                         log("pay error:", repr(e)[:200])
+                    # the deeds (tools/deeds.py): a step at a time, in a thread, the game told when one is handed on
+                    global DEED_JOB
+                    if DEED_JOB is None and tick % 15 == 0:
+                        DEED_JOB = asyncio.get_running_loop().run_in_executor(None, deeds.step_at, STORE)
+                    elif DEED_JOB is not None and DEED_JOB.done():
+                        try:
+                            ready = DEED_JOB.result()
+                            if ready and await frame.evaluate("a => window.LWQGAME.housePlotDeed ? window.LWQGAME.housePlotDeed(a[0], a[1]) : false", list(ready)):
+                                deeds.told(store.db, ready[0]); log("deed of", ready[0], "is", ready[1])
+                        except Exception as e:   # noqa: BLE001 -- tried again on the next round
+                            log("deed error:", repr(e)[:200])
+                        DEED_JOB = None
                 if store is not None:
                     try:
                         given, taken = await house_store.sync(frame, store, level)
