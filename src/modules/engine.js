@@ -348,6 +348,7 @@
        pays the price and the city's 10 % on top; the seller gets the price, the buyer the deed. sales: what is offered,
        as the keeper's database says (housePlotSales); saleAsks: what owners asked, for the keeper */
     let sales = {}, saleAsks = [], escrowAddr = '';
+    const handing = new Set();   /* deeds on their way to the registry from here: one request each, the button says so */
     const tagOf = from => { const r = from && remotes.get(from.id); const t = (from && from.tag) || (r && r.from.tag) || ''; return t ? '@' + String(t).replace(/^@/, '') : ''; };
     const myAddr = () => (room && room.me && room.me.address) || null;
     function plotOwnerText(id) {
@@ -492,7 +493,9 @@
         let h = '';
         if (deedOf[1] === me2) {
           if (!sale || ['done', 'gone'].includes(sale.state)) h = 'Offer it for <input data-price type="number" min="0.001" step="0.001" placeholder="tLTC" style="width:90px"> tLTC' + btn('sell', 'Offer for sale', '#3f6a2a') + '<br><small>The buyer pays your price and the city\'s 10 % on top; you get your whole price.</small>';
-          else if (sale.state === 'escrow') h = 'Offered at <b>' + esc(sale.price) + '</b> tLTC. Hand your deed to the registry to open the sale:' + btn('hand', 'Hand over the deed', '#2f5a7a') + btn('unsell', 'Take it back');
+          else if (sale.state === 'escrow') h = 'Offered at <b>' + esc(sale.price) + '</b> tLTC. ' + (handing.has(p.id + ':' + sale.since)
+            ? 'Your deed is on its way to the registry; the sale opens when a block has it there.' + btn('unsell', 'Take it back')
+            : 'Hand your deed to the registry to open the sale:' + btn('hand', 'Hand over the deed', '#2f5a7a') + btn('unsell', 'Take it back'));
           else if (sale.state === 'open') h = 'On sale at <b>' + esc(sale.price) + '</b> tLTC (the buyer pays ' + esc(sale.total) + ' with the levy). The registry keeps your deed.' + btn('unsell', 'Take it back');
           else if (sale.state === 'paid') h = 'Sold: your price is being paid out, and the deed handed to the buyer.';
           else if (sale.state === 'return' || sale.state === 'back') h = 'Your deed is on its way back to you. Once a block has it there (a minute or two), you can offer the plot again.';
@@ -506,10 +509,13 @@
         if (q('[data-buy2]')) q('[data-buy2]').onclick = e => { askHouse({ Q: 'plot', p: p.id }); e.target.disabled = true; e.target.textContent = 'Asking…'; };
         if (q('[data-hand]')) q('[data-hand]').onclick = async e => {
           if (!escrowAddr) { log('The registry has no address yet; try again in a moment.'); return; }
-          e.target.disabled = true; e.target.textContent = 'Look at your wallet…';
-          const got = await wallet.sendPiece(deedOf[3], escrowAddr, 'The deed to plot ' + p.id + ', kept by the registry while it is on sale');
+          const key = p.id + ':' + sale.since;
+          if (handing.has(key)) return;
+          handing.add(key); e.target.disabled = true; e.target.textContent = 'Look at your wallet…';
+          const got = await wallet.sendPiece(deedOf[3], escrowAddr, 'The deed to plot ' + p.id + ', kept by the registry while it is on sale', 'lwq-deed-' + p.id + '-' + sale.since);
           log(got.status === 'sent' ? 'The deed is on its way to the registry; the sale opens when it is there.' : 'The deed did not go: ' + (got.error || got.status) + '.');
-          e.target.disabled = false; e.target.textContent = 'Hand over the deed';
+          if (got.status !== 'sent') handing.delete(key);
+          if (plotsOpen) drawPlots();
         };
         const pi = q('[data-price]');
         if (pi) {
@@ -2452,6 +2458,6 @@
     };
   }
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 40, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 41, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
     D => ({ start: (el, opts) => start(D, el, opts) }));
 })(typeof globalThis !== 'undefined' ? globalThis : this);

@@ -55,10 +55,11 @@
     },
 
     /* hand an inscription on (a plot's deed to the registry, 2026-11-08): the wallet's card, then the answer */
-    async sendPiece(inscription, to, note) {
+    async sendPiece(inscription, to, note, ref) {   /* ref: asked twice (a second click), it is one request */
       let filed;
-      try { filed = await getJSON('/r/send', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-                                              body: JSON.stringify({ kind: 'inscription', inscription, to, label: 'LiteWorldsQuest', note: note || '' }) }); }
+      const body = { kind: 'inscription', inscription, to, label: 'LiteWorldsQuest', note: note || '' };
+      if (ref) body.ref = String(ref).slice(0, 64);
+      try { filed = await getJSON('/r/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); }
       catch (e) { return { status: 'failed', error: 'no wallet is answering' }; }
       if (!filed.ok || !filed.j.id) return { status: 'failed', error: filed.j.error || 'refused' };
       const until = Date.now() + 10 * 60 * 1000;
@@ -95,5 +96,5 @@
       return { status: 'expired' };
     }
   };
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('wallet', { api: 1, v: 3 }, () => wallet);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('wallet', { api: 1, v: 4 }, () => wallet);
 })(typeof globalThis !== 'undefined' ? globalThis : this);

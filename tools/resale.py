@@ -114,9 +114,9 @@ def listed(db) -> list:
     """the sales the game shows: [{plot, price, total, seller, tag, state}]"""
     setup(db)
     out = []
-    for plot, seller, tag, price, state in db.execute("SELECT plot, seller, tag, price, state FROM sales WHERE state IN ('escrow', 'open', 'paid', 'return', 'back')"):
+    for plot, seller, tag, price, state, made in db.execute("SELECT plot, seller, tag, price, state, made FROM sales WHERE state IN ('escrow', 'open', 'paid', 'return', 'back')"):
         total = f"{float(price) * (1 + LEVY):.8f}".rstrip("0").rstrip(".")
-        out.append({"plot": plot, "price": price, "total": total, "seller": seller, "tag": tag, "state": state})
+        out.append({"plot": plot, "price": price, "total": total, "seller": seller, "tag": tag, "state": state, "since": int(made)})
     return out
 
 
