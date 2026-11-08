@@ -1617,14 +1617,25 @@
       ctx.solid([x - 0.9, y0, z - 0.8], [x + 0.9, y0 + 1.2, z + 0.8], () => full.visible);
     } else if (def.kind === 'rock') {
       const geo = boulder(0.9, 1.2, 0.85, 1.0, Math.round(x * 7 + z * 13));
-      const stone = mesh(geo, boulderM.grey); stone.position.y = 0.25; g.add(stone);
+      const stone = mesh(geo, boulderM.grey); stone.position.y = 0.25; full.add(stone);
       const copper = plain('#c87533', { metalness: 0.6, roughness: 0.35 }), iron = plain('#7d8590', { metalness: 0.7, roughness: 0.3 });
-      for (let i = 0; i < 9; i++) {   /* veins: bits of ore in the stone's skin */
-        const a = rnd() * Math.PI * 2, h = rnd() * 0.6, v = mesh(new T.BoxGeometry(0.16, 0.12, 0.08), i % 3 ? copper : iron);
-        v.position.set(Math.cos(a) * 1.0, 0.3 + h * 0.8, Math.sin(a) * 0.85); v.lookAt(0, 0.45, 0); full.add(v);
+      /* veins: bits of ore set INTO the stone's skin -- each on a corner of the boulder itself, along its outward
+         normal, half sunk (tbuuol 2026-11-08: they floated beside it) */
+      const P = geo.attributes.position, N = geo.attributes.normal, n0 = new T.Vector3(), at = new T.Vector3();
+      for (let i = 0; i < 11; i++) {
+        /* in the middle of one of its faces (a face is three corners in a row), so it never reaches over an edge */
+        let f = 0; for (let t = 0; t < 12; t++) { f = Math.floor(rnd() * P.count / 3) * 3; if (P.getY(f) + P.getY(f + 1) + P.getY(f + 2) > 0.15) break; }
+        at.set((P.getX(f) + P.getX(f + 1) + P.getX(f + 2)) / 3, (P.getY(f) + P.getY(f + 1) + P.getY(f + 2)) / 3 + 0.25, (P.getZ(f) + P.getZ(f + 1) + P.getZ(f + 2)) / 3);
+        n0.set(N.getX(f) + N.getX(f + 1) + N.getX(f + 2), N.getY(f) + N.getY(f + 1) + N.getY(f + 2), N.getZ(f) + N.getZ(f + 1) + N.getZ(f + 2)).normalize();
+        const v = mesh(new T.SphereGeometry(0.1, 7, 5), i % 3 ? copper : iron);   /* a flat lens, half sunk into the surface */
+        v.scale.set(1.2, 0.9, 0.4); v.position.copy(at).addScaledVector(n0, -0.012); v.lookAt(at.x + n0.x, at.y + n0.y, at.z + n0.z); v.rotateZ(rnd() * 3);
+        full.add(v);
       }
+      /* spent: the boulder is gone, broken stone lies where it stood (as a quarry stone's chips) */
+      const rubble = mesh(new T.CylinderGeometry(0.95, 1.05, 0.1, 10), boulderM.grey); rubble.position.y = 0.05; left.add(rubble);
+      for (let i = 0; i < 4; i++) { const f = mesh(boulder(0.22 + rnd() * 0.12, 1.2, 0.8, 1, i * 31 + Math.round(x)), boulderM.grey); f.position.set((rnd() - 0.5) * 1.3, 0.1, (rnd() - 0.5) * 1.1); left.add(f); }
       use = mesh(new T.SphereGeometry(1.1, 8, 6), new T.MeshBasicMaterial({ visible: false })); use.position.y = 0.6;
-      ctx.solid([x - 0.9, y0, z - 0.75], [x + 0.9, y0 + 1.1, z + 0.75]);
+      ctx.solid([x - 0.9, y0, z - 0.75], [x + 0.9, y0 + 1.1, z + 0.75], () => full.visible);
     } else {
       const leaf = plain('#5d8c3a'), flower = plain('#d9c2f0'), flax = plain('#7fa3d9');
       for (let i = 0; i < 7; i++) { const b = mesh(new T.IcosahedronGeometry(0.22 + rnd() * 0.12, 0), leaf); b.position.set((rnd() - 0.5) * 0.9, 0.2, (rnd() - 0.5) * 0.9); full.add(b); }
@@ -2445,5 +2456,5 @@
     return { groundAt, polys, segs, half, spawn, inside, stats: { buildings: buildings.length, trees: trees.length } };
   };
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('art', { api: 1, v: 25 }, () => art);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('art', { api: 1, v: 26 }, () => art);
 })(typeof globalThis !== 'undefined' ? globalThis : this);

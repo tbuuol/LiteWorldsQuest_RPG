@@ -29,7 +29,7 @@
     },
     "art": {
       "file": "src/modules/art.js",
-      "v": 25,
+      "v": 26,
       "api": 1,
       "kind": "js",
       "id": null,
