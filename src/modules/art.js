@@ -1308,7 +1308,7 @@
      side), 4 a roof slope (rising towards r: 0 north, 1 east, 2 south, 3 west), 5 stairs (up towards r, 8 steps to the
      next storey). Materials: 0 wood, 1 stone, 2 plaster. art.building(ctx, pieces, base) -> {group, solids: [{min, max}]};
      the group's parts are joined by material, a few draw calls for a whole house. */
-  art.BUILD = { CELL: 2, STOREY: 3, KINDS: ['floor', 'wall', 'window', 'door', 'slope', 'stairs', 'chest', 'bed'], MATS: ['wood', 'stone', 'plaster'] };
+  art.BUILD = { CELL: 2, STOREY: 3, KINDS: ['floor', 'wall', 'window', 'door', 'slope', 'stairs', 'chest', 'bed', 'counter'], MATS: ['wood', 'stone', 'plaster'] };
   let buildM = null;
   art.building = function (ctx, pieces, base) {
     buildM = buildM || { wood: [mat('planks'), mat('planks', { m: { color: '#d8b48a' } })], stone: [mat('stone', { m: { bumpScale: 1.2 } }), mat('stone')],
@@ -1397,13 +1397,20 @@
        them usable (furniture: [{id, kind, hit, pos}]) */
     for (const pc of pieces) {
       const [k, cx, cz, L, r] = pc;
-      if (k !== 6 && k !== 7) continue;
+      if (k !== 6 && k !== 7 && k !== 8) continue;
       const y0 = base + L * H + (floorAt.has(cx + ',' + cz + ',' + L) ? TH : 0), turn = (r | 0) % 2 === 1, fg = new T.Group();
       if (k === 6) {
         const body = mesh(boxM(1.1, 0.55, 0.65, 1), buildM.leaf); body.position.y = 0.275; fg.add(body);
         const lid = mesh(boxM(1.14, 0.16, 0.69, 1), buildM.leaf); lid.position.y = 0.63; fg.add(lid);
         for (const sx of [-0.4, 0.4]) { const band = mesh(new T.BoxGeometry(0.06, 0.72, 0.71), buildM.iron); band.position.set(sx, 0.36, 0); fg.add(band); }
         const lock = mesh(new T.BoxGeometry(0.12, 0.14, 0.04), plain('#c8a040', { metalness: 0.7, roughness: 0.3 })); lock.position.set(0, 0.5, -0.35); fg.add(lock);
+      } else if (k === 8) {   /* a shop's counter (2026-11-08): a long table with a top, a little awning and a sign */
+        const body = mesh(boxM(1.9, 1.0, 0.6, 1), buildM.leaf); body.position.y = 0.5; fg.add(body);
+        const top = mesh(boxM(2.0, 0.08, 0.75, 1), mat('planks', { m: { color: '#8a5a32' } })); top.position.y = 1.04; fg.add(top);
+        for (const sx of [-0.95, 0.95]) { const post = mesh(new T.BoxGeometry(0.07, 1.2, 0.07), buildM.leaf); post.position.set(sx, 1.68, 0.3); fg.add(post); }
+        const awning = mesh(new T.BoxGeometry(2.1, 0.05, 0.85), plain('#b8402a')); awning.position.set(0, 2.3, 0.05); awning.rotation.x = 0.18; fg.add(awning);
+        const stripe = mesh(new T.BoxGeometry(2.1, 0.051, 0.25), plain('#f0e6d2')); stripe.position.set(0, 2.31, 0.05); stripe.rotation.x = 0.18; fg.add(stripe);
+        const crate = mesh(boxM(0.4, 0.3, 0.35, 1), buildM.leaf); crate.position.set(-0.55, 1.23, 0); fg.add(crate);
       } else {
         const frame = mesh(boxM(1.1, 0.35, 2.0, 1), buildM.leaf); frame.position.y = 0.175; fg.add(frame);
         const mat2 = mesh(new T.BoxGeometry(1.0, 0.16, 1.9), plain('#e8e0d0')); mat2.position.y = 0.43; fg.add(mat2);
@@ -1412,11 +1419,11 @@
         const head = mesh(boxM(1.1, 0.7, 0.1, 1), buildM.leaf); head.position.set(0, 0.35, -0.97); fg.add(head);
       }
       fg.rotation.y = -(r | 0) * Math.PI / 2; fg.position.set(cx, y0, cz); g.add(fg);
-      const w = k === 6 ? (turn ? 0.35 : 0.57) : (turn ? 1.0 : 0.55), d = k === 6 ? (turn ? 0.57 : 0.35) : (turn ? 0.55 : 1.0), h = k === 6 ? 0.72 : 0.6;
+      const w = k === 6 ? (turn ? 0.35 : 0.57) : k === 8 ? (turn ? 0.35 : 1.0) : (turn ? 1.0 : 0.55), d = k === 6 ? (turn ? 0.57 : 0.35) : k === 8 ? (turn ? 1.0 : 0.35) : (turn ? 0.55 : 1.0), h = k === 6 ? 0.72 : k === 8 ? 1.1 : 0.6;
       solids.push({ min: [cx - w, y0, cz - d], max: [cx + w, y0 + h, cz + d] });
       const hit = new T.Mesh(new T.BoxGeometry(w * 2 + 0.2, h + 0.4, d * 2 + 0.2), new T.MeshBasicMaterial({ visible: false }));
       hit.position.set(cx, y0 + h / 2, cz); ctx.scene.add(hit);
-      furniture.push({ id: 'bf:' + slotKey(pc), kind: k === 6 ? 'chest' : 'bed', hit, pos: [cx, y0, cz] });
+      furniture.push({ id: 'bf:' + slotKey(pc), kind: k === 6 ? 'chest' : k === 8 ? 'counter' : 'bed', hit, pos: [cx, y0, cz] });
     }
     /* a post where walls end: it closes the corner where two meet, and stands a little proud of them */
     for (const [x, z, y0, mm] of ends.values()) box(0.26, H, 0.26, x, y0, z, mm);
@@ -2420,5 +2427,5 @@
     return { groundAt, polys, segs, half, spawn, inside, stats: { buildings: buildings.length, trees: trees.length } };
   };
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('art', { api: 1, v: 23 }, () => art);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('art', { api: 1, v: 24 }, () => art);
 })(typeof globalThis !== 'undefined' ? globalThis : this);

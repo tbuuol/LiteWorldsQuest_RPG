@@ -30,6 +30,28 @@ class Store:
         self.db.execute("CREATE TABLE IF NOT EXISTS plots (plot TEXT PRIMARY KEY, own TEXT NOT NULL, updated REAL NOT NULL)")
         # what owners built on their plots (2026-11-07): the pieces of each plot, as the game keeps them
         self.db.execute("CREATE TABLE IF NOT EXISTS built (plot TEXT PRIMARY KEY, pieces TEXT NOT NULL, updated REAL NOT NULL)")
+        # the shops' stock, kept by the house (2026-11-08): what lies on each counter, and what buyers are owed
+        self.db.execute("CREATE TABLE IF NOT EXISTS shops (plot TEXT PRIMARY KEY, stock TEXT NOT NULL, updated REAL NOT NULL)")
+
+    def shops(self) -> dict:
+        out = {}
+        for p, stock in self.db.execute("SELECT plot, stock FROM shops"):
+            try:
+                out[p] = json.loads(stock)
+            except ValueError:
+                pass
+        return out
+
+    def put_shops(self, changed: dict) -> int:
+        now = time.time()
+        with self.db:
+            for p, stock in changed.items():
+                if not stock:
+                    self.db.execute("DELETE FROM shops WHERE plot = ?", (p,))
+                else:
+                    self.db.execute("INSERT INTO shops (plot, stock, updated) VALUES (?, ?, ?) ON CONFLICT(plot) DO UPDATE SET "
+                                    "stock = excluded.stock, updated = excluded.updated", (p, json.dumps(stock, separators=(",", ":")), now))
+        return len(changed)
 
     def built(self) -> dict:
         out = {}
@@ -158,7 +180,14 @@ async def sync(frame, store: Store, zone: str = "") -> tuple[int, int]:
         changed = json.loads(await frame.evaluate("window.LWQGAME.houseBuiltTake()") or "{}")
         if changed:
             store.put_built(changed)
-    wants = await frame.evaluate("window.LWQGAME.houseWants()")
+    # and the shops' stock, the same way
+    if await frame.evaluate("window.LWQGAME.houseShopsLoaded ? window.LWQGAME.houseShopsLoaded() : true") is False:
+        await frame.evaluate("json => window.LWQGAME.houseShops(json)", json.dumps(store.shops()))
+    elif await frame.evaluate("!!window.LWQGAME.houseShopsTake"):
+        changed = json.loads(await frame.evaluate("window.LWQGAME.houseShopsTake()") or "{}")
+        if changed:
+            store.put_shops(changed)
+
     if held:
         wants = [a for a in wants if HELD.get(a, zone) == zone]
     given = 0

@@ -92,6 +92,10 @@ class Pay:
         self.db.execute("CREATE TABLE IF NOT EXISTS invoices (plot TEXT PRIMARY KEY, addr TEXT NOT NULL, tag TEXT, sats INTEGER NOT NULL, "
                         "made REAL NOT NULL, paid TEXT, done INTEGER NOT NULL DEFAULT 0)")
         self.db.execute("CREATE TABLE IF NOT EXISTS ltc_seen (k TEXT PRIMARY KEY, v TEXT)")
+        try:   # what an invoice is for, beyond the plot (a shop's sale: who sells, at what price), 2026-11-08
+            self.db.execute("ALTER TABLE invoices ADD COLUMN meta TEXT")
+        except Exception:   # noqa: BLE001 -- there already
+            pass
         self.key = self.ensure_key()
 
     def ensure_key(self) -> dict:
@@ -111,7 +115,7 @@ class Pay:
             out.append({"plot": plot, "addr": addr, "tag": tag, "amount": f"{sats / 1e8:.8f}", "until": int((made + LIFE) * 1000), "to": self.key["address"]})
         return out
 
-    def invoice(self, plot: str, addr: str, tag: str, price: str) -> dict | None:
+    def invoice(self, plot: str, addr: str, tag: str, price: str, meta: dict | None = None) -> dict | None:
         """a new invoice for this plot, or the one that is open (None: someone else's is open)"""
         for inv in self.open():
             if inv["plot"] == plot:
@@ -122,8 +126,8 @@ class Pay:
         while sats in taken:
             sats = base + random.randint(1, 999)
         with self.db:
-            self.db.execute("INSERT OR REPLACE INTO invoices (plot, addr, tag, sats, made, paid, done) VALUES (?, ?, ?, ?, ?, NULL, 0)",
-                            (plot, addr, tag, sats, time.time()))
+            self.db.execute("INSERT OR REPLACE INTO invoices (plot, addr, tag, sats, made, paid, done, meta) VALUES (?, ?, ?, ?, ?, NULL, 0, ?)",
+                            (plot, addr, tag, sats, time.time(), json.dumps(meta) if meta else None))
         return next(i for i in self.open() if i["plot"] == plot)
 
     def _outputs(self, tx: dict):
@@ -163,8 +167,8 @@ class Pay:
         return self.unfinished()
 
     def unfinished(self) -> list:
-        return [{"plot": p, "addr": a, "tag": t, "txid": x} for p, a, t, x in
-                self.db.execute("SELECT plot, addr, tag, paid FROM invoices WHERE done = 0 AND paid IS NOT NULL")]
+        return [{"plot": p, "addr": a, "tag": t, "txid": x, "meta": json.loads(m) if m else None} for p, a, t, x, m in
+                self.db.execute("SELECT plot, addr, tag, paid, meta FROM invoices WHERE done = 0 AND paid IS NOT NULL")]
 
     def done(self, plot: str) -> None:
         with self.db:
@@ -181,13 +185,18 @@ async def sync(frame, pay: "Pay", tick: int) -> None:
     restarted game knows them so), and every 10 s the chain is looked at for payments."""
     asks = json.loads(await frame.evaluate("window.LWQGAME.housePlotAsks ? window.LWQGAME.housePlotAsks() : '[]'") or "[]")
     for ask in asks:
-        inv = pay.invoice(str(ask["plot"]), str(ask["addr"]), str(ask.get("tag") or ""), str(ask["price"]))
+        inv = pay.invoice(str(ask["plot"]), str(ask["addr"]), str(ask.get("tag") or ""), str(ask["price"]), ask.get("meta"))
         await frame.evaluate("a => window.LWQGAME.housePlotInvoice(a)", {"ask": ask, "inv": inv})
     if asks or tick % 10 == 0:
         await frame.evaluate("l => window.LWQGAME.housePlotInvoices(l)", pay.open())
     if tick % 10 == 0:
         for paid in pay.watch():
             import resale   # noqa: PLC0415 -- it imports this module
+            import shops    # noqa: PLC0415 -- the same
+            if str(paid["plot"]).startswith("shop:"):
+                shops.paid(pay.db, paid)   # a thing bought in a shop: tools/shops.py pays the seller and the game hands it over
+                pay.done(paid["plot"])
+                continue
             if resale.paid(pay.db, paid["plot"], paid["addr"], paid.get("tag") or "", paid.get("txid") or ""):
                 pay.done(paid["plot"])   # a plot sold on: tools/resale.py pays the seller and hands the deed over
                 continue

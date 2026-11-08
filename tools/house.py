@@ -26,6 +26,7 @@ import house_store  # noqa: E402
 import ltc_pay  # noqa: E402
 import deeds  # noqa: E402
 import resale  # noqa: E402
+import shops  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SECRET = ROOT / ".publisher"
@@ -52,6 +53,7 @@ except (OSError, ValueError):
 LAST_TROUBLE = ""
 DEED_JOB = None   # a deed's step running in a thread (tools/deeds.py)
 SALE_JOB = None   # a round of the sales' jobs (tools/resale.py)
+SHOP_JOB = None   # a round of the shops' sales (tools/shops.py)
 
 
 def log(*parts) -> None:
@@ -365,6 +367,18 @@ async def _session(p, level: str = "") -> None:
                             SALE_JOB = None
                     except Exception as e:   # noqa: BLE001 -- tried again next round
                         log("sale error:", repr(e)[:200]); SALE_JOB = None
+                    # shops (tools/shops.py): sellers paid once the buyer's payment is in a block, then the thing handed over
+                    global SHOP_JOB
+                    try:
+                        if SHOP_JOB is None and tick % 30 == 19:
+                            SHOP_JOB = asyncio.get_running_loop().run_in_executor(None, shops.step_at, STORE)
+                        elif SHOP_JOB is not None and SHOP_JOB.done():
+                            for t in SHOP_JOB.result():
+                                if t[0] == "deliver" and await frame.evaluate("a => window.LWQGAME.houseShopDeliver ? window.LWQGAME.houseShopDeliver(a[0], a[1], a[2]) : false", list(t[1:])):
+                                    shops.delivered(store.db, t[1]); log("shop sale", t[1], "handed to", t[2])
+                            SHOP_JOB = None
+                    except Exception as e:   # noqa: BLE001 -- again next round
+                        log("shop error:", repr(e)[:200]); SHOP_JOB = None
                     # the deeds (tools/deeds.py): a step at a time, in a thread, the game told when one is handed on
                     global DEED_JOB
                     if DEED_JOB is None and tick % 15 == 0:

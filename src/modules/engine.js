@@ -408,6 +408,80 @@
       for (const id in plotOwn) if (plotOwn[id][1] === from.address && plotOwn[id][0] !== tag) { const o = plotOwn[id]; plotOwn = Object.assign({}, plotOwn, { [id]: [tag].concat(o.slice(1)) }); plotsDirty.add(id); n++; }
       if (n) { applyPlots(plotOwn); sendPlots(); }
     }
+    /* --- SHOPS (tbuuol 2026-11-08: "Jo mit tLTC") ----------------------------------------------------------------- */
+    /* The owner of a shop plot with a counter puts things from the chest on it at a price in tLTC; the house keeps them
+       (its database, tools/house_store.py) whether the owner is here or not. A buyer pays the price and the city's levy
+       of 10 % on top (an invoice keyed 'shop:<plot>:<offer>'); tools/shops.py pays the seller once the payment is in a
+       block and asks the game to hand the thing over (houseShopDeliver) -- into the bag, or kept for the buyer until
+       they come. stock: {plot: {items: [[offer, 'm'|'u', what, n, price]], owed: [[address, 'm'|'u', what, n]], next}} */
+    let stock = {}, shopsLoaded = false, shopView = {};
+    const shopsDirty = new Set(), LEVY = 0.1;
+    const withLevy = price => String(+(+price * (1 + LEVY)).toFixed(8));
+    const thingName = (k, what) => { const id = k === 'm' ? what : what[1]; return (rpg && rpg.ITEMS[id]) ? rpg.ITEMS[id].name : id; };
+    const hasCounter = id => (built[id] || []).some(pc => pc[0] === 8);
+    function shopFor(id) { return stock[id] || (stock[id] = { items: [], owed: [], next: 1 }); }
+    function viewOf() {   /* what buyers see: {plot: [[offer, name, n, price, total, held]]} */
+      const v = {};
+      for (const id in stock) if ((stock[id].items || []).length) v[id] = stock[id].items.map(it => [it[0], thingName(it[1], it[2]), it[3], it[4], withLevy(it[4]), held['shop:' + id + ':' + it[0]] ? 1 : 0]);
+      return v;
+    }
+    function sendShops(to) {
+      if (!room || !iAmHouse) return;
+      shopView = viewOf();
+      const ids = to ? [to].filter(linked) : directPlayers();
+      if (ids.length) room.to(ids, { SH: shopView }, true);
+    }
+    function giveThing(a, k, what, n) {   /* into a record that is here: a material, or a thing with a new number */
+      const rr = book.of(a);
+      if (k === 'm') rr.mat[what] = (rr.mat[what] || 0) + n;
+      else rr.bag.push([rr.n++].concat(what.slice(1)));
+      dirty.add(a);
+    }
+    function payOwed(a) {   /* what was bought while away, now that the record is here */
+      if (!book || !book.has(a)) return;
+      for (const id in stock) {
+        const sh = stock[id], keep = [];
+        for (const o of sh.owed || []) { if (o[0] === a) { giveThing(a, o[1], o[2], o[3]); shopsDirty.add(id); } else keep.push(o); }
+        sh.owed = keep;
+      }
+    }
+    function houseShop(from, a, d) {
+      const id = String(d.p), p = plots.find(q => q.id === id), o = plotOwn[id];
+      if (!p || !o) return;
+      const sh = shopFor(id), rr = book.of(a), mine = o[1] === a;
+      if (d.x === 'put' || d.x === 'take') {
+        if (!mine) { notice(from.id, 'It is not your shop.'); return; }
+        if (o[4]) { notice(from.id, 'Plot ' + id + ' is frozen until the city\'s levy is paid.'); return; }
+        if (p.kind !== 'shop' || !hasCounter(id)) { notice(from.id, 'Things are sold from a counter on a shop plot.'); return; }
+        if (d.x === 'put') {
+          const price = +d.price, ch = rr.chest = rr.chest || { mat: {}, bag: [] };
+          if (!(price >= 0.0001 && price <= 100)) { notice(from.id, 'A price between 0.0001 and 100 tLTC, please.'); return; }
+          if (sh.items.length >= 40) { notice(from.id, 'The counter is full (40 offers).'); return; }
+          let item;
+          if (d.m) { const m = String(d.m), n = Math.max(1, Math.min(999, d.n | 0)); if ((ch.mat[m] || 0) < n) { notice(from.id, 'Your chest holds ' + (ch.mat[m] || 0) + ' of those.'); return; }
+            ch.mat[m] -= n; if (!ch.mat[m]) delete ch.mat[m]; item = [sh.next++, 'm', m, n, String(+price.toFixed(8))]; }
+          else { const i = (ch.bag || []).findIndex(e => +e[0] === +d.u); if (i < 0) return; item = [sh.next++, 'u', ch.bag.splice(i, 1)[0], 1, String(+price.toFixed(8))]; }
+          sh.items.push(item); dirty.add(a); shopsDirty.add(id); sendShops();
+          notice(from.id, thingName(item[1], item[2]) + (item[3] > 1 ? ' × ' + item[3] : '') + ' is on your counter for ' + item[4] + ' tLTC.');
+        } else {
+          const i = sh.items.findIndex(it => it[0] === (d.o | 0)); if (i < 0) return;
+          if (held['shop:' + id + ':' + sh.items[i][0]]) { notice(from.id, 'Someone is paying for that just now.'); return; }
+          const it = sh.items.splice(i, 1)[0], ch = rr.chest = rr.chest || { mat: {}, bag: [] };
+          if (it[1] === 'm') ch.mat[it[2]] = (ch.mat[it[2]] || 0) + it[3]; else ch.bag.push(it[2]);
+          dirty.add(a); shopsDirty.add(id); sendShops();
+        }
+        return;
+      }
+      if (d.x === 'buy') {
+        const it = sh.items.find(x => x[0] === (d.o | 0)); if (!it) { notice(from.id, 'That is sold already.'); return; }
+        if (mine) { notice(from.id, 'It is yours already.'); return; }
+        if (!payOn) { notice(from.id, 'The shops do not take payment just now.'); return; }
+        const key = 'shop:' + id + ':' + it[0];
+        if (held[key] && held[key].addr !== a) { notice(from.id, 'Someone else is paying for that just now.'); return; }
+        if (!plotAsks.some(q => q.plot === key)) plotAsks.push({ plot: key, addr: a, tag: tagOf(from), to: from.id, price: withLevy(it[4]), meta: { seller: o[1], price: it[4] } });
+        notice(from.id, 'An invoice for ' + thingName(it[1], it[2]) + ': ' + it[4] + ' tLTC for ' + (o[0] || 'the shop') + ' and ' + String(+(+it[4] * LEVY).toFixed(8)) + ' tLTC city levy…');
+      }
+    }
     function sendSales(to) {
       if (!room || !iAmHouse) return;
       const ids = to ? [to].filter(linked) : directPlayers();
@@ -574,19 +648,20 @@
     /* WHAT A PIECE COSTS (2026-11-07): wood takes oak logs, stone and plaster take rough stone (the quarry by Genesis,
        and the ore boulders now and then); taken from your bag when the house puts the piece, given back when it comes
        down */
-    const PIECE_N = [1, 2, 2, 2, 1, 2, 3, 4];
+    const PIECE_N = [1, 2, 2, 2, 1, 2, 3, 4, 3];
     const costOf = pc => ({ [(pc[5] | 0) === 0 || pc[0] >= 6 ? 'oak_log' : 'stone_block']: PIECE_N[pc[0] | 0] || 1 });   /* a chest and a bed: oak */
     const slotOf = pc => (pc[0] >= 1 && pc[0] <= 3 ? 'e' : pc[0] >= 6 ? 'f' : 'c') + ':' + pc[1] + ':' + pc[2] + ':' + pc[3] + (pc[0] >= 1 && pc[0] <= 3 ? ':' + (pc[4] % 2) : '');
     function pieceAt(slot) { for (const id in built) for (const pc of built[id]) if (slotOf(pc) === slot) return [id, pc]; return null; }
     function houseBuild(from, a, d) {
       if (!builtLoaded) { notice(from.id, 'The builders are not here yet. Try again in a moment.'); return; }
       const k = d.k | 0, L = Math.max(0, Math.min(5, d.L | 0)), r = ((d.r | 0) % 4 + 4) % 4, m = Math.max(0, Math.min(2, d.m | 0));
-      if (!Array.isArray(d.c) || k < 0 || k > 7) return;
+      if (!Array.isArray(d.c) || k < 0 || k > 8) return;
       const pc = [k, r1(+d.c[0]), r1(+d.c[1]), L, k >= 1 && k <= 3 ? (r % 2 ? 3 : 0) : r, m];
       if (!isFinite(pc[1]) || !isFinite(pc[2])) return;
       const home = pieceHome(pc, a);
       if (!home) { notice(from.id, 'You can build only on your own plots.'); return; }
       if (plotOwn[home.id] && plotOwn[home.id][4]) { notice(from.id, 'Plot ' + home.id + ' is frozen until the city\'s levy is paid at the town hall.'); return; }
+      if (k === 8 && home.kind !== 'shop' && d.x !== 'del') { notice(from.id, 'A counter goes on a shop plot.'); return; }
       const slot = slotOf(pc), had = pieceAt(slot);
       if (d.x === 'del') {
         if (!had || !pieceHome(had[1], a)) return;
@@ -657,6 +732,57 @@
         '<div style="font-size:12px;opacity:.8;margin:4px 0 8px">Click moves one across; Shift-click all of a material. Every chest of yours holds the same.</div>' +
         '<div style="display:flex;gap:14px;flex-wrap:wrap">' + col('In your bag', R.mat, R.bag, 'put') + col('In your chest', ch.mat, ch.bag, 'take') + '</div></div>';
     }
+    let shopBox = null, shopOpen = null;
+    function openShop(id) {
+      try { document.exitPointerLock(); } catch (e) { /* not locked */ }
+      shopOpen = id;
+      if (!shopBox) {
+        shopBox = document.createElement('div');
+        shopBox.style.cssText = 'position:absolute;inset:0;z-index:16;display:flex;align-items:center;justify-content:center;background:rgba(10,8,4,.72);font:14px Georgia,serif;color:#f3e3c3';
+        el.appendChild(shopBox);
+        shopBox.addEventListener('keydown', e => e.stopPropagation());
+        shopBox.addEventListener('click', async e => {
+          const t = e.target;
+          if (t.closest('[data-x]')) { shopBox.style.display = 'none'; shopOpen = null; return; }
+          const b = t.closest('[data-act]'); if (!b) return;
+          const [act, a1, a2] = b.dataset.act.split('|'), row = b.closest('[data-row]');
+          const price = row && row.querySelector('[data-pr]') ? +row.querySelector('[data-pr]').value : 0, n = row && row.querySelector('[data-n]') ? +row.querySelector('[data-n]').value : 1;
+          if (act === 'put') askHouse(Object.assign({ Q: 'shop', x: 'put', p: shopOpen, price }, a1 === 'm' ? { m: a2, n } : { u: +a2 }));
+          else if (act === 'take') askHouse({ Q: 'shop', x: 'take', p: shopOpen, o: +a1 });
+          else if (act === 'buy') { askHouse({ Q: 'shop', x: 'buy', p: shopOpen, o: +a1 }); b.disabled = true; b.textContent = 'Asking…'; }
+          else if (act === 'pay' && myInvoice) {
+            b.disabled = true; b.textContent = 'Look at your wallet…';
+            const got = await wallet.pay({ to: myInvoice.to, amount: myInvoice.amount, chain: 'ltctest', ref: 'lwq-' + myInvoice.plot + '-' + myInvoice.until, label: 'LiteWorldsQuest', note: 'A purchase in Genesis' });
+            log(got.status === 'sent' ? 'Paid. The shop waits for the Litecoin test chain to show it.' : 'The payment did not go out: ' + (got.error || got.status) + '.');
+            b.disabled = false; b.textContent = 'Pay with my arcade wallet';
+          }
+        });
+      }
+      shopBox.style.display = 'flex'; drawShop();
+    }
+    function drawShop() {
+      if (!shopBox || !shopOpen || shopBox.style.display === 'none') return;
+      const id = shopOpen, o = plotOwn[id] || [], mine = o[1] === myAddr(), offers = shopView[id] || [], R = rec || {}, ch = R.chest || { mat: {}, bag: [] };
+      const nm = x => (rpg && rpg.ITEMS[x] ? rpg.ITEMS[x].name : x);
+      const btn = (act, t, c) => '<button data-act="' + act + '" style="background:' + (c || '#5a4630') + ';color:#fff;border:1px solid #c8a050;border-radius:4px;padding:2px 9px;cursor:pointer;margin-left:6px">' + t + '</button>';
+      const keep = {}; shopBox.querySelectorAll('[data-row] input').forEach(i => { keep[i.closest('[data-row]').dataset.row + i.dataset.pr + i.dataset.n] = i.value; });
+      let h = '<div style="background:#2a2016;border:2px solid #8a6a3a;border-radius:8px;padding:12px;width:min(620px,95vw);max-height:90vh;overflow:auto">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center"><b style="font-size:17px">' + (mine ? 'Your shop' : esc((o[0] || 'A') + '\'s shop')) + ' · plot ' + esc(id) + '</b>' + '<button data-x style="background:#5a4630;color:#f3e3c3;border:1px solid #8a6a3a;border-radius:4px;padding:3px 10px;cursor:pointer">Close</button></div>' +
+        '<div style="font-size:12px;opacity:.8;margin:4px 0 10px">Prices in tLTC (Litecoin testnet). The buyer pays the price and the city\'s 10 % on top; the seller gets the whole price.</div>';
+      h += '<b>On the counter</b><div style="margin:6px 0 12px;display:flex;flex-direction:column;gap:4px">' + (offers.length ? offers.map(f =>
+        '<div>' + esc(f[1]) + (f[2] > 1 ? ' × ' + f[2] : '') + ' — <b>' + esc(f[3]) + '</b>' + (mine ? '' : ' + levy = <b>' + esc(f[4]) + '</b>') + ' tLTC' +
+        (mine ? (f[5] ? ' <i>(being paid for)</i>' : btn('take|' + f[0], 'Take back')) : (f[5] ? ' <i>(someone is paying)</i>' : btn('buy|' + f[0], 'Buy', '#3f6a2a'))) + '</div>').join('') : '<i>Nothing yet.</i>') + '</div>';
+      if (mine) {
+        h += '<b>From your chest</b><div style="margin:6px 0;display:flex;flex-direction:column;gap:4px">' +
+          Object.keys(ch.mat || {}).map(m => '<div data-row="m' + esc(m) + '">' + esc(nm(m)) + ' (' + ch.mat[m] + ') · <input data-n type="number" min="1" max="' + ch.mat[m] + '" value="1" style="width:56px"> for <input data-pr type="number" min="0.0001" step="0.001" placeholder="tLTC" style="width:80px"> tLTC' + btn('put|m|' + m, 'Offer', '#3f6a2a') + '</div>').join('') +
+          (ch.bag || []).map(e => '<div data-row="u' + e[0] + '">' + esc(nm(e[1])) + ' · for <input data-pr type="number" min="0.0001" step="0.001" placeholder="tLTC" style="width:80px"> tLTC' + btn('put|u|' + e[0], 'Offer', '#3f6a2a') + '</div>').join('') +
+          (!Object.keys(ch.mat || {}).length && !(ch.bag || []).length ? '<i>Your chest is empty: put things in it first.</i>' : '') + '</div>';
+      }
+      const iv = myInvoice && String(myInvoice.plot).startsWith('shop:' + id + ':') && myInvoice.until > Date.now() ? myInvoice : null;
+      if (iv) h += '<div style="margin-top:8px;padding:8px;border:1px solid #c8a050;border-radius:6px;background:#3a2c1a">Send exactly <b style="user-select:all">' + esc(iv.amount) + '</b> tLTC to <b style="user-select:all;font-family:monospace">' + esc(iv.to) + '</b> within ' + Math.max(0, Math.round((iv.until - Date.now()) / 60000)) + ' minutes; the thing is yours once the payment is in a block.' + btn('pay', 'Pay with my arcade wallet', '#2f5a7a') + '</div>';
+      shopBox.innerHTML = h + '</div>';
+      shopBox.querySelectorAll('[data-row] input').forEach(i => { const k = i.closest('[data-row]').dataset.row + i.dataset.pr + i.dataset.n; if (keep[k] != null) i.value = keep[k]; });
+    }
     function sendBuilt(id, to) {
       if (!room || !iAmHouse) return;
       const ids = to ? [to].filter(linked) : directPlayers();
@@ -706,7 +832,7 @@
     }
     function drawBuildBar() {
       if (!bBar) return;
-      const names = ['Floor', 'Wall', 'Window', 'Door', 'Roof', 'Stairs', 'Chest', 'Bed'];
+      const names = ['Floor', 'Wall', 'Window', 'Door', 'Roof', 'Stairs', 'Chest', 'Bed', 'Counter'];
       bBar.innerHTML = 'BUILD · ' + names.map((n, i) => (i === bKind ? '<b style="color:#ffd65a">[' + (i + 1) + '] ' + n + '</b>' : '[' + (i + 1) + '] ' + n)).join(' ') +
         ' · T: <b>' + ['wood', 'stone', 'plaster'][bMat] + '</b> · storey <b>' + bLevel + '</b> (Z / X)' + (bKind >= 4 ? ' · R: turn' : '') +
         ' · costs ' + Object.entries(costOf([bKind, 0, 0, 0, 0, bMat])).map(([m, n]) => n + ' ' + ((rpg && rpg.ITEMS[m]) ? rpg.ITEMS[m].name : m)).join(', ') +
@@ -1134,7 +1260,7 @@
       if (down && e.code === 'KeyF' && !e.repeat) attack();
       if (down && !e.repeat && e.code === 'KeyB' && plots.length) setBuilding(!building);
       if (building && down && !e.repeat) {
-        if (/^Digit[1-8]$/.test(e.code)) { bKind = +e.code.slice(5) - 1; drawBuildBar(); return; }
+        if (/^Digit[1-9]$/.test(e.code)) { bKind = +e.code.slice(5) - 1; drawBuildBar(); return; }
         if (e.code === 'KeyT') { bMat = (bMat + 1) % 3; drawBuildBar(); return; }
         if (e.code === 'KeyR') { bRot = (bRot + 1) % 4; drawBuildBar(); return; }
         if (e.code === 'KeyZ') { bLevel = Math.max(0, bLevel - 1); drawBuildBar(); return; }
@@ -1309,6 +1435,7 @@
       if (u.kind === 'npc') return 'E: talk to ' + npcs[u.id].def.name;
       if (u.kind === 'chest') return isMineFurn(u.id) ? 'E: open your chest' : 'A chest (not yours)';
       if (u.kind === 'bed') return isMineFurn(u.id) ? 'E: sleep here (you will wake here)' : 'A bed (not yours)';
+      if (u.kind === 'counter') return isMineFurn(u.id) ? 'E: your shop' : 'E: see what is for sale';
       if (u.kind === 'forge') return 'E: work at the forge';
       if (u.kind === 'res') {
         const n = resources[u.id].def, name = RES_NAME[n.kind], g = rpg && rpg.GATHER[n.kind];
@@ -1328,6 +1455,7 @@
       if (u.kind === 'npc') { speak(u.id); return; }
       if (u.kind === 'res') { gather(u.id); return; }
       if (u.kind === 'chest') { if (isMineFurn(u.id)) openChest(u.id); else log('It is not your chest.'); return; }
+      if (u.kind === 'counter') { if (furniture[u.id]) openShop(furniture[u.id].plot); return; }
       if (u.kind === 'bed') { if (isMineFurn(u.id)) { askHouse({ Q: 'home', f: u.id }); act('interact-right'); } else log('It is not your bed.'); return; }
       if (u.kind === 'forge') { if (menu) { try { document.exitPointerLock(); } catch (e) { /* not locked */ } menu.open('craft'); } return; }
       if (u.kind === 'door') {
@@ -1411,7 +1539,7 @@
         }
       }
       placed = true;
-      rec = r; mine = rpg.stats(r); if (chestOpen) setTimeout(drawChest, 0);
+      rec = r; mine = rpg.stats(r); if (chestOpen) setTimeout(drawChest, 0); if (shopOpen) setTimeout(drawShop, 0);
       P.max = mine.hp; P.hp = Math.min(P.hp, P.max);
       dressHands(); drawStats();
       if (menu) menu.update(rec, mine);
@@ -1770,7 +1898,7 @@
       const dep = {}; for (const id in W.dep) if (W.dep[id]) dep[id] = 1;
       const ids = to ? [to].filter(linked) : directPlayers();
       if (ids.length) room.to(ids, { W: { seq: W.seq, open, taken, dep } }, true);
-      if (plots.length && to) { sendPlots(to); sendSales(to); for (const id in built) if ((built[id] || []).length) sendBuilt(id, to); }
+      if (plots.length && to) { sendPlots(to); sendSales(to); sendShops(to); for (const id in built) if ((built[id] || []).length) sendBuilt(id, to); }
       lastWorldSent = performance.now();
     }
     /* the world as the host says it is: what changed is said in the log, each change once */
@@ -1936,7 +2064,12 @@
         sales = d.SL[0] || {}; escrowAddr = String(d.SL[1] || '');
         if (plotsOpen && JSON.stringify([sales, escrowAddr]) !== was) drawPlots();
       }
-      if (d.IV && typeof d.IV === 'object' && from.id === hostId()) { myInvoice = d.IV; if (plotsOpen) drawPlots(); else openPlots(); }
+      if (d.IV && typeof d.IV === 'object' && from.id === hostId()) {
+        myInvoice = d.IV;
+        if (String(myInvoice.plot).startsWith('shop:')) { const sp = String(myInvoice.plot).split(':')[1]; if (shopOpen === sp) drawShop(); else openShop(sp); }
+        else if (plotsOpen) drawPlots(); else openPlots();
+      }
+      if (d.SH && typeof d.SH === 'object' && from.id === hostId()) { shopView = d.SH; if (shopOpen) drawShop(); }
       if (Array.isArray(d.BU) && from.id === hostId() && Array.isArray(d.BU[1]) && plots.some(p => p.id === String(d.BU[0]))) {
         built = Object.assign({}, built, { [String(d.BU[0])]: d.BU[1].filter(q => Array.isArray(q) && q.length >= 6).slice(0, BUILD_MAX) }); applyBuilt(String(d.BU[0]));
       }
@@ -1962,6 +2095,7 @@
         else if (d.Q === 'build') houseBuild(from, a, d);
         else if (d.Q === 'sell' || d.Q === 'unsell' || d.Q === 'levy') houseSell(from, a, d);
         else if (d.Q === 'home' || d.Q === 'chest') houseFurniture(from, a, d);
+        else if (d.Q === 'shop') houseShop(from, a, d);
         else if (d.Q === 'quest') {
           const q = (LV.quests || []).find(x => x.id === String(d.q)), r = remotes.get(from.id), N = q && npcs[q.npc];
           if (!q) return;
@@ -2369,7 +2503,8 @@
         if (!inv) { if (to) notice(to, 'Plot ' + ask.plot + ' is held for another buyer just now.'); return false; }
         held[inv.plot] = inv;
         if (to === myId()) myInvoice = inv; else if (to && linked(to)) room.to([to], { IV: inv }, true);
-        if (to) notice(to, 'Invoice for plot ' + inv.plot + ': send exactly ' + inv.amount + ' tLTC to ' + inv.to + ' within 30 minutes.');
+        if (to) notice(to, (String(inv.plot).startsWith('shop:') ? 'Invoice for your purchase' : 'Invoice for plot ' + inv.plot) + ': send exactly ' + inv.amount + ' tLTC to ' + inv.to + ' within 30 minutes.');
+        if (String(inv.plot).startsWith('shop:')) sendShops();
         return true;
       },
       housePlotInvoices(list) { held = {}; for (const inv of list || []) held[inv.plot] = inv; return Object.keys(held).length; },
@@ -2393,6 +2528,22 @@
         return true;
       },
       /* the deed is on the chain and in the buyer's wallet (tools/deeds.py): its inscription is the plot's deed now */
+      houseShopsLoaded: () => shopsLoaded || !plots.length,
+      houseShops(json) { stock = typeof json === 'string' ? JSON.parse(json) : (json || {}); shopsLoaded = true; sendShops(); return Object.keys(stock).length; },
+      houseShopsTake() { const out = {}; for (const id of shopsDirty) { const sh = stock[id]; out[id] = sh && ((sh.items || []).length || (sh.owed || []).length) ? sh : null; } shopsDirty.clear(); return JSON.stringify(out); },
+      houseShopDeliver(key, buyer, btag) {
+        const [, id, oid] = String(key).split(':'), sh = stock[id]; if (!sh) return true;
+        const i = sh.items.findIndex(it => it[0] === +oid); if (i < 0) { console.warn('LWQ: ' + key + ' was paid for but is gone'); return true; }
+        const it = sh.items.splice(i, 1)[0];
+        if (book && book.has(buyer)) giveThing(buyer, it[1], it[2], it[3]); else sh.owed.push([buyer, it[1], it[2], it[3]]);
+        delete held[key]; shopsDirty.add(id); sendShops();
+        const what = thingName(it[1], it[2]) + (it[3] > 1 ? ' × ' + it[3] : '');
+        for (const [rid, r] of remotes) {
+          if (r.from.address === buyer) notice(rid, what + ' is yours: in your bag.');
+          if (r.from.address === (plotOwn[id] || [])[1]) notice(rid, 'Sold at your shop on plot ' + id + ': ' + what + '. Your ' + it[4] + ' tLTC are paid out to your Litecoin testnet address.');
+        }
+        return true;
+      },
       houseSaleAsks() { const out = saleAsks; saleAsks = []; return JSON.stringify(out); },
       housePlotSales(list, esc) {
         const next = {}; for (const sl of list || []) next[sl.plot] = sl;
@@ -2459,6 +2610,7 @@
           storeGiven.add(a);
           if (!all[a] || !book.load({ [a]: all[a] })) book.of(a);
           dirty.add(a);
+          payOwed(a);
         }
         return Object.keys(all).length;
       },
@@ -2487,6 +2639,6 @@
     };
   }
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 43, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 44, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
     D => ({ start: (el, opts) => start(D, el, opts) }));
 })(typeof globalThis !== 'undefined' ? globalThis : this);
