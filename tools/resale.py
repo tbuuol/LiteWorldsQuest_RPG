@@ -29,7 +29,14 @@ import ltc_pay
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 NODE = "http://127.0.0.1:8420"
 LEVY = 0.10
-FEE = 0.0002          # tLTC for a payout
+#: what a payout pays the network: Litecoin's floor of 0.0001 tLTC a kB, a little over it, by the transaction's size
+#: (2026-11-08: a fixed 0.0002 was nine times what a 225-byte payout needs, and a fifth of a small sale's levy)
+FEE_PER_KB = 0.00012
+
+
+def fee_for(n_in: int, n_out: int) -> int:
+    """litoshi for a P2PKH transaction of this many inputs and outputs"""
+    return int((10 + 148 * n_in + 34 * n_out) * FEE_PER_KB * 1e8 / 1000) + 1
 
 
 def escrow() -> str:
@@ -75,12 +82,13 @@ def payout(pay: "ltc_pay.Pay", to: str, amount: str) -> str:
     want, got, ins = round(float(amount) * 1e8), 0, []
     for u in coins:
         ins.append(u); got += round(u["amount"] * 1e8)
-        if got >= want + round(FEE * 1e8):
+        if got >= want + fee_for(len(ins), 2):
             break
-    if got < want + round(FEE * 1e8):
+    fee = fee_for(len(ins), 2)
+    if got < want + fee:
         raise RuntimeError(f"the house holds {got / 1e8:.8f} tLTC confirmed, {amount} + fee wanted")
     outs = {to: f"{want / 1e8:.8f}"}
-    change = got - want - round(FEE * 1e8)
+    change = got - want - fee
     if change >= 10000:
         outs[me] = f"{change / 1e8:.8f}"
     raw = rpc("createrawtransaction", json.dumps([{"txid": u["txid"], "vout": u["vout"]} for u in ins]), json.dumps(outs))
