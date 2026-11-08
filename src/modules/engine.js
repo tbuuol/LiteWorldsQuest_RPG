@@ -400,6 +400,14 @@
       saleAsks.push({ x: 'sell', plot: id, addr: a, tag: tagOf(from), price: String(+price.toFixed(8)), deed: o[3] });
       notice(from.id, 'Plot ' + id + ' offered at ' + +price.toFixed(8) + ' tLTC. Now hand your deed to the registry (the button in the registry), and the sale opens.');
     }
+    /* an owner known only by address (a deed that came to them while they were away): named when they come */
+    function nameMyPlots(from) {
+      if (!iAmHouse || !from || !from.address) return;
+      const tag = tagOf(from); if (!tag) return;
+      let n = 0;
+      for (const id in plotOwn) if (plotOwn[id][1] === from.address && plotOwn[id][0] !== tag) { const o = plotOwn[id]; plotOwn = Object.assign({}, plotOwn, { [id]: [tag].concat(o.slice(1)) }); plotsDirty.add(id); n++; }
+      if (n) { applyPlots(plotOwn); sendPlots(); }
+    }
     function sendSales(to) {
       if (!room || !iAmHouse) return;
       const ids = to ? [to].filter(linked) : directPlayers();
@@ -2047,7 +2055,7 @@
         log('This is the house: it keeps the world.');
       }
       room.on('message', heard);
-      room.on('join', ({ from }) => { remote(from); log(isHouse(from) ? 'The house is here.' : label(from, '') + ' joined.'); drawNet(); });
+      room.on('join', ({ from }) => { remote(from); nameMyPlots(from); log(isHouse(from) ? 'The house is here.' : label(from, '') + ' joined.'); drawNet(); });
       room.on('leave', ({ from }) => dropRemote(from.id));
       room.on('peer', () => drawNet());
       room.on('closed', why => { if (iAmHouse) { log('Disconnected: ' + (why || 'the room closed') + '.'); room = null; drawNet(); } else kick('The arcade closed the connection.', String(why || '')); });
@@ -2352,7 +2360,7 @@
       houseStore(on) { storeMode = !!on; return storeMode; },
       /* Genesis' plots for tools/house.py: loaded once from its database, and what changed handed back */
       housePlotsLoaded: () => plotsLoaded || !plots.length,
-      housePlots(json) { const all = typeof json === 'string' ? JSON.parse(json) : json; plotsLoaded = true; applyPlots(all || {}); sendPlots(); return Object.keys(plotOwn).length; },
+      housePlots(json) { const all = typeof json === 'string' ? JSON.parse(json) : json; plotsLoaded = true; applyPlots(all || {}); for (const [, r] of remotes) nameMyPlots(r.from); sendPlots(); return Object.keys(plotOwn).length; },
       housePlotsTake() { const out = {}; for (const id of plotsDirty) out[id] = plotOwn[id] || null; plotsDirty.clear(); return JSON.stringify(out); },
       housePay(on) { payOn = !!on; return payOn; },
       housePlotAsks() { const out = plotAsks; plotAsks = []; return JSON.stringify(out); },
@@ -2370,7 +2378,7 @@
         if (!p) return true;
         if (plotOwn[id] && plotOwn[id][1] === paid.addr && plotOwn[id][4]) {   /* the levy, paid: the plot thaws */
           const o = plotOwn[id];
-          plotOwn = Object.assign({}, plotOwn, { [id]: [o[0], o[1], o[2], o[3]] }); plotsDirty.add(id); applyPlots(plotOwn); sendPlots();
+          plotOwn = Object.assign({}, plotOwn, { [id]: [paid.tag || o[0], o[1], o[2], o[3]] }); plotsDirty.add(id); applyPlots(plotOwn); sendPlots();   /* their name, as the invoice has it */
           delete held[id];
           for (const [rid, r] of remotes) if (r.from.address === paid.addr) notice(rid, 'The city\'s levy for plot ' + id + ' is paid. The plot is free to build on and to sell.');
           return true;
@@ -2479,6 +2487,6 @@
     };
   }
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 42, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 43, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
     D => ({ start: (el, opts) => start(D, el, opts) }));
 })(typeof globalThis !== 'undefined' ? globalThis : this);
