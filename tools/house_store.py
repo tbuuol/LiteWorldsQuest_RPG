@@ -187,7 +187,7 @@ async def sync(frame, store: Store, zone: str = "") -> tuple[int, int]:
         changed = json.loads(await frame.evaluate("window.LWQGAME.houseShopsTake()") or "{}")
         if changed:
             store.put_shops(changed)
-
+    wants = await frame.evaluate("window.LWQGAME.houseWants()")
     if held:
         wants = [a for a in wants if HELD.get(a, zone) == zone]
     given = 0
