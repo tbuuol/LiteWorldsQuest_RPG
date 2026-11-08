@@ -151,6 +151,13 @@ def step_at(path, pay_key_path=None) -> list:
             if state == "escrow" and owners.get(deed) == esc:
                 save(state="open"); deeds.log("sale open", plot, price)
             elif state == "paid":
+                # the buyer's payment in a block first: until then it could still be spent elsewhere
+                try:
+                    paytx = db.execute("SELECT paytx FROM sales WHERE plot = ?", (plot,)).fetchone()[0]
+                    if int(ltc_pay.rpc("getrawtransaction", paytx, 1).get("confirmations") or 0) < 1:
+                        continue
+                except Exception:   # noqa: BLE001 -- not known yet: next round
+                    continue
                 if not payout_tx:
                     try:
                         tx = payout(_pay(), ltc_test_twin(seller), price)
