@@ -354,7 +354,7 @@
     function plotOwnerText(id) {
       const o = plotOwn[id];
       if (!o) return 'free';
-      return o[1] && o[1] === myAddr() ? 'yours' : 'owned by ' + (o[0] || 'someone');
+      return (o[1] && o[1] === myAddr() ? 'yours' : 'owned by ' + (o[0] || 'someone')) + (o[4] ? ' (frozen: levy due)' : '');
     }
     function housePlot(from, a, id) {
       const p = plots.find(q => q.id === id);
@@ -386,6 +386,12 @@
       if (!payOn) { notice(from.id, 'The registry does not sell plots on just now.'); return; }
       if (!o || o[1] !== a) { notice(from.id, 'Only its owner can offer plot ' + id + '.'); return; }
       if (d.Q === 'unsell') { saleAsks.push({ x: 'unsell', plot: id }); notice(from.id, 'Plot ' + id + ' is taken off the market.'); return; }
+      if (d.Q === 'levy') {
+        if (!o[4]) { notice(from.id, 'Plot ' + id + ' owes the city nothing.'); return; }
+        if (!plotAsks.some(q => q.plot === id)) plotAsks.push({ plot: id, addr: a, tag: tagOf(from), to: from.id, price: o[4] });
+        notice(from.id, 'Registrar Aldous writes your invoice for the city\'s levy on plot ' + id + '…'); return;
+      }
+      if (o[4]) { notice(from.id, 'Plot ' + id + ' is frozen until the city\'s levy is paid.'); return; }
       const price = +d.price;
       if (!(price >= 0.001 && price <= 100)) { notice(from.id, 'A price between 0.001 and 100 tLTC, please.'); return; }
       if (!/^[0-9a-f]{64}$/.test(o[3] || '')) { notice(from.id, 'Your deed is still on its way to your wallet. Offer the plot once it is there.'); return; }
@@ -406,7 +412,7 @@
     }
     function applyPlots(next) {
       plotOwn = {};
-      for (const id in next) if (Array.isArray(next[id]) && plots.some(p => p.id === id)) plotOwn[id] = next[id].slice(0, 4);
+      for (const id in next) if (Array.isArray(next[id]) && plots.some(p => p.id === id)) plotOwn[id] = next[id].slice(0, 5);
       if (plotLook && plotLook.owners) plotLook.owners(id => plotOwn[id] ? { text: plotOwn[id][0] || 'owned', mine: plotOwn[id][1] === myAddr() } : null);
       posKey = '';
       if (myInvoice && plotOwn[myInvoice.plot]) myInvoice = null;
@@ -491,7 +497,9 @@
       if (deedOf) {
         const btn = (k, t, c) => '<button data-' + k + ' style="background:' + (c || '#5a4630') + ';color:#fff;border:1px solid #c8a050;border-radius:4px;padding:3px 10px;cursor:pointer;margin-left:6px">' + t + '</button>';
         let h = '';
-        if (deedOf[1] === me2) {
+        if (deedOf[1] === me2 && deedOf[4]) {
+          h = 'Frozen: the deed came to you outside the registry, so the city\'s levy was not paid. Pay <b>' + esc(deedOf[4]) + '</b> tLTC to build on it and sell it again.' + btn('levy', 'Pay the levy', '#3f6a2a');
+        } else if (deedOf[1] === me2) {
           if (!sale || ['done', 'gone'].includes(sale.state)) h = 'Offer it for <input data-price type="number" min="0.001" step="0.001" placeholder="tLTC" style="width:90px"> tLTC' + btn('sell', 'Offer for sale', '#3f6a2a') + '<br><small>The buyer pays your price and the city\'s 10 % on top; you get your whole price.</small>';
           else if (sale.state === 'escrow') h = 'Offered at <b>' + esc(sale.price) + '</b> tLTC. ' + (handing.has(p.id + ':' + sale.since)
             ? 'Your deed is on its way to the registry; the sale opens when a block has it there.' + btn('unsell', 'Take it back')
@@ -506,6 +514,7 @@
         const q = sel => info.querySelector(sel);
         if (q('[data-sell]')) q('[data-sell]').onclick = () => askHouse({ Q: 'sell', p: p.id, price: +(q('[data-price]').value || 0) });
         if (q('[data-unsell]')) q('[data-unsell]').onclick = () => askHouse({ Q: 'unsell', p: p.id });
+        if (q('[data-levy]')) q('[data-levy]').onclick = e => { askHouse({ Q: 'levy', p: p.id }); e.target.disabled = true; e.target.textContent = 'Asking…'; };
         if (q('[data-buy2]')) q('[data-buy2]').onclick = e => { askHouse({ Q: 'plot', p: p.id }); e.target.disabled = true; e.target.textContent = 'Asking…'; };
         if (q('[data-hand]')) q('[data-hand]').onclick = async e => {
           if (!escrowAddr) { log('The registry has no address yet; try again in a moment.'); return; }
@@ -569,6 +578,7 @@
       if (!isFinite(pc[1]) || !isFinite(pc[2])) return;
       const home = pieceHome(pc, a);
       if (!home) { notice(from.id, 'You can build only on your own plots.'); return; }
+      if (plotOwn[home.id] && plotOwn[home.id][4]) { notice(from.id, 'Plot ' + home.id + ' is frozen until the city\'s levy is paid at the town hall.'); return; }
       const slot = slotOf(pc), had = pieceAt(slot);
       if (d.x === 'del') {
         if (!had || !pieceHome(had[1], a)) return;
@@ -1942,7 +1952,7 @@
         else if (d.Q === 'unequip') book.unequip(a, String(d.s));
         else if (d.Q === 'plot') housePlot(from, a, String(d.p));
         else if (d.Q === 'build') houseBuild(from, a, d);
-        else if (d.Q === 'sell' || d.Q === 'unsell') houseSell(from, a, d);
+        else if (d.Q === 'sell' || d.Q === 'unsell' || d.Q === 'levy') houseSell(from, a, d);
         else if (d.Q === 'home' || d.Q === 'chest') houseFurniture(from, a, d);
         else if (d.Q === 'quest') {
           const q = (LV.quests || []).find(x => x.id === String(d.q)), r = remotes.get(from.id), N = q && npcs[q.npc];
@@ -2358,6 +2368,13 @@
       housePlotPaid(paid) {
         const id = String(paid.plot), p = plots.find(q => q.id === id);
         if (!p) return true;
+        if (plotOwn[id] && plotOwn[id][1] === paid.addr && plotOwn[id][4]) {   /* the levy, paid: the plot thaws */
+          const o = plotOwn[id];
+          plotOwn = Object.assign({}, plotOwn, { [id]: [o[0], o[1], o[2], o[3]] }); plotsDirty.add(id); applyPlots(plotOwn); sendPlots();
+          delete held[id];
+          for (const [rid, r] of remotes) if (r.from.address === paid.addr) notice(rid, 'The city\'s levy for plot ' + id + ' is paid. The plot is free to build on and to sell.');
+          return true;
+        }
         if (plotOwn[id] && plotOwn[id][1] !== paid.addr) { console.warn('LWQ: plot ' + id + ' was paid for by ' + paid.addr + ' but is owned already'); return true; }
         if (!plotOwn[id]) {
           plotOwn = Object.assign({}, plotOwn, { [id]: [paid.tag || '', paid.addr, Date.now(), 'tltc:' + String(paid.txid || '').slice(0, 16)] });
@@ -2384,7 +2401,11 @@
           if (!holder || holder === o[1] || holder === esc) continue;
           if (sales[id] && sales[id].state === 'paid') continue;   /* it is being handed to its buyer */
           let tag = ''; for (const [, r] of remotes) if (r.from.address === holder) tag = tagOf(r.from);
-          plotOwn = Object.assign({}, plotOwn, { [id]: [tag, holder, Date.now(), o[3]] }); plotsDirty.add(id); n++;
+          /* FROZEN (tbuuol 2026-11-08): a deed handed on outside the registry skipped the city's levy -- the new holder
+             owns the plot, but builds and sells nothing on it until the levy (10 % of the registry's price) is paid */
+          const kind = (plots.find(q => q.id === id) || {}).kind, levy = String(+(+PLOT_PRICE[kind] * 0.1).toFixed(8));
+          plotOwn = Object.assign({}, plotOwn, { [id]: [tag, holder, Date.now(), o[3], levy] }); plotsDirty.add(id); n++;
+          for (const [rid, r] of remotes) if (r.from.address === holder) notice(rid, 'The deed to plot ' + id + ' came to you outside the registry. The plot is yours, but frozen until the city\'s levy of ' + levy + ' tLTC is paid at the town hall.');
         }
         if (n) { applyPlots(plotOwn); sendPlots(); }
         return n;
@@ -2458,6 +2479,6 @@
     };
   }
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 41, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 42, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
     D => ({ start: (el, opts) => start(D, el, opts) }));
 })(typeof globalThis !== 'undefined' ? globalThis : this);
