@@ -29,19 +29,19 @@
     },
     "art": {
       "file": "src/modules/art.js",
-      "v": 26,
+      "v": 27,
       "api": 1,
       "kind": "js",
       "id": null,
-      "gz": "dea2d6737fe43acc5275c33f4aacdbbec576f2f2369d998e7495212bd4f3bd70"
+      "gz": null
     },
     "combat": {
       "file": "src/modules/combat.js",
-      "v": 19,
+      "v": 20,
       "api": 1,
       "kind": "js",
       "id": null,
-      "gz": "b9215d1313917856f9b9d290b4340e2a6d2b137d7d16c52773e01e70e3f901df"
+      "gz": null
     },
     "rpg": {
       "file": "src/modules/rpg.js",
@@ -117,11 +117,11 @@
     },
     "world": {
       "file": "src/levels/world.json",
-      "v": 9,
+      "v": 10,
       "api": 1,
       "kind": "json",
       "id": null,
-      "gz": "c6991b1c0e6d8171609a5a04e1bbb21875103dfa8bed2b10d58b02947f5eb679"
+      "gz": null
     }
   },
   "page_id": "780e737befad5f1d5ee39f62a766940c67f40c43acdbfe3de6dea1be64d858c0",

@@ -26,7 +26,7 @@ import subprocess
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 LEVELS = ROOT / "src" / "levels"
 OUT = LEVELS / "world.json"
-VERSION = 9
+VERSION = 10
 
 
 def probe(land: dict, points: list) -> list:
@@ -411,7 +411,8 @@ def main() -> None:
         "land": land,
         "places": [blockshire, saltwind, berth, wilds, genesis],
         "resources": {k: v for k, v in (blk.get("resources") or {}).items() if k != "nodes"},   # how often, how much: the wilds' too
-        "defense": {k: v for k, v in (blk.get("defense") or {}).items() if k != "spawns"},   # the guards and the priest; no raider waves
+        # the guards and the priest; the raiders come by night only (tbuuol 2026-11-10)
+        "defense": dict(blk.get("defense") or {}, spawns=dict((blk.get("defense") or {}).get("spawns") or {}, night=True)),
         "wild": wild, "quests": quests, "zones": zones,
         "revives": [
             {"at": [0, 0], "spawn": spawn, "yaw": blk.get("spawnYaw", 0)},

@@ -3,7 +3,7 @@
      combat.gain(p, xp)              -> levels gained (p is changed: xp, level, max, dmg, hp)
      const f = combat.create({THREE, art, ctx, def})   the level's "defense" block:
         {guards: [{id, name, pos, face, look}], priest: {id, name, pos, look},
-         spawns: {points: [[x, z]], every, max, first}, raider: {name, look}}
+         spawns: {points: [[x, z]], every, max, first, count, night}, raider: {name, look}}
      f.update(dt, host, players) -> events      players: [{id, x, z, hp, max, dead}]; only the host simulates, the others
                                                 draw what the host last sent; events (host only):
                                                 {t: 'hit'|'heal', to: playerId, d}  and  {t: 'kill', by: playerId, xp}
@@ -212,8 +212,11 @@
       const livePlayers = players.filter(p => !p.dead);
       /* new raiders, from the edge of the forest */
       const sp = def.spawns || {};
+      /* RAIDS BY NIGHT (tbuuol 2026-11-10): spawns.night -- they come only while the moon is up, and at sunrise the
+         ones still standing go back into the forest */
+      const raidTime = !sp.night || !art.dayTime || art.dayTime().night;
       spawnIn -= dt;
-      if (spawnIn <= 0 && (sp.points || []).length) {
+      if (raidTime && spawnIn <= 0 && (sp.points || []).length) {
         spawnIn = sp.every || 12;
         let living = raiders.filter(alive).length;
         const first = Math.floor(Math.random() * sp.points.length);
@@ -221,11 +224,17 @@
           const pt = sp.points[(first + k) % sp.points.length];
           const u = make('r' + (++raiderNo % 1000), 'raider', pt[0] + (Math.random() - 0.5) * 3, pt[1] + (Math.random() - 0.5) * 3);
           u.state = 'walk';
+          const ox = pt[0], oz = pt[1] - 21, ol = Math.hypot(ox, oz) || 1;
+          u.home = [pt[0] + ox / ol * 14, pt[1] + oz / ol * 14];   /* where it goes back to: deeper into the forest */
         }
       }
       for (const u of raiders) {
         if (!alive(u)) continue;
         if (u.stun > 0) { u.stun -= dt; u.state = 'idle'; continue; }   /* stunned: does nothing */
+        if (!raidTime && u.home) {   /* the sun is up: back into the forest, and gone there */
+          if (step(u, u.home[0], u.home[1], statOf('raider').speed * 1.2, dt, 1)) u.state = 'walk'; else drop(u);
+          continue;
+        }
         /* who to fight: whoever struck it last (a player), else the nearest guard standing, else a player nearby */
         let tgt = null;
         if (u.aggro) { const p = livePlayers.find(q => 'p:' + q.id === u.aggro); if (p && dist(u, p) < 18) tgt = { x: p.x, z: p.z, y: p.y, ref: u.aggro }; else u.aggro = null; }
@@ -672,5 +681,5 @@
     return snap;
   }
   const combat = { api: 1, player, gain, nextXp, create, encode, decode };
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('combat', { api: 1, v: 19, needs: { three: 160, art: 1 } }, () => combat);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('combat', { api: 1, v: 20, needs: { three: 160, art: 1 } }, () => combat);
 })(typeof globalThis !== 'undefined' ? globalThis : this);

@@ -336,8 +336,21 @@
   }
   /* what stays round the eye however far you walk (the horizon's ridges), moved by setup's update */
   let followers = [];
+  /* what the night darkens that no light reaches: unlit materials (the ridges) and the far land's haze colour */
+  let unlit = [], hazes = [];
+  /* THE DAY (tbuuol 2026-11-10): one clock for everyone, from the time itself, so every player and the house see the
+     same hour with nothing sent. A day is DAY seconds (two hours): the sun is up for the first two thirds, then the
+     moon. art.dayShift moves the clock (seconds; for tests). */
+  const DAY = 7200, LIGHT = 2 / 3;
+  art.dayShift = 0;
+  art.dayTime = function (now) {
+    const sec = (now != null ? now : Date.now()) / 1000 + art.dayShift, p = ((sec % DAY) + DAY) % DAY / DAY;
+    const day = p < LIGHT, arc = day ? p / LIGHT : (p - LIGHT) / (1 - LIGHT);
+    /* sun: how high the sun stands, -1..1 (below the horizon all night) */
+    return { p, arc, night: !day, sun: day ? Math.sin(arc * Math.PI) : -Math.sin(arc * Math.PI), left: Math.round((day ? LIGHT - p : 1 - p) * DAY) };
+  };
   art.setup = function (THREE, renderer, scene, env) {
-    followers = [];
+    followers = []; unlit = []; hazes = [];
     T = THREE; env = env || {};
     renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFShadowMap;
     renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = env.exposure || 1.05;
@@ -345,11 +358,17 @@
     const sunDir = new THREE.Vector3().fromArray(env.sunDir || [-0.6, 0.35, -0.7]).normalize();
     const sky = new THREE.Mesh(new THREE.SphereGeometry(400, 32, 16), new THREE.ShaderMaterial({
       side: THREE.BackSide, depthWrite: false, fog: false,
-      uniforms: { top: { value: top }, bottom: { value: bottom }, sun: { value: sunDir }, sunColor: { value: new THREE.Color(env.sunColor || '#ffd9a0') } },
+      uniforms: { top: { value: top }, bottom: { value: bottom }, sun: { value: sunDir }, sunColor: { value: new THREE.Color(env.sunColor || '#ffd9a0') },
+                  moon: { value: new THREE.Vector3(0, -1, 0) }, night: { value: 0 } },
       vertexShader: 'varying vec3 vDir; void main(){ vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-      fragmentShader: 'uniform vec3 top; uniform vec3 bottom; uniform vec3 sun; uniform vec3 sunColor; varying vec3 vDir;' +
+      fragmentShader: 'uniform vec3 top; uniform vec3 bottom; uniform vec3 sun; uniform vec3 sunColor; uniform vec3 moon; uniform float night; varying vec3 vDir;' +
+        'float hash(vec3 p){ return fract(sin(dot(p, vec3(12.9898, 78.233, 45.164))) * 43758.5453); }' +
         'void main(){ float h = clamp(vDir.y * 1.6 + 0.12, 0.0, 1.0); vec3 c = mix(bottom, top, pow(h, 0.7));' +
-        ' float s = max(dot(vDir, sun), 0.0); c += sunColor * (pow(s, 900.0) * 3.0 + pow(s, 12.0) * 0.35);' +
+        ' float s = max(dot(vDir, sun), 0.0); c += sunColor * (pow(s, 900.0) * 3.0 + pow(s, 12.0) * 0.35) * step(-0.05, sun.y);' +
+        /* the night: stars (cells of the sky, a few lit, each its own brightness) and the moon with a pale halo */
+        ' vec3 cell = floor(vDir * 260.0); float st = step(0.9965, hash(cell)) * hash(cell + 7.0);' +
+        ' c += vec3(0.85, 0.9, 1.0) * st * night * smoothstep(0.02, 0.25, vDir.y);' +
+        ' float m = max(dot(vDir, moon), 0.0); c += vec3(0.85, 0.9, 1.0) * (smoothstep(0.99955, 0.9997, m) * 1.6 + pow(m, 40.0) * 0.12) * night;' +
         ' gl_FragColor = vec4(c, 1.0); }'
     }));
     sky.renderOrder = -1; sky.userData.keep = true; scene.add(sky);
@@ -395,12 +414,45 @@
       s.position.set(Math.cos(a) * r, rnd.range(70, 110), Math.sin(a) * r); const w = rnd.range(110, 190); s.scale.set(w, w * 0.5, 1);
       scene.add(s); clouds.push(s);
     }
+    /* DAY AND NIGHT: the level's colours are noon's; dusk and night are mixed over them as the sun goes down */
+    const C = x => new THREE.Color(x);
+    const noon = { top: top.clone(), bottom: bottom.clone(), fog: scene.fog.color.clone(), hemiSky: C(env.hemiSky || '#bcd4f0'), hemiGround: C(env.hemiGround || '#5a4a32'),
+                   sun: C(env.sunColor || '#ffd9a0'), white: C('#ffffff') };
+    const dusk = { top: C('#46508c'), bottom: C('#ff9257'), fog: C('#c99a84'), sun: C('#ff9a55'), cloud: C('#ffb894') };
+    const dark = { top: C('#040817'), bottom: C('#14223f'), fog: C('#0d1729'), hemiSky: C('#4a5f92'), hemiGround: C('#16151d'), moon: C('#9fb6ff'), cloud: C('#323a52'), unlit: C('#25304a') };
+    const flat = new THREE.Vector3(sunDir.x, 0, sunDir.z).normalize(), east = new THREE.Vector3().crossVectors(flat, new THREE.Vector3(0, 1, 0)).normalize();
+    const tilt = Math.max(0.35, Math.asin(Math.min(1, Math.abs(sunDir.y) + 0.45)));   /* how high noon stands */
+    const arcDir = (out, a, side) => out.copy(east).multiplyScalar(Math.cos(a) * side)
+      .addScaledVector(flat, Math.cos(tilt) * Math.sin(a)).add(new THREE.Vector3(0, Math.sin(tilt) * Math.sin(a), 0)).normalize();
+    const moonDir = sky.material.uniforms.moon.value;
+    const smooth = (a, b, x) => { const k = Math.max(0, Math.min(1, (x - a) / (b - a))); return k * k * (3 - 2 * k); };
+    const sunMax = env.sun || 2.2, hemiMax = env.hemi || 0.75;
+    let lightFrom = sunDir, lastSky = -1;
+    function daylight() {
+      const d = art.dayTime();
+      if (Math.abs(d.p - lastSky) < 1 / 20000) return; lastSky = d.p;   /* changes slowly: not every frame */
+      const N = 1 - smooth(-0.14, 0.1, d.sun), W = (1 - N) * (1 - smooth(0.03, 0.42, d.sun)) + N * (1 - smooth(-0.3, -0.06, d.sun)) * 0.6;
+      if (d.night) { arcDir(moonDir, d.arc * Math.PI, 1); sunDir.copy(moonDir).negate(); } else { arcDir(sunDir, d.arc * Math.PI, -1); moonDir.copy(sunDir).negate(); }
+      const mix = (out, a, b, c) => out.copy(a).lerp(b, W * (1 - N)).lerp(c, N);
+      mix(top, noon.top, dusk.top, dark.top); mix(bottom, noon.bottom, dusk.bottom, dark.bottom);
+      mix(scene.fog.color, noon.fog, dusk.fog, dark.fog);
+      sky.material.uniforms.night.value = smooth(0.25, 0.85, N);
+      hemi.intensity = hemiMax + (0.34 - hemiMax) * N;
+      hemi.color.copy(noon.hemiSky).lerp(dark.hemiSky, N); hemi.groundColor.copy(noon.hemiGround).lerp(dark.hemiGround, N);
+      const up = d.night ? 0 : smooth(-0.02, 0.12, d.sun), moonUp = d.night ? smooth(0.0, 0.15, -d.sun) : 0;
+      if (d.night) { lightFrom = moonDir; sunL.intensity = 0.6 * moonUp; sunL.color.copy(dark.moon); }
+      else { lightFrom = sunDir; sunL.intensity = sunMax * up; sunL.color.copy(noon.sun).lerp(dusk.sun, W); }
+      cloudMat.color.copy(noon.white).lerp(dusk.cloud, W * (1 - N)).lerp(dark.cloud, N);
+      for (const m of unlit) m.color.copy(noon.white).lerp(dusk.cloud, W * 0.35 * (1 - N)).lerp(dark.unlit, N);
+      for (const h of hazes) h.value.copy(scene.fog.color);
+    }
     return {
       sun: sunL,
       update(dt, t, eye) {
+        daylight();
         for (const s of clouds) { s.position.x += dt * 0.8; if (s.position.x > 240) s.position.x = -240; }
         if (eye) for (const f of followers) { f.position.x = eye.x; f.position.z = eye.z; }
-        if (eye) { sky.position.copy(eye); sunL.target.position.set(eye.x, 0, eye.z); sunL.position.copy(sunDir).multiplyScalar(60).add(sunL.target.position); }
+        if (eye) { sky.position.copy(eye); sunL.target.position.set(eye.x, 0, eye.z); sunL.position.copy(lightFrom).multiplyScalar(60).add(sunL.target.position); }
       }
     };
   };
@@ -935,6 +987,7 @@
       fg.setAttribute('color', new T.BufferAttribute(fc, 3)); fg.computeVertexNormals(); }
     /* only where the near land is all fog (the fog ends at R), in the fog's own colour: no seam, no slanted planes */
     const eyeU = { value: new T.Vector3() }, inner = { value: R - 4 }, haze = { value: new T.Color(o.haze || '#bcd5dc') };
+    hazes.push(haze);   /* the far land's haze follows the fog through the day */
     const farM = new T.MeshLambertMaterial({ vertexColors: true, fog: false });
     farM.onBeforeCompile = sh => {
       sh.uniforms.uEye = eyeU; sh.uniforms.uInner = inner; sh.uniforms.uHaze = haze;
@@ -1029,6 +1082,7 @@
       for (let i = 0; i < N; i++) { const k = i * 2; idx.push(k, k + 1, k + 2, k + 1, k + 3, k + 2); }
       const g = new T.BufferGeometry(); g.setAttribute('position', new T.Float32BufferAttribute(P, 3)); g.setAttribute('color', new T.Float32BufferAttribute(C, 3)); g.setIndex(idx);
       const m = new T.Mesh(g, new T.MeshBasicMaterial({ vertexColors: true, fog: false, side: T.DoubleSide })); m.userData.keep = true; ctx.scene.add(m);
+      unlit.push(m.material);   /* no light reaches it: the night darkens it by hand */
       followers.push(m);   /* the horizon walks with you */
     };
     if (def.ridges !== false) {
@@ -2456,5 +2510,5 @@
     return { groundAt, polys, segs, half, spawn, inside, stats: { buildings: buildings.length, trees: trees.length } };
   };
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('art', { api: 1, v: 26 }, () => art);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('art', { api: 1, v: 27 }, () => art);
 })(typeof globalThis !== 'undefined' ? globalThis : this);

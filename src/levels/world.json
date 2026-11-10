@@ -2,7 +2,7 @@
  "lwq": "module",
  "name": "level.world",
  "api": 1,
- "v": 9,
+ "v": 10,
  "data": {
   "id": "world",
   "title": "LiteWorldsQuest",
@@ -5292,6 +5292,27 @@
      "heal": 40,
      "dmg": 35
     }
+   },
+   "spawns": {
+    "points": [
+     [
+      -10,
+      40
+     ],
+     [
+      0,
+      43
+     ],
+     [
+      10,
+      40
+     ]
+    ],
+    "every": 5,
+    "max": 30,
+    "first": 5,
+    "count": 3,
+    "night": true
    },
    "raider": {
     "name": "Raider",
