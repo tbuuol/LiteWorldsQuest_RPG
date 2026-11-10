@@ -364,9 +364,11 @@ async def _session(p, level: str = "") -> None:
                 if not await rejoin("the arcade's web worker restarted"):
                     return
                 continue
-            if BETA and beta_build() != build:
-                log("a new beta build:", beta_build(), "; starting again")
-                return
+            if BETA and beta_build() != build:   # a new build: the page again, in this browser (no fresh session)
+                build = beta_build()
+                if not await rejoin("a new beta build: " + build):
+                    return
+                continue
             # A DRILL (2026-11-10): touch .publisher/house[-beta].drill and the house throws its own page away once, to
             # show that it gets back in by itself
             if DRILL.exists():
