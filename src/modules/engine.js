@@ -900,7 +900,7 @@
       bBar.innerHTML = 'BUILD · <b style="color:#ffd65a">' + names[bKind] + '</b> (Q: all pieces, wheel: next)' +
         ' · T: <b>' + ['wood', 'stone', 'plaster'][bMat] + '</b> · storey <b>' + bLevel + '</b> (Z / X)' + (bKind >= 4 ? ' · R: turn' : '') +
         ' · costs ' + Object.entries(costOf([bKind, 0, 0, 0, 0, bMat])).map(([m, n]) => n + ' ' + ((rpg && rpg.ITEMS[m]) ? rpg.ITEMS[m].name : m)).join(', ') +
-        (rec ? ' (you have ' + ((rec.mat || {})[bMat === 0 ? 'oak_log' : 'stone_block'] || 0) + ')' : '');
+        (rec ? ' (you have ' + Object.keys(costOf([bKind, 0, 0, 0, 0, bMat])).map(m => (rec.mat || {})[m] || 0).join(', ') + ')' : '');
     }
     function buildTarget() {
       if (!building || !TR) return null;
@@ -1472,7 +1472,10 @@
       }
       if (me.y < (realW ? -100 : -20)) { me.x = prev.x = SPAWN[0]; me.y = prev.y = SPAWN[1] + 1; me.z = prev.z = SPAWN[2]; me.vy = 0; log('You fell out of the world.'); }
     }
+    /* CINEMA (the teaser, 2026-11-08): the camera where a tool puts it, no physics, no hands */
+    let cinema = false;
     function move(dt) {
+      if (cinema) { prev.x = me.x; prev.y = me.y; prev.z = me.z; camera.position.set(me.x, me.y + EYE, me.z); camera.rotation.set(me.pitch, me.yaw, 0); return; }
       if (!live()) { acc = 0; for (const k in keys) keys[k] = false; }   /* not directly with the house: frozen */
       else acc += Math.min(dt, 0.25);                     /* after a long stall (a hidden tab) do not run seconds of physics at once */
       while (acc >= STEP) { prev.x = me.x; prev.y = me.y; prev.z = me.z; physics(STEP); acc -= STEP; }
@@ -1564,21 +1567,74 @@
     hands.add(right, left); hands.userData.keep = true;
     let handsKey = '';
     const M = c => new THREE.MeshStandardMaterial(Object.assign({ roughness: 0.75 }, c));
-    function heldModel(model, look) {
+    /* SWORDS (tbuuol 2026-11-08: "neue Schwert-Models", the one on the card's cover as the pattern): a flat blade with
+       bevelled edges, a fuller, a guard, a wrapped grip and a pommel -- one shape per kind of sword. The grip is at the
+       origin and the blade points up (+y), so a hand holds every sword the same way. */
+    function bladeGeo(len, w0, w1, curve) {   /* the blade's outline, extruded thin with a bevel: the edges catch the light */
+      const sh = new THREE.Shape(), c = curve || 0;
+      sh.moveTo(-w0 / 2, 0); sh.lineTo(w0 / 2, 0);
+      sh.quadraticCurveTo(w1 / 2 + c * 0.6, len * 0.55, w1 / 2 + c, len * 0.86);
+      sh.quadraticCurveTo(w1 * 0.2 + c, len * 0.96, c * 1.15, len);
+      sh.quadraticCurveTo(-w1 / 2 + c * 0.9, len * 0.85, -w1 / 2 + c * 0.7, len * 0.7);
+      sh.quadraticCurveTo(-w1 / 2 + c * 0.2, len * 0.35, -w0 / 2, 0);
+      const geo = new THREE.ExtrudeGeometry(sh, { depth: 0.003, bevelEnabled: true, bevelThickness: 0.005, bevelSize: 0.007, bevelSegments: 1, curveSegments: 6 });
+      geo.translate(0, 0, -0.0015); return geo;
+    }
+    function swordModel(g, add, look, form, steel, wood, brass) {
+      const gold = M({ color: '#c9962f', metalness: 0.8, roughness: 0.35 }), dark = M({ color: '#4a5260', metalness: 0.7, roughness: 0.45 });
+      const leather = M({ color: '#4a2a18', roughness: 0.9 }), wrap = M({ color: '#7a4a2a', roughness: 0.85 });
+      const gem = M({ color: '#2f6fd6', metalness: 0.2, roughness: 0.15, emissive: '#0c2a66', emissiveIntensity: 0.6 });
+      const grip = (len, mat) => {   /* a wrapped grip, its rings, and a pommel under it */
+        add(new THREE.CylinderGeometry(0.017, 0.019, len, 8), mat || leather, 0, -len / 2);
+        for (let i = 1; i < 5; i++) add(new THREE.TorusGeometry(0.019, 0.004, 4, 10), wrap, 0, -len * i / 5).rotation.x = Math.PI / 2;
+      };
+      if (form === 'training') {   /* wood: a plain blunt blade and a straight bar */
+        const w = M({ color: '#a07a4e', roughness: 0.85 });
+        add(bladeGeo(0.6, 0.048, 0.042), w, 0, 0.03);
+        add(new THREE.BoxGeometry(0.15, 0.03, 0.04), wood, 0, 0.02);
+        grip(0.13, wood); add(new THREE.SphereGeometry(0.026, 8, 6), wood, 0, -0.145);
+        return;
+      }
+      if (form === 'cutlass') {   /* a curved blade, broad near the tip, and a knuckle bow from the guard to the pommel */
+        add(bladeGeo(0.6, 0.042, 0.056, 0.05), steel, 0, 0.03);
+        add(new THREE.BoxGeometry(0.11, 0.026, 0.05), gold, -0.02, 0.02);
+        const bow = add(new THREE.TorusGeometry(0.075, 0.007, 5, 14, Math.PI), gold, 0.035, -0.065); bow.rotation.z = -Math.PI / 2;
+        grip(0.13); add(new THREE.SphereGeometry(0.022, 8, 6), gold, 0, -0.142);
+        return;
+      }
+      /* an arming sword: tapered blade with a darker fuller down its middle, a guard bent a little toward the blade with
+         round ends, a blue stone in its middle and in the pommel (rusty, copper, iron: the same shape, their own metal) */
+      add(bladeGeo(0.66, 0.05, 0.036), steel, 0, 0.03);
+      for (const z of [-0.0072, 0.0072]) add(new THREE.BoxGeometry(0.009, 0.4, 0.001), dark, 0, 0.27, z);
+      for (const sd of [-1, 1]) {
+        const q = add(new THREE.CylinderGeometry(0.011, 0.014, 0.1, 8), gold, sd * 0.05, 0.025); q.rotation.z = sd * (Math.PI / 2 - 0.22);
+        add(new THREE.SphereGeometry(0.018, 8, 6), gold, sd * 0.1, 0.037);
+      }
+      add(new THREE.BoxGeometry(0.04, 0.04, 0.032), gold, 0, 0.02);
+      add(new THREE.SphereGeometry(0.011, 8, 6), gem, 0, 0.02, 0.017);
+      grip(0.14);
+      add(new THREE.SphereGeometry(0.03, 10, 8), gold, 0, -0.16).scale.set(1, 0.9, 0.75);
+      add(new THREE.SphereGeometry(0.012, 8, 6), gem, 0, -0.16, 0.021);
+    }
+    function heldModel(model, look, form) {
       const g = new THREE.Group(), add = (geo, m, x, y, z) => { const p = new THREE.Mesh(geo, m); p.position.set(x || 0, y || 0, z || 0); g.add(p); return p; };
       const steel = M({ color: look || '#cfd5dd', metalness: 0.85, roughness: 0.3 }), wood = M({ color: '#6b4a2e' }), brass = M({ color: '#b8893a', metalness: 0.7, roughness: 0.4 });
       if (model === 'fist') {   /* our own figure's big round hand and its sleeve (Etappe 2) */
         add(new THREE.SphereGeometry(0.06, 10, 8), M({ color: '#e0b18c', roughness: 0.85 })).scale.set(1, 0.9, 1.2);
         const sl = add(new THREE.CapsuleGeometry(0.048, 0.16, 3, 8), M({ color: '#3e6fa8', roughness: 0.9 }), 0, -0.01, 0.15); sl.rotation.x = Math.PI / 2;
       }
-      else if (model === 'sword') { add(new THREE.BoxGeometry(0.045, 0.6, 0.012), steel, 0, 0.38); add(new THREE.ConeGeometry(0.032, 0.08, 4), steel, 0, 0.72);
-        add(new THREE.BoxGeometry(0.2, 0.035, 0.045), brass, 0, 0.07); add(new THREE.CylinderGeometry(0.02, 0.022, 0.15, 8), wood, 0, -0.02); }
+      else if (model === 'sword') swordModel(g, add, look, form, steel, wood, brass);
       else if (model === 'axe') { add(new THREE.CylinderGeometry(0.022, 0.025, 0.62, 8), wood, 0, 0.2); add(new THREE.BoxGeometry(0.16, 0.14, 0.02), steel, 0.07, 0.44); }
       else if (model === 'mace') { add(new THREE.CylinderGeometry(0.022, 0.025, 0.5, 8), wood, 0, 0.15); add(new THREE.SphereGeometry(0.07, 10, 8), M({ color: '#5a5a5a', metalness: 0.6 }), 0, 0.42); }
       else if (model === 'shield') { const sh = add(new THREE.CylinderGeometry(0.2, 0.2, 0.04, 16), M({ color: look || '#8a6238' })); sh.rotation.x = Math.PI / 2; add(new THREE.SphereGeometry(0.05, 8, 6), brass, 0, 0, 0.03); }
       g.userData.kind = model;   /* an avatar straps a shield to the forearm and grips everything else */
       return g;
     }
+    const SWORD_FORM = { training_sword: 'training', pirate_cutlass: 'cutlass' };
+    const inHand = it => heldModel(it.model, it.look, SWORD_FORM[it.id]);
+    const SWINGS = { sword: 1, axe: 1, mace: 1 };   /* what swings in the left hand too (a shield does not) */
+    let offSwings = false, swingL = 0, swingWait = 0, swingPinned = null;
+    function swing() { swingT = 1; if (offSwings) swingWait = 0.13; }   /* both blades, one after the other */
     function dressHands() {
       if (!fight) return;
       const main = rec && rec.eq.main && rpg.itemOf(rec, rec.eq.main), off = rec && rec.eq.off && rpg.itemOf(rec, rec.eq.off);
@@ -1586,10 +1642,17 @@
       if (key === handsKey) return;
       handsKey = key;
       right.clear(); left.clear();
-      right.add(heldModel(main ? main.model : 'fist', main && main.look));
-      if (off) left.add(heldModel(off.model, off.look)); else if (!main) left.add(heldModel('fist'));
-      if (main) right.children[0].rotation.set(-0.35, 0.25, -0.3);
+      right.add(main ? inHand(main) : heldModel('fist'));
+      if (off) left.add(inHand(off)); else if (!main) left.add(heldModel('fist'));
+      /* HOW THEY ARE HELD (tbuuol 2026-11-08: "eins ist schräg und eins fast im Lot"): as in most first-person games,
+         low in each corner, the blade up and away from you, its tip leaning a little out -- the left the mirror of
+         the right */
+      const lean = it => it && SWINGS[it.model];   /* a blade leans forward, its tip a little in toward the middle */
+      if (lean(main)) { right.children[0].rotation.set(-0.6, 0, 0.22); right.children[0].scale.setScalar(0.8); }
+      else if (main) right.children[0].rotation.set(-0.35, 0.25, -0.3);
+      offSwings = !!(off && SWINGS[off.model]);
       if (off && off.model === 'shield') left.children[0].rotation.set(0.1, 0.5, 0);
+      else if (lean(off)) { left.children[0].rotation.set(-0.6, 0, -0.22); left.children[0].scale.setScalar(0.8); }
     }
     if (fight) { dressHands(); camera.add(hands); scene.add(camera); }
     let placed = false;
@@ -1606,7 +1669,7 @@
         }
       }
       placed = true;
-      rec = r; mine = rpg.stats(r); if (chestOpen) setTimeout(drawChest, 0); if (shopOpen) setTimeout(drawShop, 0); if (guildOpen) setTimeout(drawGuild, 0);
+      rec = r; mine = rpg.stats(r); if (building) drawBuildBar(); if (pickerBox && pickerBox.style.display === 'flex') drawPicker(); if (chestOpen) setTimeout(drawChest, 0); if (shopOpen) setTimeout(drawShop, 0); if (guildOpen) setTimeout(drawGuild, 0);
       P.max = mine.hp; P.hp = Math.min(P.hp, P.max);
       dressHands(); drawStats();
       if (menu) menu.update(rec, mine);
@@ -1632,7 +1695,7 @@
       if (!fight || !P || P.dead || !playing() || (menu && menu.isOpen())) return;
       const now = performance.now();
       if (now < atkReady) return;
-      atkReady = now + P.cd * 1000; swingT = 1; act('attack-melee-right');
+      atkReady = now + P.cd * 1000; swing(); act('attack-melee-right');
       const id = fight.pick(me.x, me.z, me.yaw, P.range, me.y);
       if (sound) sound.blip(id ? 'hit' : 'swing');
       if (!id) return;
@@ -1668,7 +1731,7 @@
         msg.p = best || myId();
       }
       abilCd[ab.key] = now + ab.cd * 1000;
-      if (ab.mul) { swingT = 1; act('attack-melee-right'); if (sound) sound.blip('hit'); for (const id of msg.u) { fight.predict(id, 0); if (ab.stun) fight.say(id, 'stun'); } }
+      if (ab.mul) { swing(); act('attack-melee-right'); if (sound) sound.blip('hit'); for (const id of msg.u) { fight.predict(id, 0); if (ab.stun) fight.say(id, 'stun'); } }
       else if (sound) sound.blip('pickup');
       sendIntent(msg);
       drawAbilities(true);
@@ -2012,7 +2075,7 @@
       if (key === r.w) return;
       r.w = key;
       const [main, off] = w.slice(0, 2).map(id => rpg.ITEMS[id] && !rpg.ITEMS[id].material ? rpg.ITEMS[id] : null);
-      r.c.holdItem(main && main.model ? heldModel(main.model, main.look) : null, off && off.model ? heldModel(off.model, off.look) : null);
+      r.c.holdItem(main && main.model ? inHand(main) : null, off && off.model ? inHand(off) : null);
     }
     function remote(from) {
       let r = remotes.get(from.id);
@@ -2466,13 +2529,20 @@
       }
       if (!P.dead && P.hp < P.max && now - lastHurt > 6000) { P.hp = Math.min(P.max, P.hp + dt * 3); drawStats(); }
       swingT = Math.max(0, swingT - dt * 3.2);
+      if (swingPinned) { swingT = swingPinned[0]; swingL = swingPinned[1]; swingWait = 0; }
       const k = Math.sin(swingT * Math.PI);   /* 0 -> 1 -> 0: up, across, back */
       const sx = 0.3 * Math.min(1, camera.aspect / 1.5);   /* a phone held upright: closer in, or it is off the picture */
-      right.position.set(sx - k * 0.22, -0.32 + k * 0.08, -0.55);
+      right.position.set(sx - k * 0.26, -0.27 + k * 0.12, -0.55);
       if (handsKey.startsWith('fist|')) right.position.set(sx - k * 0.12, -0.3 + k * 0.1, -0.5 - k * 0.3);   /* a punch goes forward */
-      else right.rotation.set(-k * 1.3, k * 0.9, -k * 0.6);                                                        /* a weapon swings across */
-      left.position.set(-sx, -0.32, -0.52);
-      hands.visible = !P.dead;
+      else right.rotation.set(-k * 0.25, 0, k * 1.25);   /* a weapon cuts across, the tip sweeping in and down */
+      if (swingWait > 0 && (swingWait -= dt) <= 0) swingL = 1;
+      if (!swingPinned) swingL = Math.max(0, swingL - dt * 3.2);
+      if (offSwings) {   /* the left blade: the right one's swing, mirrored */
+        const kl = Math.sin(swingL * Math.PI);
+        left.position.set(-sx + kl * 0.26, -0.27 + kl * 0.12, -0.55);
+        left.rotation.set(-kl * 0.25, 0, -kl * 1.25);
+      } else { left.position.set(-sx, -0.32, -0.52); left.rotation.set(0, 0, 0); }
+      hands.visible = !P.dead && !(cinema && cinema.noHands);
       sendRecords(now); flushOut(now);
     }
     let askedRec = -1e9;
@@ -2548,6 +2618,8 @@
       },
       /* for tests and tools: stand somewhere, look somewhere, press E without a captured mouse */
       others: () => Array.from(remotes, ([id, r]) => ({ id, house: !!r.house, x: r.g.position.x, z: r.g.position.z, sp: r.sp || 0, act: r.eN == null ? null : r.eN })),   /* tests */
+      cinema(on) { cinema = on ? Object.assign({}, on) : false; return !!cinema; },
+      panel(kind, arg) { if (kind === 'guild') openGuild(); else if (kind === 'shop') openShop(String(arg)); else if (kind === 'registry') openPlots(); else if (kind === 'menu' && menu) menu.open(arg); else { for (const b of [guildBox, shopBox, plotsBox, chestBox]) if (b) b.style.display = 'none'; guildOpen = false; shopOpen = null; plotsOpen = false; if (menu) menu.close(); } },   /* tools: open a panel, or close them all */   /* tools: {noHands} -- the camera follows goto/look only */
       goto(x, y, z) { me.x = prev.x = +x; me.y = prev.y = +y; me.z = prev.z = +z; me.vy = 0; },
       look(yaw, pitch) { me.yaw = +yaw; me.pitch = +(pitch || 0); },
       use() { camera.position.set(me.x, me.y + EYE, me.z); camera.rotation.set(me.pitch, me.yaw, 0); camera.updateMatrixWorld(); useAim(true); },
@@ -2557,6 +2629,7 @@
       draw(on) { drawing = !!on; keep.noDraw = !on; },   /* tests: everything runs, nothing is drawn (a machine without a GPU keeps up) */
       play() { if (TOUCH) startTouch(); else touchPlaying = keep.touch = true; },   /* tests: as if the view had been clicked */
       strike() { attack(); },
+      swingPin(kr, kl) { swingPinned = kr == null ? null : [+kr, +kl || 0]; },   /* tests: hold both hands at a point of their swing */
       netPeers() { return room ? room.peers() : null; },
       resourcesAt: () => Object.keys(resources).map(id => [id, resources[id].def.pos[0], resources[id].def.pos[1], !!W.dep[id]]),
       bridges: () => TR ? TR.bridges.map(b => ({ a: b.a.map(Math.round), b: b.b.map(Math.round), ya: Math.round(b.ya * 10) / 10, yb: Math.round(b.yb * 10) / 10 })) : [],
@@ -2719,6 +2792,6 @@
     };
   }
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 45, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 46, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
     D => ({ start: (el, opts) => start(D, el, opts) }));
 })(typeof globalThis !== 'undefined' ? globalThis : this);
