@@ -1924,7 +1924,8 @@
           let text = 'You defeated ' + aName(e.name || 'raider') + '.';
           const r = remotes.get(e.by);
           if (iAmHouse && book && r && r.from.address && ready(r.from.address)) {
-            const got = book.loot(r.from.address, null, e.species ? e.loot : null);
+            const spec = e.species && LV.wild && LV.wild.species[e.species];   /* only a boss drops things; the rest materials */
+            const got = book.loot(r.from.address, null, e.species ? e.loot : null, !(spec && spec.boss));
             if (got.length) text += ' Into your bag: ' + got.join(', ') + '.';
             if (e.species) {   /* the codex counts it */
               const k = book.kill(r.from.address, e.species), sp = LV.wild && LV.wild.species[e.species];
@@ -2868,6 +2869,6 @@
     };
   }
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 52, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 53, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
     D => ({ start: (el, opts) => start(D, el, opts) }));
 })(typeof globalThis !== 'undefined' ? globalThis : this);

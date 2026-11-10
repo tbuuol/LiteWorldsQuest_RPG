@@ -45,7 +45,7 @@
     },
     "rpg": {
       "file": "src/modules/rpg.js",
-      "v": 12,
+      "v": 13,
       "api": 1,
       "kind": "js",
       "id": null,
@@ -53,11 +53,11 @@
     },
     "menu": {
       "file": "src/modules/menu.js",
-      "v": 6,
+      "v": 7,
       "api": 1,
       "kind": "js",
       "id": null,
-      "gz": "0bc0bfc129f488190bfd9bfae9cdc7ef36f8c0fd890b0cb73f9e551477fdff0a"
+      "gz": null
     },
     "terrain": {
       "file": "src/modules/terrain.js",
@@ -69,7 +69,7 @@
     },
     "engine": {
       "file": "src/modules/engine.js",
-      "v": 52,
+      "v": 53,
       "api": 1,
       "kind": "js",
       "id": null,

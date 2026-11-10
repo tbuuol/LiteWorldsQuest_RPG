@@ -178,7 +178,32 @@
     { key: 'salve', name: 'Herbal Salve', icon: '✚', cd: 8, range: 7, cost: { wild_herb: 1 }, req: { herbalist: 0.5 }, text: 'Heals the player you look at, or yourself. Uses a Wild Herb.' }
   ];
   const CRAFT_AT = { smithing: { str: 0.5, int: 0.3 }, woodworking: { dex: 0.3, str: 0.2 }, tailoring: { dex: 0.4, int: 0.2 } };
-  const RECIPE_DROP = 0.04;   /* very low: a recipe of the craft being done, up to a level above the crafter's */
+  const RECIPE_DROP = 0.04;   /* very low: that a blueprint drops at all, from a successful craft */
+  /* WHICH BLUEPRINT (tbuuol 2026-11-10): not the crafter's level but what is being made decides it -- a pool round the
+     recipe's own level, the higher above it the rarer, lower ones too (so a better one stays hard to get); 75 % from
+     the craft's own profession, 25 % from another. Any blueprint can drop, one already held too (they can be sold). */
+  const BP_TIERS = [[-2, 10], [-1, 20], [0, 45], [1, 20], [2, 5]];   /* [levels from the recipe's, weight] */
+  const BP_OWN = 0.75;
+  function dropBlueprint(rc, rnd) {
+    const profsAll = Array.from(new Set(Object.values(RECIPES).map(x => x.prof)));
+    const others = profsAll.filter(p => p !== rc.prof);
+    const prof = rnd() < BP_OWN || !others.length ? rc.prof : others[Math.floor(rnd() * others.length)];
+    const pool = Object.keys(RECIPES).filter(k => RECIPES[k].prof === prof && ITEMS[k]);
+    if (!pool.length) return null;
+    const tiers = BP_TIERS.map(([d, w]) => [rc.level + d, w]).filter(([lv]) => pool.some(k => RECIPES[k].level === lv));
+    let pick = null;
+    if (tiers.length) {
+      let sum = tiers.reduce((a, t) => a + t[1], 0), x = rnd() * sum;
+      for (const [lv, w] of tiers) { x -= w; if (x <= 0) { pick = lv; break; } }
+      if (pick == null) pick = tiers[tiers.length - 1][0];
+    } else {   /* nothing of that profession near this level: its nearest level below, if any */
+      const lower = pool.map(k => RECIPES[k].level).filter(lv => lv <= rc.level);
+      if (!lower.length) return null;
+      pick = Math.max(...lower);
+    }
+    const at = pool.filter(k => RECIPES[k].level === pick);
+    return at[Math.floor(rnd() * at.length)];
+  }
   /* BLUEPRINTS (tbuuol 2026-11-08, like Entropia's): a recipe is a thing in the bag, 'bp:<recipe>' with its quality
      rating {qr: 0.0 to 100.0}; it is made from only while held, it gets better each time it is used, and it can be kept,
      traded and sold like anything else. The best one of a kind is the one used. */
@@ -198,6 +223,18 @@
   const qualityRoll = (grade, rnd) => Math.round((35 + 90 * grade * Math.pow(rnd(), 1.8)) * 10) / 10;
   const FISTS = { name: 'Fists', skill: 'unarmed', model: 'fists', dmg: [2, 4] };
   /* what a raider leaves, each by its own chance */
+  /* WHAT A FOUND THING IS TAKEN APART INTO (tbuuol 2026-11-10: "Drops sollten auch zerlegbar sein"): the things no
+     recipe makes -- a boss's drops, what a new player starts with -- at the forge, into these */
+  const SALVAGE = {
+    training_sword: { oak_log: 1 }, linen_shirt: { flax: 1 }, worn_boots: { leather_scrap: 1 },
+    rusty_sword: { scrap_iron: 2 }, raider_axe: { scrap_iron: 2, oak_log: 1 }, cudgel: { oak_log: 1 },
+    wooden_buckler: { oak_log: 1, leather_scrap: 1 }, leather_cap: { leather_scrap: 1 }, padded_gloves: { torn_cloth: 1, leather_scrap: 1 },
+    copper_ring: { copper_ore: 1 }, bone_amulet: { boar_tusk: 1 }, lucky_coin: { copper_ore: 1 },
+    pirate_cutlass: { iron_ore: 2, sea_salt: 1 }, tricorn_hat: { torn_cloth: 2, leather_scrap: 1 },
+    captains_coat: { torn_cloth: 2, leather_scrap: 2, pearl: 1 },
+    broodfang: { brood_carapace: 1, venom_sac: 1, spider_silk: 1 }, silkweave_mantle: { spider_silk: 3 },
+    venom_ring: { venom_sac: 2 }, carapace_shield: { brood_carapace: 2 }
+  };
   const LOOT = [['torn_cloth', 0.35], ['scrap_iron', 0.2], ['leather_scrap', 0.2], ['rusty_sword', 0.05], ['leather_cap', 0.05],
                 ['copper_ring', 0.04], ['wooden_buckler', 0.03], ['raider_axe', 0.03], ['cudgel', 0.04], ['padded_gloves', 0.03],
                 ['lucky_coin', 0.015], ['bone_amulet', 0.015]];
@@ -345,10 +382,11 @@
         learn(r, { toughness: 0.6, sta: 0.25 }, effortOf(foeLvl, s.prof.defender));
         return { d: Math.max(1, Math.round(d - s.def)), dodged: false, up: ups(r, before) };
       },
-      loot(a, rnd, table) {   /* a raider's drop, or a beast's (its own table) */
+      loot(a, rnd, table, matsOnly) {   /* a raider's drop, or a beast's (its own table); matsOnly: not a boss */
         const r = of(a), got = []; rnd = rnd || Math.random;
         for (const [id, p] of table || LOOT) {
           if (!ITEMS[id]) continue;
+          if (matsOnly && !ITEMS[id].material) continue;   /* ONLY BOSSES DROP THINGS (tbuuol 2026-11-10); the rest drop materials */
           if (rnd() >= p) continue;
           if (ITEMS[id].material) r.mat[id] = (r.mat[id] || 0) + 1; else r.bag.push([r.n++, id]);
           got.push(ITEMS[id].name);
@@ -410,9 +448,9 @@
         learn(r, sk, effortOf(rc.level, lv));
         const after = profs(r)[rc.prof];
         let learnt = null;
-        if (rnd() < RECIPE_DROP) {   /* a new blueprint, found while working: into the bag */
-          const open = Object.keys(RECIPES).filter(k => !knows(r, k) && RECIPES[k].prof === rc.prof && RECIPES[k].level <= Math.floor(after) + 1);
-          if (open.length) { learnt = open[Math.floor(rnd() * open.length)]; giveBp(r, learnt); }
+        if (rnd() < RECIPE_DROP) {   /* a blueprint, found while working: into the bag (dropBlueprint above) */
+          learnt = dropBlueprint(rc, rnd);
+          if (learnt) giveBp(r, learnt);
         }
         return { ok: true, made: item.name + (q ? ' (' + q.toFixed(1) + ' %)' : ''), qr: x.qr, up: ups(r, before), learnt: learnt && 'Blueprint: ' + ITEMS[learnt].name };
       },
@@ -454,17 +492,19 @@
         return { ok: true, got, up: ups(r, before) };
       },
       /* taking a made thing apart at the forge: half of what its recipe needs comes back (at least one of each), never
-         a failure; nothing worn, no blueprint, nothing that has no recipe */
+         a failure; nothing worn, no blueprint; a thing no recipe makes, into what SALVAGE says */
       salvage(a, uid) {
         const r = of(a), i = r.bag.findIndex(e => e[0] === uid);
         if (i < 0) return { ok: false, why: 'it is not in your bag' };
         const id = r.bag[i][1], rc = RECIPES[id];
         if (Object.values(r.eq).includes(uid)) return { ok: false, why: 'take it off first' };
-        if (!rc) return { ok: false, why: 'nobody knows how it was made' };
+        const parts = rc ? null : SALVAGE[id];
+        if (!rc && !parts) return { ok: false, why: 'nobody knows how it was made' };
         r.bag.splice(i, 1);
         const got = [];
-        for (const m in rc.needs) { const n = Math.max(1, Math.floor(rc.needs[m] / 2)); r.mat[m] = (r.mat[m] || 0) + n; got.push(ITEMS[m].name + ' ×' + n); }
-        const before = profs(r), sk = {}; sk[rc.skill] = 2; learn(r, sk, 0.5);
+        if (rc) for (const m in rc.needs) { const n = Math.max(1, Math.floor(rc.needs[m] / 2)); r.mat[m] = (r.mat[m] || 0) + n; got.push(ITEMS[m].name + ' ×' + n); }
+        else for (const m in parts) { r.mat[m] = (r.mat[m] || 0) + parts[m]; got.push(ITEMS[m].name + ' ×' + parts[m]); }
+        const before = profs(r), sk = {}; sk[rc ? rc.skill : 'smithing'] = 2; learn(r, sk, 0.5);
         return { ok: true, got, of: ITEMS[id].name, up: ups(r, before) };
       },
       /* building (Genesis, 2026-11-07): materials taken for a piece, and given back when it is taken down */
@@ -546,6 +586,6 @@
 
   /* a bag entry's name as shown (a blueprint with its QR, a made thing with its quality) */
   const entryName = e => { const it = itemOf({ bag: [e] }, e[0]); return it ? it.name : String(e[1]); };
-  const rpg = { api: 1, entryName, masterOf, gradeOf, SLOTS, SKILLS, PROFS, ATTRS, RANKS, ITEMS, FISTS, LOOT, GATHER, RECIPES, CODEX, ABILITIES, abilities, questState, questProgress, knows, fresh, stats, profs, rank, meets, itemOf, attr, book };
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('rpg', { api: 1, v: 12 }, () => rpg);
+  const rpg = { api: 1, entryName, masterOf, gradeOf, SLOTS, SKILLS, PROFS, ATTRS, RANKS, ITEMS, FISTS, LOOT, GATHER, RECIPES, SALVAGE, CODEX, ABILITIES, abilities, questState, questProgress, knows, fresh, stats, profs, rank, meets, itemOf, attr, book };
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('rpg', { api: 1, v: 13 }, () => rpg);
 })(typeof globalThis !== 'undefined' ? globalThis : this);
