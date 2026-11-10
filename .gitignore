@@ -5,3 +5,6 @@ tools/cache/
 dev/fakechain/
 .publisher/
 dist/
+
+# teaser videos: too big for the repo, kept only on disk
+design/*.mp4
