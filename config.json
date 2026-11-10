@@ -45,7 +45,7 @@
     },
     "rpg": {
       "file": "src/modules/rpg.js",
-      "v": 17,
+      "v": 18,
       "api": 1,
       "kind": "js",
       "id": null,
@@ -117,7 +117,7 @@
     },
     "world": {
       "file": "src/levels/world.json",
-      "v": 23,
+      "v": 24,
       "api": 1,
       "kind": "json",
       "id": null,

@@ -164,6 +164,7 @@
   };
   /* RECIPES: the craft's skill, its profession and the level of it they need; known: everybody knows it from the
      start, the others turn up now and then while crafting (tbuuol 2026-10-23) */
+  /* THE OLD THINGS FROM PARTS (tbuuol 2026-11-10): a sword is a blade, a hilt and rivets now, not ore and a log */
   const RECIPES = {
     /* REFINING (level 0, 2026-11-10): ore to bars, logs to planks, hides to leather, fibre to thread and cloth */
     copper_bar: { skill: 'smithing', prof: 'smith', level: 0, needs: { copper_ore: 2 }, yields: 1 },
@@ -198,29 +199,29 @@
     antler_pendant: { skill: 'jewelcrafting', prof: 'jeweler', level: 0, needs: { antler_beads: 4, clasp: 1, leather_strap: 1 } },
     hares_foot_charm: { skill: 'jewelcrafting', prof: 'jeweler', level: 0, needs: { hare_foot: 1, ring_setting: 1, leather_strap: 1 } },
     copper_band: { skill: 'jewelcrafting', prof: 'jeweler', level: 0, needs: { copper_bar: 1, ring_mold: 1 } },
-    copper_sword: { skill: 'smithing', prof: 'smith', level: 0, needs: { copper_ore: 3, oak_log: 1 }, known: true },
-    copper_axe: { skill: 'smithing', prof: 'smith', level: 0, needs: { copper_ore: 3, oak_log: 2 }, known: true },
-    copper_bracers: { skill: 'smithing', prof: 'smith', level: 0, needs: { copper_ore: 2, leather_scrap: 1 }, known: true },
-    oak_shield: { skill: 'woodworking', prof: 'carpenter', level: 0, needs: { oak_log: 3, leather_scrap: 1 }, known: true },
-    oak_belt_charm: { skill: 'jewelcrafting', prof: 'jeweler', level: 0, needs: { oak_log: 1, wild_herb: 1 }, known: true },
-    flax_tunic: { skill: 'tailoring', prof: 'tailor', level: 0, needs: { flax: 4 }, known: true },
-    leather_belt: { skill: 'tailoring', prof: 'tailor', level: 0, needs: { leather_scrap: 2 }, known: true },
-    iron_sword: { skill: 'smithing', prof: 'smith', level: 1, needs: { iron_ore: 4, oak_log: 1, leather_scrap: 1 } },
-    iron_mace: { skill: 'smithing', prof: 'smith', level: 1, needs: { iron_ore: 4, oak_log: 1 } },
-    iron_helm: { skill: 'smithing', prof: 'smith', level: 1, needs: { iron_ore: 3, torn_cloth: 1 } },
-    iron_ring: { skill: 'jewelcrafting', prof: 'jeweler', level: 2, needs: { iron_ore: 1, copper_ore: 1 } },
-    leather_boots: { skill: 'tailoring', prof: 'tailor', level: 1, needs: { leather_scrap: 3, torn_cloth: 1 } },
-    herb_amulet: { skill: 'jewelcrafting', prof: 'jeweler', level: 1, needs: { wild_herb: 3, flax: 1, copper_ore: 1 } },
-    hide_jerkin: { skill: 'tailoring', prof: 'tailor', level: 0, needs: { boar_hide: 3, flax: 1 }, known: true },
-    tusk_amulet: { skill: 'jewelcrafting', prof: 'jeweler', level: 0, needs: { boar_tusk: 2, leather_scrap: 1 }, known: true },
-    wolfskin_mantle: { skill: 'tailoring', prof: 'tailor', level: 1, needs: { wolf_pelt: 3, leather_scrap: 2 } },
-    fang_ring: { skill: 'jewelcrafting', prof: 'jeweler', level: 1, needs: { wolf_fang: 2, copper_ore: 1 } },
-    silk_gloves: { skill: 'tailoring', prof: 'tailor', level: 1, needs: { spider_silk: 4 } },
-    shell_shield: { skill: 'woodworking', prof: 'carpenter', level: 1, needs: { crab_shell: 4, oak_log: 1 }, known: true },
-    coral_ring: { skill: 'jewelcrafting', prof: 'jeweler', level: 1, needs: { coral: 2, copper_ore: 1 }, known: true },
-    sea_boots: { skill: 'tailoring', prof: 'tailor', level: 1, needs: { leather_scrap: 3, siren_scale: 1 } },
-    siren_charm: { skill: 'jewelcrafting', prof: 'jeweler', level: 2, needs: { siren_scale: 3, pearl: 1 } },
-    boarding_axe: { skill: 'smithing', prof: 'smith', level: 2, needs: { iron_ore: 5, oak_log: 2, sea_salt: 1 } }
+    copper_sword: { skill: 'smithing', prof: 'smith', level: 0, needs: { copper_blade: 1, sword_hilt: 1, rivets: 2 }, known: true },
+    copper_axe: { skill: 'smithing', prof: 'smith', level: 0, needs: { copper_bar: 2, wooden_handle: 1, rivets: 2 }, known: true },
+    copper_bracers: { skill: 'smithing', prof: 'smith', level: 0, needs: { copper_bar: 2, leather_strap: 2, buckle: 1 }, known: true },
+    oak_shield: { skill: 'woodworking', prof: 'carpenter', level: 0, needs: { shield_boards: 1, leather_strap: 1, rivets: 4 }, known: true },
+    oak_belt_charm: { skill: 'jewelcrafting', prof: 'jeweler', level: 0, needs: { oak_plank: 1, wild_herb: 1, clasp: 1 }, known: true },
+    flax_tunic: { skill: 'tailoring', prof: 'tailor', level: 0, needs: { linen_cloth: 2, linen_thread: 1 }, known: true },
+    leather_belt: { skill: 'tailoring', prof: 'tailor', level: 0, needs: { boar_leather: 1, buckle: 1 }, known: true },
+    iron_sword: { skill: 'smithing', prof: 'smith', level: 1, needs: { iron_bar: 3, sword_hilt: 1, rivets: 2 } },
+    iron_mace: { skill: 'smithing', prof: 'smith', level: 1, needs: { iron_bar: 3, wooden_handle: 1 } },
+    iron_helm: { skill: 'smithing', prof: 'smith', level: 1, needs: { iron_bar: 2, linen_cloth: 1, rivets: 4 } },
+    iron_ring: { skill: 'jewelcrafting', prof: 'jeweler', level: 2, needs: { iron_bar: 1, ring_mold: 1 } },
+    leather_boots: { skill: 'tailoring', prof: 'tailor', level: 1, needs: { boar_leather: 2, linen_thread: 1, buckle: 1 } },
+    herb_amulet: { skill: 'jewelcrafting', prof: 'jeweler', level: 1, needs: { wild_herb: 3, copper_wire: 2, clasp: 1 } },
+    hide_jerkin: { skill: 'tailoring', prof: 'tailor', level: 0, needs: { boar_leather: 2, linen_thread: 1, leather_strap: 1 }, known: true },
+    tusk_amulet: { skill: 'jewelcrafting', prof: 'jeweler', level: 0, needs: { polished_tusk: 2, leather_strap: 1, clasp: 1 }, known: true },
+    wolfskin_mantle: { skill: 'tailoring', prof: 'tailor', level: 1, needs: { wolf_pelt: 3, boar_leather: 1, clasp: 1 } },
+    fang_ring: { skill: 'jewelcrafting', prof: 'jeweler', level: 1, needs: { wolf_fang: 2, ring_setting: 1 } },
+    silk_gloves: { skill: 'tailoring', prof: 'tailor', level: 1, needs: { spider_silk: 4, linen_thread: 1 } },
+    shell_shield: { skill: 'woodworking', prof: 'carpenter', level: 1, needs: { shield_boards: 1, crab_shell: 4, rivets: 4 }, known: true },
+    coral_ring: { skill: 'jewelcrafting', prof: 'jeweler', level: 1, needs: { coral: 2, ring_setting: 1 }, known: true },
+    sea_boots: { skill: 'tailoring', prof: 'tailor', level: 1, needs: { boar_leather: 2, siren_scale: 1, buckle: 1 } },
+    siren_charm: { skill: 'jewelcrafting', prof: 'jeweler', level: 2, needs: { siren_scale: 3, pearl: 1, clasp: 1, copper_wire: 2 } },
+    boarding_axe: { skill: 'smithing', prof: 'smith', level: 2, needs: { iron_bar: 3, wooden_handle: 1, rivets: 2, sea_salt: 1 } }
   };
   /* THE CODEX (Entropia's, tbuuol 2026-10-27): every beast of a kind killed counts; at each rank the player may put a
      reward of skill points into one of the skills that kind teaches (the level says which) */
@@ -662,5 +663,5 @@
   /* a bag entry's name as shown (a blueprint with its QR, a made thing with its quality) */
   const entryName = e => { const it = itemOf({ bag: [e] }, e[0]); return it ? it.name : String(e[1]); };
   const rpg = { api: 1, entryName, masterOf, gradeOf, SLOTS, SKILLS, PROFS, ATTRS, RANKS, ITEMS, FISTS, LOOT, GATHER, RECIPES, SALVAGE, STATIONS, stationOf, salvageAt, CODEX, ABILITIES, abilities, questState, questProgress, knows, fresh, stats, profs, rank, meets, itemOf, attr, book };
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('rpg', { api: 1, v: 17 }, () => rpg);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('rpg', { api: 1, v: 18 }, () => rpg);
 })(typeof globalThis !== 'undefined' ? globalThis : this);

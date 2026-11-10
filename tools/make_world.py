@@ -26,7 +26,7 @@ import subprocess
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 LEVELS = ROOT / "src" / "levels"
 OUT = LEVELS / "world.json"
-VERSION = 23
+VERSION = 24
 
 
 def probe(land: dict, points: list) -> list:
@@ -409,9 +409,9 @@ GREENWOOD_QUESTS = [
      "done": "Six! The forest is quieter already. Here -- it'll keep the rain off.",
      "need": {"kill": {"wolf": 6}}, "reward": {"items": ["wolfskin_mantle"], "sk": {"anatomy": 15}}},
     {"id": "gw_fangs", "npc": "hunter_wynn", "giver": "Wynn the Hunter", "title": "A Ring of Fangs", "after": "gw_wolves",
-     "offer": "Wolf fangs make a fine ring, if you know how. Bring me four, and I'll show you -- and give you the plans.",
-     "done": "Good fangs, sharp ones. The plans are yours -- a jeweler's work, at a jeweler's bench.",
-     "need": {"bring": {"wolf_fang": 4}}, "reward": {"bp": ["fang_ring"], "sk": {"smithing": 10}}},
+     "offer": "Wolf fangs make a fine ring, if you know how. Bring me four, and I'll give you one of mine.",
+     "done": "Good fangs, sharp ones. Here -- one I made earlier. Keep it on, it brings luck in the hunt.",
+     "need": {"bring": {"wolf_fang": 4}}, "reward": {"items": ["fang_ring"], "sk": {"anatomy": 10}}},
     {"id": "gw_oak", "npc": "foreman_tamsin", "giver": "Foreman Tamsin", "title": "Oak for Genesis",
      "offer": "Genesis needs beams, and my crew is short. Fell ten oaks round the camp and bring me the logs.",
      "done": "Ten good logs. That's a roof for somebody. Take this axe, it's better than the one you've got.",
@@ -437,30 +437,26 @@ GREENWOOD_QUESTS = [
      "done": "You did it? Then Greenwood owes you more than I can pay. Take this, at least.",
      "need": {"kill": {"broodmother": 1}}, "reward": {"items": ["bone_amulet"], "mats": {"pearl": 2}, "sk": {"toughness": 25}}},
     {"id": "gw_silk", "npc": "merchant_ysolde", "giver": "Ysolde the Merchant", "title": "Silk for the Road",
-     "offer": "Spider silk sells well on the coast. Bring me six, and I'll give you the plans for silk gloves.",
-     "done": "Beautiful, strong silk. The plans, as promised -- a tailor's work.",
-     "need": {"bring": {"spider_silk": 6}}, "reward": {"bp": ["silk_gloves"], "sk": {"tailoring": 10}}},
+     "offer": "Spider silk sells well on the coast. Bring me six, and I'll give you a pair of silk gloves from my stock.",
+     "done": "Beautiful, strong silk. The gloves, as promised.",
+     "need": {"bring": {"spider_silk": 6}}, "reward": {"items": ["silk_gloves"], "sk": {"evade": 10}}},
     # THE FIRST REFINING BLUEPRINTS (2026-11-10): one quest for each craft, from the people who work with the stuff
-    {"id": "rf_smith", "npc": "odo", "giver": "Odo the Smith", "title": "Bars and Blades", "after": "smith1",
-     "offer": "Ore is only the start. Bring me four lumps of copper ore, and I'll show you how to pour bars -- and what to make of them.",
-     "done": "Good ore. Bars, blades, hilts, rivets, buckles: here are the plans. A longknife is the first thing a smith makes from his own parts.",
-     "need": {"bring": {"copper_ore": 4}}, "reward": {"bp": ["copper_bar", "copper_blade", "sword_hilt", "rivets", "buckle", "copper_longknife"], "sk": {"smithing": 10}}},
     {"id": "rf_carpenter", "npc": "foreman_tamsin", "giver": "Foreman Tamsin", "title": "Planks and Handles",
-     "offer": "A log is no use to a carpenter until it's sawn. Bring me four oak logs and I'll teach you planks, handles and shield boards.",
-     "done": "There you are. Saw, plane, and mind the grain -- the plans are yours. Antler makes good buttons, too.",
-     "need": {"bring": {"oak_log": 4}}, "reward": {"bp": ["oak_plank", "wooden_handle", "shield_boards", "antler_buttons", "buckler_board"], "sk": {"woodworking": 10}}},
+     "offer": "A log is no use to a carpenter until it's sawn. Bring me four oak logs and I'll teach you to make planks.",
+     "done": "There you are. Saw, plane, and mind the grain -- planks are where it starts. Handles and boards you'll work out yourself.",
+     "need": {"bring": {"oak_log": 4}}, "reward": {"bp": ["oak_plank"], "sk": {"woodworking": 10}}},
     {"id": "rf_tanner", "npc": "hunter_wynn", "giver": "Wynn the Hunter", "title": "Hides into Leather",
-     "offer": "The deer in the glades give the best hides around. Bring me two, and I'll show you how to tan them and cut straps.",
-     "done": "Nice and clean. Tanning, straps, and the jerkin I wear myself -- the plans are yours.",
-     "need": {"bring": {"deer_hide": 2}}, "reward": {"bp": ["deer_leather", "boar_leather", "leather_strap", "hunters_jerkin"], "sk": {"tailoring": 10}}},
+     "offer": "The deer in the glades give the best hides around. Bring me two, and I'll show you how to tan them -- boar hide too.",
+     "done": "Nice and clean. Tanning is the first step; straps and jerkins come after, when you've the knack.",
+     "need": {"bring": {"deer_hide": 2}}, "reward": {"bp": ["deer_leather", "boar_leather"], "sk": {"tailoring": 10}}},
     {"id": "rf_weaver", "npc": "farmer_hal", "giver": "Farmer Hal", "title": "Thread and Cloth",
-     "offer": "My wife spins the flax, but she's only two hands. Three bundles of flax and two hare pelts, and you'll have her plans.",
-     "done": "She says you'll learn quick. Thread, cloth, fur lining -- and trousers and gloves to make from them.",
-     "need": {"bring": {"flax": 3, "hare_pelt": 2}}, "reward": {"bp": ["linen_thread", "linen_cloth", "fur_lining", "furlined_gloves", "linen_trousers"], "sk": {"tailoring": 10}}},
+     "offer": "My wife spins the flax, but she's only two hands. Three bundles of flax and two hare pelts, and she'll teach you spinning and weaving.",
+     "done": "She says you'll learn quick. Thread and cloth -- what you sew from them is up to you.",
+     "need": {"bring": {"flax": 3, "hare_pelt": 2}}, "reward": {"bp": ["linen_thread", "linen_cloth"], "sk": {"tailoring": 10}}},
     {"id": "rf_jeweler", "npc": "merchant_ysolde", "giver": "Ysolde the Merchant", "title": "Wire and Settings",
-     "offer": "Fine work sells best on the road. Bring me three lumps of copper ore and an antler, and I'll give you a jeweler's first plans.",
-     "done": "Wire, settings, clasps, a mould for rings, beads of antler -- and three things to make with them. Copper bars you'll need from a smith.",
-     "need": {"bring": {"copper_ore": 3, "antler": 1}}, "reward": {"bp": ["copper_wire", "ring_setting", "clasp", "ring_mold", "antler_beads", "polished_tusk", "antler_pendant", "hares_foot_charm", "copper_band"], "sk": {"jewelcrafting": 10}}},
+     "offer": "Fine work sells best on the road. Bring me three lumps of copper ore and an antler, and I'll show you how a jeweler draws wire.",
+     "done": "Wire is where a jeweler starts. Copper bars you'll need from a smith; settings and clasps you'll work out at the bench.",
+     "need": {"bring": {"copper_ore": 3, "antler": 1}}, "reward": {"bp": ["copper_wire"], "sk": {"jewelcrafting": 10}}},
     {"id": "gw_lists", "npc": "aldric", "giver": "Sir Aldric", "title": "Prove Yourself",
      "offer": "Words are cheap in the lists. Show me what you can do: two goblins from the Goblin Bridgehead in the north.",
      "done": "Not bad at all. The city will have need of fighters like you. Take this shield.",
@@ -833,27 +829,29 @@ def main() -> None:
     blockshire.setdefault("npcs", []).append(odo)
     quests += [
         {"id": "smith1", "npc": "odo", "giver": "Odo the Smith", "title": "First Blueprints",
-         "offer": "You want to make things? Bring me three lumps of copper ore from the boulders out in the hills, and I will give you my first blueprints: a sword, an axe and bracers.",
-         "done": "Good ore. Here are the plans. Use them at the forge; they get better every time you do.",
-         "need": {"bring": {"copper_ore": 3}}, "reward": {"bp": ["copper_sword", "copper_axe", "copper_bracers"], "sk": {"smithing": 10}}},
+         "offer": "You want to make things? Everything starts with a bar. Bring me three lumps of copper ore from the boulders out in the hills, and I'll show you how to pour them.",
+         "done": "Good ore. Here's the plan for copper bars -- use it at the forge; it gets better every time you do. Swords and the like you'll find out for yourself, at the bench.",
+         "need": {"bring": {"copper_ore": 3}}, "reward": {"bp": ["copper_bar"], "sk": {"smithing": 10}}},
         {"id": "smith2", "npc": "odo", "giver": "Odo the Smith", "title": "Wood and Hide", "after": "smith1",
-         "offer": "Not everything is iron. Three oak logs and a scrap of leather, and you shall have my woodwork: a shield, a charm and a tusk amulet.",
-         "done": "That will do. These are the plans; the wood is yours to work.",
-         "need": {"bring": {"oak_log": 3, "leather_scrap": 1}}, "reward": {"bp": ["oak_shield", "oak_belt_charm", "tusk_amulet"], "sk": {"woodworking": 10}}},
+         "offer": "Not everything is iron. Three oak logs and a scrap of leather for my fire, and I'll give you some bars to practise on.",
+         "done": "That will do. Here -- three copper bars. Blades, hilts, rivets: try what you can.",
+         "need": {"bring": {"oak_log": 3, "leather_scrap": 1}}, "reward": {"mats": {"copper_bar": 3}, "sk": {"smithing": 10}}},
         {"id": "smith3", "npc": "odo", "giver": "Odo the Smith", "title": "Cloth and Shell", "after": "smith2",
-         "offer": "Last of what I have: two bundles of flax and two crab shells from the shore, and the plans for a tunic, a belt, a jerkin, a shell shield and a coral ring are yours.",
-         "done": "That is all I can teach from paper. The rest you will find yourself, or buy.",
-         "need": {"bring": {"flax": 2, "crab_shell": 2}}, "reward": {"bp": ["flax_tunic", "leather_belt", "hide_jerkin", "shell_shield", "coral_ring"], "sk": {"tailoring": 10}}},
+         "offer": "Last thing: two bundles of flax and two crab shells from the shore. My cousin on the coast wants them, and pays in good iron.",
+         "done": "That is all I can teach. The rest of the plans you'll work out at the bench yourself -- or buy them off someone who did.",
+         "need": {"bring": {"flax": 2, "crab_shell": 2}}, "reward": {"mats": {"iron_ore": 4}, "sk": {"smithing": 10}}},
     ]
     for q in quests:
         if q["id"] == "forge":
             q["after"] = "smith1"
+            q["need"] = {"make": "copper_bar"}   # the first thing a beginner can make now (2026-11-10)
+            q["done"] = "A bar of your own! The village is stronger for every one. Take this shield; you will need it."
 
     # where things are now (2026-10-31): the quests told of the old fence, raiders at the gate, a ship out past
     # Saltwind's dock
     WHERE = {
         "boars": "The stew wants meat. Four boars roam the meadows east and south of the village. Bring them down, and I will stitch you a jerkin from the hides.",
-        "forge": "The wilds grow bolder every night. Go to the forge east of the square and make a weapon with your own hands.",
+        "forge": "The wilds grow bolder every night, and the village needs metal. Go to the forge east of the square and pour a copper bar with your own hands.",
         "wolves": "I heard wolves howling in the Greenwood north of the village! Three of them! Can you make them stop? Please?",
         "spiders": "West of the village, deep in the Greenwood, the forest grows dark. Spiders nest there and take our herb gatherers. Kill three and bring peace back.",
         "crabs": "Six shore crabs, that's all I need. South along the sand from here, where the shore bends towards Blockshire. They pinch, so mind your fingers.",
