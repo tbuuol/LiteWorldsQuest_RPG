@@ -29,7 +29,7 @@
     },
     "art": {
       "file": "src/modules/art.js",
-      "v": 36,
+      "v": 37,
       "api": 1,
       "kind": "js",
       "id": null,
@@ -45,7 +45,7 @@
     },
     "rpg": {
       "file": "src/modules/rpg.js",
-      "v": 18,
+      "v": 20,
       "api": 1,
       "kind": "js",
       "id": null,
@@ -53,7 +53,7 @@
     },
     "menu": {
       "file": "src/modules/menu.js",
-      "v": 9,
+      "v": 11,
       "api": 1,
       "kind": "js",
       "id": null,
@@ -69,7 +69,7 @@
     },
     "engine": {
       "file": "src/modules/engine.js",
-      "v": 57,
+      "v": 58,
       "api": 1,
       "kind": "js",
       "id": null,
@@ -117,7 +117,7 @@
     },
     "world": {
       "file": "src/levels/world.json",
-      "v": 24,
+      "v": 25,
       "api": 1,
       "kind": "json",
       "id": null,

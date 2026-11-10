@@ -39,7 +39,7 @@
     woodcutting: { name: 'Woodcutting', group: 'Gathering' }, mining: { name: 'Mining', group: 'Gathering' },
     herbalism: { name: 'Herbalism', group: 'Gathering' },
     smithing: { name: 'Smithing', group: 'Crafting' }, woodworking: { name: 'Woodworking', group: 'Crafting' },
-    tailoring: { name: 'Tailoring', group: 'Crafting' }, jewelcrafting: { name: 'Jewelcrafting', group: 'Crafting' }
+    tailoring: { name: 'Tailoring', group: 'Crafting' }, jewelcrafting: { name: 'Jewelcrafting', group: 'Crafting' }, runecraft: { name: 'Runecraft', group: 'Crafting' }
   };
   /* professions: what each is made of (weights add up to 1; attribute points count like skill points) */
   const PROFS = {
@@ -59,7 +59,8 @@
     smith: { name: 'Smith', group: 'Crafting', w: { smithing: 0.6, mining: 0.2, str: 0.2 } },
     carpenter: { name: 'Carpenter', group: 'Crafting', w: { woodworking: 0.6, woodcutting: 0.2, dex: 0.2 } },
     tailor: { name: 'Tailor', group: 'Crafting', w: { tailoring: 0.6, herbalism: 0.2, dex: 0.2 } },
-    jeweler: { name: 'Jeweler', group: 'Crafting', w: { jewelcrafting: 0.6, mining: 0.1, int: 0.15, dex: 0.15 } }
+    jeweler: { name: 'Jeweler', group: 'Crafting', w: { jewelcrafting: 0.6, mining: 0.1, int: 0.15, dex: 0.15 } },
+    runecrafter: { name: 'Runecrafter', group: 'Crafting', w: { runecraft: 0.6, int: 0.3, herbalism: 0.1 } }
   };
   /* a skill's standing, by its points: the names say how far along it is, the bar shows the way to the next */
   const RANKS = [[0, 'Untrained'], [25, 'Novice'], [100, 'Apprentice'], [250, 'Journeyman'], [500, 'Adept'], [1000, 'Expert'],
@@ -143,6 +144,18 @@
     antler_pendant: { name: 'Antler Pendant', slot: 'amulet', at: { dex: 1, int: 1 } },
     hares_foot_charm: { name: "Hare's Foot Charm", slot: 'trinket', at: { dex: 2 } },
     copper_band: { name: 'Copper Band', slot: 'ring', at: { sta: 1 } },
+    /* RUNES and what they are made of (2026-11-10) */
+    rune_blank: { name: 'Blank Rune', material: true },
+    essence_might: { name: 'Essence of Might', material: true }, essence_guard: { name: 'Essence of Guard', material: true },
+    essence_life: { name: 'Essence of Life', material: true }, essence_venom: { name: 'Essence of Venom', material: true },
+    glyph_strike: { name: 'Glyph of Striking', material: true }, glyph_sweep: { name: 'Glyph of Sweeping', material: true },
+    glyph_bind: { name: 'Glyph of Binding', material: true }, glyph_call: { name: 'Glyph of Calling', material: true },
+    glyph_mend: { name: 'Glyph of Mending', material: true },
+    rune_heavy: { name: 'Rune: Heavy Blow', rune: 'heavy' }, rune_cleave: { name: 'Rune: Cleave', rune: 'cleave' },
+    rune_crush: { name: 'Rune: Crush', rune: 'crush' }, rune_bash: { name: 'Rune: Shield Bash', rune: 'bash' },
+    rune_taunt: { name: 'Rune: Taunt', rune: 'taunt' }, rune_salve: { name: 'Rune: Herbal Salve', rune: 'salve' },
+    rune_webshot: { name: 'Rune: Web Shot', rune: 'webshot' }, rune_venom: { name: 'Rune: Venom Strike', rune: 'venom' },
+    rune_battlecry: { name: 'Rune: Battle Cry', rune: 'battlecry' }, rune_whirlwind: { name: 'Rune: Whirlwind', rune: 'whirlwind' },
     /* the Spider Cave's Broodmother (2026-11-10) */
     /* the shy ones of Greenwood and the fields (2026-11-10) */
     deer_hide: { name: 'Deer Hide', material: true }, antler: { name: 'Antler', material: true },
@@ -190,6 +203,18 @@
     ring_mold: { skill: 'jewelcrafting', prof: 'jeweler', level: 0, needs: { stone_block: 1, copper_bar: 1 }, yields: 1 },
     antler_beads: { skill: 'jewelcrafting', prof: 'jeweler', level: 0, needs: { antler: 1 }, yields: 4 },
     polished_tusk: { skill: 'jewelcrafting', prof: 'jeweler', level: 0, needs: { boar_tusk: 1 }, yields: 1 },
+    /* RUNES (2026-11-10): the blank from the jeweler, the runes from a runecrafter at a rune table */
+    rune_blank: { skill: 'jewelcrafting', prof: 'jeweler', level: 0, needs: { stone_block: 1, copper_wire: 2 }, yields: 1 },
+    rune_heavy: { skill: 'runecraft', prof: 'runecrafter', level: 0, needs: { rune_blank: 1, glyph_strike: 1, essence_might: 2 } },
+    rune_salve: { skill: 'runecraft', prof: 'runecrafter', level: 0, needs: { rune_blank: 1, glyph_mend: 1, essence_life: 2, wild_herb: 1 } },
+    rune_cleave: { skill: 'runecraft', prof: 'runecrafter', level: 1, needs: { rune_blank: 1, glyph_sweep: 1, essence_might: 2 } },
+    rune_crush: { skill: 'runecraft', prof: 'runecrafter', level: 1, needs: { rune_blank: 1, glyph_strike: 1, essence_might: 1, essence_guard: 1 } },
+    rune_bash: { skill: 'runecraft', prof: 'runecrafter', level: 1, needs: { rune_blank: 1, glyph_bind: 1, essence_guard: 2 } },
+    rune_taunt: { skill: 'runecraft', prof: 'runecrafter', level: 1, needs: { rune_blank: 1, glyph_call: 1, essence_guard: 2 } },
+    rune_webshot: { skill: 'runecraft', prof: 'runecrafter', level: 2, needs: { rune_blank: 1, glyph_bind: 1, essence_venom: 2 } },
+    rune_venom: { skill: 'runecraft', prof: 'runecrafter', level: 2, needs: { rune_blank: 1, glyph_strike: 1, essence_venom: 2 } },
+    rune_battlecry: { skill: 'runecraft', prof: 'runecrafter', level: 2, needs: { rune_blank: 1, glyph_call: 1, essence_might: 2 } },
+    rune_whirlwind: { skill: 'runecraft', prof: 'runecrafter', level: 2, needs: { rune_blank: 1, glyph_sweep: 1, essence_might: 3 } },
     /* FROM THE PARTS (level 0) */
     copper_longknife: { skill: 'smithing', prof: 'smith', level: 0, needs: { copper_blade: 1, sword_hilt: 1, rivets: 2 } },
     hunters_jerkin: { skill: 'tailoring', prof: 'tailor', level: 0, needs: { deer_leather: 2, leather_strap: 1, antler_buttons: 4 } },
@@ -235,17 +260,42 @@
     { key: 'crush', name: 'Crush', icon: '✪', cd: 10, mul: 1.0, range: 2.6, stun: 1.5, weapons: ['mace', 'unarmed'], req: { hit: 1 }, text: 'A blow that stuns for 1.5 s.' },
     { key: 'bash', name: 'Shield Bash', icon: '❖', cd: 10, mul: 0.6, range: 2.4, stun: 2, shield: true, text: 'Stuns the foe for 2 s: 60% damage.' },
     { key: 'taunt', name: 'Taunt', icon: '!', cd: 12, radius: 8, last: 6, shield: true, text: 'Every foe within 8 m comes for you for 6 s.' },
-    { key: 'salve', name: 'Herbal Salve', icon: '✚', cd: 8, range: 7, cost: { wild_herb: 1 }, req: { herbalist: 0.5 }, text: 'Heals the player you look at, or yourself. Uses a Wild Herb.' }
+    { key: 'salve', name: 'Herbal Salve', icon: '✚', cd: 8, range: 7, cost: { wild_herb: 1 }, req: { herbalist: 0.5 }, text: 'Heals the player you look at, or yourself. Uses a Wild Herb.' },
+    /* from the bosses' runes (2026-11-10) */
+    { key: 'webshot', name: 'Web Shot', icon: '⌘', cd: 14, mul: 0.3, range: 9, stun: 2.5, text: 'Binds a foe up to 9 m away for 2.5 s.' },
+    { key: 'venom', name: 'Venom Strike', icon: '☣', cd: 10, mul: 1.0, range: 2.6, dot: { d: 0.35, n: 4 }, text: 'A poisoned blow: 100% now, then 35% of it each second for 4 s.' },
+    { key: 'battlecry', name: 'Battle Cry', icon: '♜', cd: 30, buff: { mul: 1.3, s: 8 }, text: 'For 8 s your blows hit 30% harder.' },
+    { key: 'whirlwind', name: 'Whirlwind', icon: '❂', cd: 12, mul: 0.7, range: 3.2, most: 6, around: true, weapons: ['sword', 'axe', 'mace'], text: 'Hits every foe around you, up to six: 70% damage each.' }
   ];
-  const CRAFT_AT = { smithing: { str: 0.5, int: 0.3 }, woodworking: { dex: 0.3, str: 0.2 }, tailoring: { dex: 0.4, int: 0.2 }, jewelcrafting: { dex: 0.4, int: 0.3 } };
+  /* RUNES (tbuuol 2026-11-10): every ability is a thing now -- a rune in the bag, put into one of the bar's six slots
+     (r.bar: the bag uids). A rune has a rank, 1 to 10 ({rk, rx}): it rises as it is used, each rank 6 % more effect and
+     3 % less cooldown; two of a kind can be fused into one rank higher, by a runecrafter at a rune table. Bosses drop
+     them; a runecrafter takes them apart into essences and glyphs, and makes runes of them again. */
+  const RUNE_MAX = 10, BAR_SLOTS = 6;
+  /* WHAT KIND OF MATERIAL (the bag's Materials tab, 2026-11-10): raw (gathered, dropped), refined, or a part */
+  const REFINED = new Set(['copper_bar', 'iron_bar', 'oak_plank', 'deer_leather', 'boar_leather', 'linen_thread', 'linen_cloth', 'copper_wire']);
+  const PARTS = new Set(['copper_blade', 'sword_hilt', 'rivets', 'buckle', 'wooden_handle', 'shield_boards', 'antler_buttons', 'leather_strap',
+    'fur_lining', 'ring_setting', 'clasp', 'ring_mold', 'antler_beads', 'polished_tusk', 'rune_blank',
+    'essence_might', 'essence_guard', 'essence_life', 'essence_venom', 'glyph_strike', 'glyph_sweep', 'glyph_bind', 'glyph_call', 'glyph_mend']);
+  const matKind = id => REFINED.has(id) ? 'refined' : PARTS.has(id) ? 'part' : 'raw';
+  const runeNeed = rk => Math.round(8 * Math.pow(rk, 1.6));   /* uses from a rank to the next */
+  const RUNE_PARTS = {
+    heavy: { glyph_strike: 1, essence_might: 2 }, cleave: { glyph_sweep: 1, essence_might: 2 }, crush: { glyph_strike: 1, essence_might: 1, essence_guard: 1 },
+    bash: { glyph_bind: 1, essence_guard: 2 }, taunt: { glyph_call: 1, essence_guard: 2 }, salve: { glyph_mend: 1, essence_life: 2 },
+    webshot: { glyph_bind: 1, essence_venom: 2 }, venom: { glyph_strike: 1, essence_venom: 2 }, battlecry: { glyph_call: 1, essence_might: 2 },
+    whirlwind: { glyph_sweep: 1, essence_might: 3 }
+  };
+  const CRAFT_AT = { smithing: { str: 0.5, int: 0.3 }, woodworking: { dex: 0.3, str: 0.2 }, tailoring: { dex: 0.4, int: 0.2 }, jewelcrafting: { dex: 0.4, int: 0.3 }, runecraft: { int: 0.5, dex: 0.2 } };
   /* WORKBENCHES (tbuuol 2026-11-10): each craft only at its own -- the forge, the carpenter's bench, the loom, the jeweler's bench */
   const STATIONS = { forge: { skill: 'smithing', name: 'a forge' }, bench: { skill: 'woodworking', name: "a carpenter's bench" },
-                     loom: { skill: 'tailoring', name: 'a loom' }, jewel: { skill: 'jewelcrafting', name: "a jeweler's bench" } };
+                     loom: { skill: 'tailoring', name: 'a loom' }, jewel: { skill: 'jewelcrafting', name: "a jeweler's bench" },
+                     rune: { skill: 'runecraft', name: 'a rune table' } };
   const stationOf = rc => Object.keys(STATIONS).find(k => STATIONS[k].skill === (rc && rc.skill)) || 'forge';
   /* where a thing is taken apart (tbuuol 2026-11-10: "Zerlegen geht nur an der passenden Bank"): its recipe's bench, or
      for a found thing by what it is -- rings, amulets and charms the jeweler's, shields the carpenter's, weapons the
      forge, everything worn of cloth or leather the loom */
   function salvageAt(id) {
+    if (ITEMS[id] && ITEMS[id].rune) return 'rune';
     if (RECIPES[id]) return stationOf(RECIPES[id]);
     const it = ITEMS[id] || {};
     if (it.slot === 'ring' || it.slot === 'amulet' || it.slot === 'trinket') return 'jewel';
@@ -332,11 +382,14 @@
     let i = 0; while (i < RANKS.length - 1 && points >= RANKS[i + 1][0]) i++;
     return [RANKS[i][1], RANKS[i][0], i < RANKS.length - 1 ? RANKS[i + 1][0] : null];
   }
+  /* a new bag entry: a rune with its rank (from a craft: the grade sets it, 1 to 3) */
+  const entry = (r, id, rk) => ITEMS[id] && ITEMS[id].rune ? [r.n++, id, { rk: rk || 1, rx: 0 }] : [r.n++, id];
   function itemOf(r, uid) {
     const e = r.bag.find(b => b[0] === uid); if (!e) return null;
     const x = e[2] || {};
     if (String(e[1]).startsWith(BP)) { const rid = e[1].slice(BP.length); return { uid, id: e[1], name: 'Blueprint: ' + ((ITEMS[rid] || {}).name || rid) + ' (QR ' + (x.qr || 0).toFixed(1) + ')', blueprint: rid, qr: x.qr || 0 }; }
     const it = Object.assign({ uid, id: e[1] }, ITEMS[e[1]]);
+    if (it.rune) { it.rk = x.rk || 1; it.rx = x.rx || 0; it.need = it.rk < RUNE_MAX ? runeNeed(it.rk) : 0; it.name += ' (rank ' + it.rk + ')'; }
     if (x.q) {   /* its quality: what it does, scaled */
       const k = x.q / 100; it.q = x.q; it.name = it.name + ' (' + x.q.toFixed(1) + ' %)';
       if (it.dmg) it.dmg = [Math.max(1, Math.round(it.dmg[0] * k)), Math.max(1, Math.round(it.dmg[1] * k))];
@@ -391,10 +444,18 @@
 
   /* the five abilities on slots 2 to 6 as they stand for this record: what is ready to use and why not.
      Slot 3 is Cleave with a sword or an axe, Crush otherwise. */
-  function abilities(r) {
+  function abilities(r) {   /* the bar's six slots: the rune in each (empty: {empty}), what it does at its rank, usable or why not */
     const st = stats(r), off = r.eq.off ? itemOf(r, r.eq.off) : null, shield = !!(off && off.model === 'shield');
-    const pick = ABILITIES.filter(a => a.key !== (['sword', 'axe'].includes(st.skill) ? 'crush' : 'cleave'));
-    return pick.map(a => {
+    const out = [];
+    for (let i = 0; i < BAR_SLOTS; i++) {
+      const uid = (r.bar || [])[i], e = uid != null && r.bag.find(b => b[0] === uid), it = e && ITEMS[e[1]];
+      const base = it && it.rune && ABILITIES.find(x => x.key === it.rune);
+      if (!base) { out.push({ empty: true, slot: i, key: '', icon: '', name: 'Empty', ok: false, why: 'no rune here: put one in from your bag' }); continue; }
+      const rk = (e[2] || {}).rk || 1, up = 1 + 0.06 * (rk - 1), quick = 1 - 0.03 * (rk - 1);
+      const a = Object.assign({}, base, { slot: i, uid, rk, rx: (e[2] || {}).rx || 0, need: rk < RUNE_MAX ? runeNeed(rk) : 0, cd: Math.round(base.cd * quick * 10) / 10 });
+      if (base.mul) a.mul = base.mul * up;
+      if (base.stun) a.stun = base.stun * up;
+      if (base.buff) a.buff = { mul: 1 + (base.buff.mul - 1) * up, s: base.buff.s };
       let why = '';
       if (a.weapons && !a.weapons.includes(st.skill)) why = 'needs ' + a.weapons.join(' or ');
       else if (a.shield && !shield) why = 'needs a shield in the left hand';
@@ -403,8 +464,9 @@
         if ((st.prof[pk] || 0) < a.req[k]) { why = 'needs ' + PROFS[pk].name + ' level ' + a.req[k]; break; }
       }
       if (!why) for (const m in a.cost || {}) if ((r.mat[m] || 0) < a.cost[m]) { why = 'needs a ' + ITEMS[m].name; break; }
-      return Object.assign({}, a, { ok: !why, why });
-    });
+      out.push(Object.assign(a, { ok: !why, why }));
+    }
+    return out;
   }
 
   /* QUESTS (Etappe 3: a short chain that leads through fighting, gathering and the forge). A quest is the level's:
@@ -463,7 +525,7 @@
           if (!ITEMS[id]) continue;
           if (matsOnly && !ITEMS[id].material) continue;   /* ONLY BOSSES DROP THINGS (tbuuol 2026-11-10); the rest drop materials */
           if (rnd() >= p) continue;
-          if (ITEMS[id].material) r.mat[id] = (r.mat[id] || 0) + 1; else r.bag.push([r.n++, id]);
+          if (ITEMS[id].material) r.mat[id] = (r.mat[id] || 0) + 1; else r.bag.push(entry(r, id));
           got.push(ITEMS[id].name);
         }
         return got;
@@ -520,6 +582,7 @@
         for (const m in rc.needs) { r.mat[m] -= rc.needs[m]; if (!r.mat[m]) delete r.mat[m]; }
         const item = ITEMS[rid], q = item.slot ? qualityRoll(grade, rnd) : null, many = item.material ? (rc.yields || 1) : 0;
         if (many) r.mat[rid] = (r.mat[rid] || 0) + many;   /* a refined material or a part: into the materials, rc.yields of it */
+        else if (item.rune) r.bag.push(entry(r, rid, 1 + Math.floor(grade * 2.99)));   /* a rune: its rank from how well it went */
         else r.bag.push(q ? [r.n++, rid, { q }] : [r.n++, rid]);
         learn(r, sk, effortOf(rc.level, lv));
         const after = profs(r)[rc.prof];
@@ -569,18 +632,52 @@
       },
       /* taking a made thing apart at the forge: half of what its recipe needs comes back (at least one of each), never
          a failure; nothing worn, no blueprint; a thing no recipe makes, into what SALVAGE says */
+      /* RUNES: into a bar slot (taken from any other), off it; a use counts towards its next rank; two fused */
+      toBar(a, uid, slot) {
+        const r = of(a), e = r.bag.find(b => b[0] === uid);
+        if (!e || !(ITEMS[e[1]] || {}).rune) return { ok: false, why: 'that is no rune' };
+        slot = Math.max(0, Math.min(BAR_SLOTS - 1, slot | 0)); r.bar = (r.bar || []).slice(0, BAR_SLOTS);
+        for (let i = 0; i < BAR_SLOTS; i++) if (r.bar[i] === uid) r.bar[i] = null;
+        r.bar[slot] = uid; return { ok: true };
+      },
+      offBar(a, slot) { const r = of(a); if (r.bar) r.bar[slot | 0] = null; return { ok: true }; },
+      runeUsed(a, key) {
+        const r = of(a), e = (r.bar || []).map(u => r.bag.find(b => b[0] === u)).find(x => x && (ITEMS[x[1]] || {}).rune === key);
+        if (!e) return null;
+        const x = e[2] = e[2] || { rk: 1, rx: 0 }; x.rk = x.rk || 1;
+        if (x.rk >= RUNE_MAX) return null;
+        x.rx = (x.rx || 0) + 1;
+        if (x.rx < runeNeed(x.rk)) return null;
+        x.rk++; x.rx = 0;
+        return ITEMS[e[1]].name + ' is rank ' + x.rk + ' now';
+      },
+      fuse(a, uid) {   /* this rune and the best other one of its kind: one rank above the better of the two */
+        const r = of(a), e = r.bag.find(b => b[0] === uid);
+        if (!e || !(ITEMS[e[1]] || {}).rune) return { ok: false, why: 'that is no rune' };
+        const other = r.bag.filter(b => b !== e && b[1] === e[1]).sort((p, q) => ((q[2] || {}).rk || 1) - ((p[2] || {}).rk || 1))[0];
+        if (!other) return { ok: false, why: 'you need a second ' + ITEMS[e[1]].name.replace(' (rank', '') };
+        const rk = Math.min(RUNE_MAX, Math.max((e[2] || {}).rk || 1, (other[2] || {}).rk || 1) + 1);
+        r.bag = r.bag.filter(b => b !== e && b !== other);
+        const fresh2 = entry(r, e[1], rk); r.bag.push(fresh2);
+        if (r.bar) { let kept = false; r.bar = r.bar.map(u => u === e[0] || u === other[0] ? (kept ? null : (kept = true, fresh2[0])) : u); }   /* the new one in the old one's slot */
+        const before = profs(r); learn(r, { runecraft: 4, int: 0.3 }, 1);
+        return { ok: true, made: ITEMS[e[1]].name + ' (rank ' + rk + ')', up: ups(r, before) };
+      },
       salvage(a, uid) {
         const r = of(a), i = r.bag.findIndex(e => e[0] === uid);
         if (i < 0) return { ok: false, why: 'it is not in your bag' };
         const id = r.bag[i][1], rc = RECIPES[id];
         if (Object.values(r.eq).includes(uid)) return { ok: false, why: 'take it off first' };
-        const parts = rc ? null : SALVAGE[id];
+        const runeK = ITEMS[id] && ITEMS[id].rune, rk = runeK ? ((r.bag[i][2] || {}).rk || 1) : 0;
+        const parts = runeK ? Object.fromEntries(Object.entries(RUNE_PARTS[runeK] || {}).map(([m, n]) => [m, m.startsWith('essence') ? n + Math.floor(rk / 3) : n])) : rc ? null : SALVAGE[id];
         if (!rc && !parts) return { ok: false, why: 'nobody knows how it was made' };
         r.bag.splice(i, 1);
         const got = [];
-        if (rc) for (const m in rc.needs) { const n = Math.max(1, Math.floor(rc.needs[m] / 2)); r.mat[m] = (r.mat[m] || 0) + n; got.push(ITEMS[m].name + ' ×' + n); }
+        if (runeK) for (const m in parts) { r.mat[m] = (r.mat[m] || 0) + parts[m]; got.push(ITEMS[m].name + ' ×' + parts[m]); }
+        else if (rc) for (const m in rc.needs) { const n = Math.max(1, Math.floor(rc.needs[m] / 2)); r.mat[m] = (r.mat[m] || 0) + n; got.push(ITEMS[m].name + ' ×' + n); }
         else for (const m in parts) { r.mat[m] = (r.mat[m] || 0) + parts[m]; got.push(ITEMS[m].name + ' ×' + parts[m]); }
-        const before = profs(r), sk = {}; sk[rc ? rc.skill : 'smithing'] = 2; learn(r, sk, 0.5);
+        if (runeK && RECIPES[id] && Math.random() < 0.08) { giveBp(r, id); got.push('Blueprint: ' + ITEMS[id].name); }   /* now and then its pattern */
+        const before = profs(r), sk = {}; sk[runeK ? 'runecraft' : rc ? rc.skill : 'smithing'] = 2; learn(r, sk, 0.5);
         return { ok: true, got, of: ITEMS[id].name, up: ups(r, before) };
       },
       /* building (Genesis, 2026-11-07): materials taken for a piece, and given back when it is taken down */
@@ -611,7 +708,7 @@
         if (questState(r, q) !== 'ready') return { ok: false, why: 'it is not done yet' };
         for (const m in (q.need || {}).bring || {}) { r.mat[m] -= q.need.bring[m]; if (r.mat[m] <= 0) delete r.mat[m]; }
         const before = profs(r), rw = q.reward || {}, got = [];
-        for (const id of rw.items || []) if (ITEMS[id]) { r.bag.push([r.n++, id]); got.push(ITEMS[id].name); }
+        for (const id of rw.items || []) if (ITEMS[id]) { r.bag.push(entry(r, id)); got.push(ITEMS[id].name); }
         for (const rid of rw.bp || []) if (RECIPES[rid] && ITEMS[rid]) got.push(giveBp(r, rid));   /* the smith's blueprints */
         for (const m in rw.mats || {}) if (ITEMS[m]) { r.mat[m] = (r.mat[m] || 0) + rw.mats[m]; got.push(ITEMS[m].name + ' ×' + rw.mats[m]); }
         for (const k in rw.sk || {}) { const box = ATTRS[k] ? r.at : r.sk; box[k] = Math.round(((box[k] || 0) + rw.sk[k]) * 1000) / 1000; got.push('+' + rw.sk[k] + ' ' + (SKILLS[k] || {}).name); }
@@ -662,6 +759,6 @@
 
   /* a bag entry's name as shown (a blueprint with its QR, a made thing with its quality) */
   const entryName = e => { const it = itemOf({ bag: [e] }, e[0]); return it ? it.name : String(e[1]); };
-  const rpg = { api: 1, entryName, masterOf, gradeOf, SLOTS, SKILLS, PROFS, ATTRS, RANKS, ITEMS, FISTS, LOOT, GATHER, RECIPES, SALVAGE, STATIONS, stationOf, salvageAt, CODEX, ABILITIES, abilities, questState, questProgress, knows, fresh, stats, profs, rank, meets, itemOf, attr, book };
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('rpg', { api: 1, v: 18 }, () => rpg);
+  const rpg = { api: 1, entryName, masterOf, gradeOf, SLOTS, SKILLS, PROFS, ATTRS, RANKS, ITEMS, FISTS, LOOT, GATHER, RECIPES, SALVAGE, STATIONS, stationOf, salvageAt, RUNE_MAX, BAR_SLOTS, matKind, CODEX, ABILITIES, abilities, questState, questProgress, knows, fresh, stats, profs, rank, meets, itemOf, attr, book };
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('rpg', { api: 1, v: 20 }, () => rpg);
 })(typeof globalThis !== 'undefined' ? globalThis : this);

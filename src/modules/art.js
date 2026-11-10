@@ -678,6 +678,16 @@
       for (const [c, x] of [['#e04a6a', -0.05], ['#4ac0e0', 0.05], ['#6ae04a', 0.15]]) { const gem = mesh(new T.OctahedronGeometry(0.03), plain(c, { metalness: 0.3, roughness: 0.1 })); gem.position.set(x - 0.05, 0.9, -0.05); g.add(gem); }
       return [g, 0.65, 0.35, 0.9];
     }
+    if (kind === 'rune') {   /* a rune table: a slab of dark stone on two blocks, runes glowing on it, a bowl of essence */
+      const stone = plain('#4a4a52', { roughness: 0.8 });
+      for (const x of [-0.6, 0.6]) { const b = mesh(new T.BoxGeometry(0.35, 0.75, 0.6), stone); b.position.set(x, 0.375, 0); g.add(b); }
+      const slab = mesh(new T.BoxGeometry(1.6, 0.14, 0.8), plain('#2e2e36', { roughness: 0.6 })); slab.position.y = 0.82; g.add(slab);
+      const glow = new T.MeshBasicMaterial({ color: new T.Color(0.6, 1.2, 2.2) });
+      for (const [x, z] of [[-0.45, -0.1], [-0.1, 0.15], [0.3, -0.12]]) { const r = new T.Mesh(new T.BoxGeometry(0.18, 0.02, 0.24), glow); r.position.set(x, 0.9, z); g.add(r); }
+      const bowl = mesh(new T.CylinderGeometry(0.14, 0.09, 0.1, 10), plain('#6a5a3a')); bowl.position.set(0.6, 0.94, 0.15); g.add(bowl);
+      const ess = new T.Mesh(new T.CylinderGeometry(0.12, 0.12, 0.02, 10), new T.MeshBasicMaterial({ color: new T.Color(1.6, 0.6, 2.0) })); ess.position.set(0.6, 0.99, 0.15); g.add(ess);
+      return [g, 0.85, 0.42, 1.0];
+    }
     /* a small forge to build: a hearth with coals and an anvil */
     const stone = mat('stone', { m: { color: '#8f877c' } });
     const hearth = mesh(boxM(1.4, 0.9, 1.0, 1), stone); hearth.position.y = 0.45; g.add(hearth);
@@ -1818,9 +1828,9 @@
        them usable (furniture: [{id, kind, hit, pos}]) */
     for (const pc of pieces) {
       const [k, cx, cz, L, r] = pc;
-      if (k < 6 || k > 12) continue;
+      if (k < 6 || k > 13) continue;
       const y0 = base + L * H + (floorAt.has(cx + ',' + cz + ',' + L) ? TH : 0), turn = (r | 0) % 2 === 1, fg = new T.Group();
-      const ST = { 9: 'forge', 10: 'bench', 11: 'loom', 12: 'jewel' }[k];
+      const ST = { 9: 'forge', 10: 'bench', 11: 'loom', 12: 'jewel', 13: 'rune' }[k];
       let sm = null;
       if (ST) { sm = art.stationModel(ST); fg.add(sm[0]); }
       else if (k === 6) {
@@ -2943,5 +2953,5 @@
     return { groundAt, polys, segs, half, spawn, inside, stats: { buildings: buildings.length, trees: trees.length } };
   };
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('art', { api: 1, v: 36 }, () => art);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('art', { api: 1, v: 37 }, () => art);
 })(typeof globalThis !== 'undefined' ? globalThis : this);

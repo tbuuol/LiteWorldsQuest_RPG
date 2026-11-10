@@ -28,6 +28,8 @@
     '.lwq-menu .item.worn{border-color:#c9a25e;box-shadow:inset 0 0 0 1px #c9a25e}.lwq-menu .item.sel{background:rgba(201,162,94,.25)}' +
     '.lwq-menu .item b{display:block;font-size:13px}.lwq-menu .item small{opacity:.7;font-size:11px}' +
     '.lwq-menu .detail{margin-top:12px;padding:10px;border:1px solid #6d5636;border-radius:8px;background:rgba(0,0,0,.3)}' +
+    '.lwq-menu .pin{position:sticky;top:-12px;padding-top:12px;z-index:3;margin:0 0 10px;background:#2a1f12;box-shadow:0 6px 10px rgba(0,0,0,.45)}' +
+    '.lwq-menu .pin .detail{margin-top:0}.lwq-menu .mg{margin-bottom:14px}.lwq-menu .mg h4{margin:0 0 6px}' +
     '.lwq-menu .bad{color:#ff8f7a}.lwq-menu .good{color:#9be38f}' +
     '.lwq-menu .act{margin-top:8px;background:#7a5a2c;border:1px solid #c9a25e;color:#fff;border-radius:6px;padding:7px 14px;font:600 14px system-ui;cursor:pointer}' +
     '.lwq-menu .act[disabled]{opacity:.45;cursor:default}.lwq-menu .muted{opacity:.7}';
@@ -39,7 +41,7 @@
     root.innerHTML = '<div class="card"><div class="top">' +
       '<button class="tab on" data-t="char">Character</button><button class="tab" data-t="skills">Skills</button>' +
       '<button class="tab" data-t="profs">Professions</button>' +
-      '<button class="tab" data-t="bag">Bag</button><button class="tab" data-t="craft">Craft</button>' +
+      '<button class="tab" data-t="bag">Bag</button><button class="tab" data-t="mats">Materials</button><button class="tab" data-t="craft">Craft</button>' +
       '<button class="tab" data-t="quests">Quests</button>' + (o.wild ? '<button class="tab" data-t="codex">Codex</button>' : '') +
       '<button class="tab x" data-t="close" title="Close (I)">×</button></div>' +
       '<div class="body"></div></div>';
@@ -59,6 +61,9 @@
         else if (a.dataset.act === 'make') o.ask({ op: 'craft', recipe: a.dataset.recipe });
         else if (a.dataset.act === 'codex') o.ask({ op: 'codex', species: a.dataset.sp, skill: a.dataset.k });
         else if (a.dataset.act === 'salvage') o.ask({ op: 'salvage', uid: +a.dataset.uid });
+        else if (a.dataset.act === 'bar') o.ask({ op: 'bar', uid: +a.dataset.uid, slot: +a.dataset.s });
+        else if (a.dataset.act === 'offbar') o.ask({ op: 'offbar', slot: +a.dataset.s });
+        else if (a.dataset.act === 'fuse') o.ask({ op: 'fuse', uid: +a.dataset.uid });
         else o.ask({ op: 'unequip', slot: a.dataset.slot });
         a.disabled = true; a.textContent = 'Asking the house…';
         return;
@@ -171,7 +176,7 @@
                     : '<p class="bad">Walk to a workbench to make things. You can look at your blueprints here.</p>') +
                 '<p class="muted">Blockshire\'s village forge makes a smith\'s first recipes only. Anything better needs its own workbench -- a forge, a carpenter\'s bench, a loom or a jeweler\'s bench -- built on a workshop plot in Genesis.</p>';
         let hidden = 0;
-        for (const craft of ['smith', 'carpenter', 'tailor', 'jeweler']) {
+        for (const craft of ['smith', 'carpenter', 'tailor', 'jeweler', 'runecrafter']) {
           const sk = rpg.PROFS[craft], lv = stats.prof[craft] || 0;
           h += '<h4 style="margin-top:12px">' + esc(sk.name) + ' · level ' + lv.toFixed(1) + '</h4>';
           for (const rid in rpg.RECIPES) {
@@ -189,18 +194,38 @@
         }
         if (hidden) h += '<p class="muted" style="margin-top:12px">' + hidden + ' more blueprints are still to be found (or bought).</p>';
         body.innerHTML = h;
+      } else if (tab === 'mats') {   /* MATERIALS (2026-11-10): raw, refined and parts apart */
+        const groups = { raw: [], refined: [], part: [] };
+        for (const id in rec.mat) if (rec.mat[id] > 0) groups[rpg.matKind ? rpg.matKind(id) : 'raw'].push(id);
+        let h = '';
+        for (const [k, title, none] of [['raw', 'Raw materials', 'Nothing gathered or found yet.'], ['refined', 'Refined', 'Bars, planks, leather, thread, cloth, wire -- made at the benches.'],
+                                        ['part', 'Parts', 'Blades, hilts, rivets, straps, settings, essences, glyphs -- what things are put together from.']]) {
+          const list = groups[k].sort((a, b) => ((rpg.ITEMS[a] || {}).name || a).localeCompare((rpg.ITEMS[b] || {}).name || b));
+          h += '<div class="mg"><h4>' + title + ' <span class="muted">(' + list.length + ')</span></h4>' + (list.length ? list.map(id => '<div class="row"><span>' + esc(rpg.ITEMS[id] ? rpg.ITEMS[id].name : id) + '</span><b>× ' + rec.mat[id] + '</b></div>').join('') : '<p class="muted">' + none + '</p>') + '</div>';
+        }
+        body.innerHTML = h;
       } else {
-        let mats = '';
-        for (const id in rec.mat) if (rec.mat[id] > 0) mats += '<div class="row"><span>' + esc(rpg.ITEMS[id] ? rpg.ITEMS[id].name : id) + '</span><b>× ' + rec.mat[id] + '</b></div>';
         let grid = '';
         for (const [uid] of rec.bag) {
+          if (wornSlot(uid)) continue;   /* what is worn is on the Character page, not in the bag */
           const it = rpg.itemOf(rec, uid); if (!it || !it.name) continue;
           grid += '<div class="item' + (wornSlot(uid) ? ' worn' : '') + (picked === uid ? ' sel' : '') + '" data-uid="' + uid + '"><b>' + esc(it.name) + '</b><small>' +
-            (it.blueprint ? 'blueprint' : esc(slotName(it.slot === 'main' ? 'main' : (rpg.SLOTS.find(x => x[1] === it.slot) || [it.slot])[0]))) + (wornSlot(uid) ? ' · worn' : '') + '</small></div>';
+            (it.blueprint ? 'blueprint' : it.rune ? 'rune' + ((rec.bar || []).includes(uid) ? ' · on the bar' : '') : esc(slotName(it.slot === 'main' ? 'main' : (rpg.SLOTS.find(x => x[1] === it.slot) || [it.slot])[0]))) + (wornSlot(uid) ? ' · worn' : '') + '</small></div>';
         }
         let detail = '';
         const it = picked != null && rpg.itemOf(rec, picked);
-        if (it && it.blueprint) {
+        if (it && it.rune) {   /* a rune: its rank and how far to the next, the bar's slots, fusing and taking apart */
+          const ab = (rpg.ABILITIES || []).find(x => x.key === it.rune) || {}, onBar = (rec.bar || []).indexOf(it.uid);
+          const twin = rec.bag.some(e => e[0] !== it.uid && e[1] === it.id);
+          let btn = '';
+          for (let i = 0; i < 6; i++) btn += '<button class="act" data-act="bar" data-uid="' + it.uid + '" data-s="' + i + '"' + (onBar === i ? ' disabled' : '') + '>Slot ' + (i + 1) + '</button>';
+          detail = '<div class="detail"><b>' + esc(it.name) + '</b><div>' + esc(ab.text || '') + '</div>' +
+            '<div class="muted">Rank ' + it.rk + ' of ' + rpg.RUNE_MAX + (it.need ? ' · ' + it.rx + ' / ' + it.need + ' uses to the next' : ' · the highest') + '. Each rank: 6 % more effect, 3 % less cooldown.</div>' +
+            '<div style="margin-top:6px">' + (onBar >= 0 ? 'On the bar, slot ' + (onBar + 1) + '. ' : 'Put it on the bar: ') + btn +
+            (onBar >= 0 ? '<button class="act" data-act="offbar" data-s="' + onBar + '">Off the bar</button>' : '') + '</div>' +
+            '<div style="margin-top:6px"><button class="act" data-act="fuse" data-uid="' + it.uid + '"' + (twin && o.atRuneTable && o.atRuneTable() ? '' : ' disabled title="a second one of these, at a rune table"') + '>Fuse with another</button>' +
+            '<button class="act" data-act="salvage" data-uid="' + it.uid + '"' + (o.atRuneTable && o.atRuneTable() ? '' : ' disabled title="at a rune table"') + '>Take apart</button></div></div>';
+        } else if (it && it.blueprint) {
           detail = '<div class="detail"><b>' + esc(it.name) + '</b><div class="muted">Used at the forge to make ' + esc((rpg.ITEMS[it.blueprint] || {}).name || it.blueprint) + '. Its QR grows each time it is used. It can be kept in a chest or sold in a shop.</div></div>';
         } else if (it) {
           const unmet = rpg.meets(rec, it), worn = wornSlot(it.uid);
@@ -211,8 +236,9 @@
                   : '<button class="act" data-act="wear" data-uid="' + it.uid + '"' + (unmet.length ? ' disabled' : '') + '>Wear</button>') +
             (!worn && (rpg.RECIPES[it.id] || (rpg.SALVAGE && rpg.SALVAGE[it.id])) ? '<button class="act" data-act="salvage" data-uid="' + it.uid + '"' + ((o.canSalvage ? o.canSalvage(it.id) : o.atForge && o.atForge()) ? '' : ' disabled title="at its workbench"') + '>Take apart' + (o.atForge && o.atForge() ? '' : ' (at the forge)') + '</button>' : '') + '</div>';
         }
-        body.innerHTML = '<div class="cols"><div class="col" style="flex:2"><h4>Things</h4>' + (grid ? '<div class="grid">' + grid + '</div>' : '<p class="muted">Nothing yet.</p>') + detail + '</div>' +
-          '<div class="col"><h4>Materials</h4>' + (mats || '<p class="muted">None yet. Raiders drop some; the forest will give more.</p>') + '</div></div>';
+        /* the chosen thing's options stay pinned on top while the bag scrolls under them */
+        body.innerHTML = '<div class="pin">' + (detail || '<div class="detail muted">Pick a thing to see what you can do with it.</div>') + '</div>' +
+          (grid ? '<div class="grid">' + grid + '</div>' : '<p class="muted">Nothing in the bag. What you wear is on the Character page, materials under Materials.</p>');
       }
     }
     function close() { open = false; root.style.display = 'none'; }
@@ -224,5 +250,5 @@
   }
 
   const menu = { api: 1, create };
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('menu', { api: 1, v: 9 }, () => menu);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('menu', { api: 1, v: 11 }, () => menu);
 })(typeof globalThis !== 'undefined' ? globalThis : this);

@@ -698,14 +698,14 @@
     /* WHAT A PIECE COSTS (2026-11-07): wood takes oak logs, stone and plaster take rough stone (the quarry by Genesis,
        and the ore boulders now and then); taken from your bag when the house puts the piece, given back when it comes
        down */
-    const PIECE_N = [1, 2, 2, 2, 1, 2, 3, 4, 3, 6, 4, 4, 3];
-    const costOf = pc => ({ [(pc[0] | 0) === 9 ? 'stone_block' : (pc[5] | 0) === 0 || pc[0] >= 6 ? 'oak_log' : 'stone_block']: PIECE_N[pc[0] | 0] || 1 });   /* a chest and a bed: oak; a forge: stone */
+    const PIECE_N = [1, 2, 2, 2, 1, 2, 3, 4, 3, 6, 4, 4, 3, 4];
+    const costOf = pc => ({ [(pc[0] | 0) === 9 || (pc[0] | 0) === 13 ? 'stone_block' : (pc[5] | 0) === 0 || pc[0] >= 6 ? 'oak_log' : 'stone_block']: PIECE_N[pc[0] | 0] || 1 });   /* a chest and a bed: oak; a forge: stone */
     const slotOf = pc => (pc[0] >= 1 && pc[0] <= 3 ? 'e' : pc[0] >= 6 ? 'f' : 'c') + ':' + pc[1] + ':' + pc[2] + ':' + pc[3] + (pc[0] >= 1 && pc[0] <= 3 ? ':' + (pc[4] % 2) : '');
     function pieceAt(slot) { for (const id in built) for (const pc of built[id]) if (slotOf(pc) === slot) return [id, pc]; return null; }
     function houseBuild(from, a, d) {
       if (!builtLoaded) { notice(from.id, 'The builders are not here yet. Try again in a moment.'); return; }
       const k = d.k | 0, L = Math.max(0, Math.min(5, d.L | 0)), r = ((d.r | 0) % 4 + 4) % 4, m = Math.max(0, Math.min(2, d.m | 0));
-      if (!Array.isArray(d.c) || k < 0 || k > 12) return;
+      if (!Array.isArray(d.c) || k < 0 || k > 13) return;
       const pc = [k, r1(+d.c[0]), r1(+d.c[1]), L, k >= 1 && k <= 3 ? (r % 2 ? 3 : 0) : r, m];
       if (!isFinite(pc[1]) || !isFinite(pc[2])) return;
       const home = pieceHome(pc, a);
@@ -933,7 +933,7 @@
        costs; a click takes it and goes back to building. The mouse wheel goes through them too. */
     let pickerBox = null;
     const PIECES = [['Floor', '▭'], ['Wall', '▮'], ['Window', '◫'], ['Door', '🚪'], ['Roof', '◢'], ['Stairs', '⌸'], ['Chest', '🧰'], ['Bed', '🛏'], ['Counter', '🏪'],
-                    ['Forge', '🔥'], ['Workbench', '🪚'], ['Loom', '🧶'], ['Jeweler', '💎']];   /* the workbenches (9-12): on a workshop plot */
+                    ['Forge', '🔥'], ['Workbench', '🪚'], ['Loom', '🧶'], ['Jeweler', '💎'], ['Rune table', 'ᚱ']];   /* the workbenches (9-12): on a workshop plot */
     function openPicker() {
       try { document.exitPointerLock(); } catch (e) { /* not locked */ }
       if (!pickerBox) {
@@ -1114,7 +1114,7 @@
     const abilBar = hud.querySelector('.lwq-abil');
     if (abilBar) {
       for (const t of ['touchstart', 'touchmove', 'touchend', 'mousedown']) abilBar.addEventListener(t, e => e.stopPropagation(), { passive: true });
-      abilBar.addEventListener('click', e => { const b = e.target.closest('[data-ab]'); if (!b) return; const i = +b.dataset.ab; if (i < 0) attack(); else ability(i); });
+      abilBar.addEventListener('click', e => { const b = e.target.closest('[data-ab]'); if (!b) return; ability(+b.dataset.ab); });
     }
     const st = document.createElement('style');
     st.textContent =
@@ -1160,6 +1160,7 @@
       '.lwq-abil button{position:relative;width:44px;height:44px;border-radius:8px;border:2px solid #c9a25e;background:rgba(40,28,14,.82);' +
       'color:#ffe7b0;font:700 20px Georgia,serif;padding:0;overflow:hidden;cursor:pointer;touch-action:none;box-shadow:inset 0 0 8px rgba(0,0,0,.6)}' +
       '.lwq-abil button.off{filter:grayscale(1);opacity:.45}.lwq-abil small{position:absolute;right:3px;bottom:1px;font:600 10px system-ui;color:#fff}' +
+      '.lwq-abil em{position:absolute;left:3px;top:1px;font:700 9px system-ui;color:#ffd96a;font-style:normal;z-index:1}.lwq-abil button.empty{border-style:dashed}' +
       '.lwq-abil b{position:relative;z-index:1}.lwq-abil i{position:absolute;left:0;right:0;bottom:0;height:0;background:rgba(0,0,0,.6)}' +
       '.lwq-touch{display:none;position:absolute;inset:0;touch-action:none;user-select:none;-webkit-user-select:none}' +
       '.lwq-stick{display:none;position:absolute;width:120px;height:120px;margin:-60px 0 0 -60px;border-radius:50%;' +
@@ -1184,10 +1185,10 @@
        the house, which keeps the record; I or Tab, or the ☰ button on a phone. */
     let menu = null;
     if (D.menu && D.rpg && (LV.defense || LV.wild)) {
-      menu = D.menu.create({ el, rpg: D.rpg, touch: TOUCH, wild: LV.wild || null, quests: LV.quests || [], atForge: () => stationsNear(me.x, me.z).size > 0, canMake: rc => canMakeAt(stationsNear(me.x, me.z), rc), canSalvage: id => canSalvageAt(stationsNear(me.x, me.z), id),
+      menu = D.menu.create({ el, rpg: D.rpg, touch: TOUCH, wild: LV.wild || null, quests: LV.quests || [], atForge: () => stationsNear(me.x, me.z).size > 0, atRuneTable: () => stationsNear(me.x, me.z).has('rune'), canMake: rc => canMakeAt(stationsNear(me.x, me.z), rc), canSalvage: id => canSalvageAt(stationsNear(me.x, me.z), id),
         ask(q) {
           if (!live()) return;
-          sendIntent(Object.assign({ Q: q.op }, q.op === 'equip' || q.op === 'salvage' ? { u: q.uid } : q.op === 'craft' ? { r: q.recipe } : q.op === 'codex' ? { sp: q.species, k: q.skill } : { s: q.slot }));
+          sendIntent(Object.assign({ Q: q.op }, q.op === 'bar' ? { u: q.uid, s: q.slot } : q.op === 'equip' || q.op === 'salvage' || q.op === 'fuse' ? { u: q.uid } : q.op === 'craft' ? { r: q.recipe } : q.op === 'codex' ? { sp: q.species, k: q.skill } : { s: q.slot }));
         } });
     }
     function askHouse(msg) { if (live()) sendIntent(msg); }
@@ -1443,7 +1444,7 @@
         if (e.code === 'KeyZ') { bLevel = Math.max(0, bLevel - 1); drawBuildBar(); return; }
         if (e.code === 'KeyX') { bLevel = Math.min(5, bLevel + 1); drawBuildBar(); return; }
       }
-      if (down && !e.repeat && /^Digit[1-6]$/.test(e.code)) { const k = +e.code.slice(5); if (k === 1) attack(); else ability(k - 2); }
+      if (down && !e.repeat && /^Digit[1-6]$/.test(e.code)) ability(+e.code.slice(5) - 1);   /* the runes' slots; the plain strike is the mouse (or F) */
       if (down && (e.code === 'KeyI' || e.code === 'Tab') && !e.repeat && menu) { e.preventDefault(); toggleMenu(); }
       if (down && e.code === 'F3') { showFps = !showFps; drawNet(); e.preventDefault(); }
       if (down && e.code === 'KeyM' && !e.repeat) { if (TR) toggleMap(); else if (sound) muteSound(); }
@@ -1798,7 +1799,8 @@
       const a = addrOf(from);
       if (iAmHouse && book && a && ready(a)) {
         const inf = fight && unit ? fight.info(unit) : null, beast = inf && inf.kind === 'beast';   /* a beast's own level and hide */
-        const res = book.strike(a, beast ? inf.def : raiderDef, beast ? inf.lvl : raiderLvl, null, mul);
+        const bf = buffs.get(a), boost = bf && bf.until > performance.now() ? bf.mul : 1;
+        const res = book.strike(a, beast ? inf.def : raiderDef, beast ? inf.lvl : raiderLvl, null, (mul || 1) * boost);
         dirty.add(a);
         for (const u of res.up) notice(from.id, u + '!');
         if (res.miss) toPlayer(['M', from.id, unit]);   /* the striker sees "miss" over the raider */
@@ -1830,11 +1832,16 @@
       const ab = abilityList()[i];
       if (!ab) return;
       const now = performance.now();
+      if (ab.empty) { if (now - (abilSaid['_' + i] || 0) > 3000) { abilSaid['_' + i] = now; log('Slot ' + (i + 1) + ' is empty: put a rune there from your bag (I).'); } return; }
       if (!ab.ok) { if (now - (abilSaid[ab.key] || 0) > 3000) { abilSaid[ab.key] = now; log(ab.name + ': ' + ab.why + '.'); } return; }
       if ((abilCd[ab.key] || 0) > now) return;
       if (!room || !houseId() || iAmHouse) { log(ab.name + ' needs the house: it decides what an ability does.'); return; }
       const msg = { A: ab.key, n: ++blowNo };
       if (ab.key === 'cleave') { msg.u = fight.pickAll(me.x, me.z, me.yaw, ab.range, ab.most, me.y); if (!msg.u.length) { log('No foe in reach.'); return; } }
+      else if (ab.around) {   /* every foe round you, whichever way you face */
+        msg.u = fight.units().filter(u => (u.kind === 'raider' || u.kind === 'beast') && u.state !== 'dead' && Math.hypot(u.x - me.x, u.z - me.z) <= ab.range).slice(0, ab.most || 6).map(u => u.id);
+        if (!msg.u.length) { log('No foe around you.'); return; }
+      }
       else if (ab.mul) { const id = fight.pick(me.x, me.z, me.yaw, ab.range, me.y); if (!id) { log('No foe in reach.'); return; } msg.u = [id]; }
       else if (ab.key === 'salve') {   /* the player in front of you, else yourself */
         const fx = -Math.sin(me.yaw), fz = -Math.cos(me.yaw); let best = null, bd = ab.range;
@@ -1861,8 +1868,8 @@
     }
     function houseAbility(from, d) {
       const a = addrOf(from); if (!a || !ready(a)) return;
-      const ab = rpg.abilities(book.of(a)).find(x => x.key === String(d.A));
-      if (!ab) return;
+      const ab = rpg.abilities(book.of(a)).find(x => !x.empty && x.key === String(d.A));
+      if (!ab) { notice(from.id, 'That rune is not on your bar.'); return; }
       if (!ab.ok) { notice(from.id, ab.name + ': ' + ab.why + '.'); return; }
       const now = performance.now(), cds = houseCd.get(a) || {};
       if ((cds[ab.key] || 0) > now + 400) return;   /* too soon (a little slack for the trip) */
@@ -1872,9 +1879,14 @@
       if (ab.mul) {
         for (const id of (Array.isArray(d.u) ? d.u : []).slice(0, ab.most || 1).map(String)) {
           if (!near(id)) continue;
-          route(fight.damage(id, blowFor(from, id, ab.mul), from.id));
+          const dealt = blowFor(from, id, ab.mul);
+          route(fight.damage(id, dealt, from.id));
           if (ab.stun) fight.stun(id, ab.stun);
+          if (ab.dot && dealt > 0) dots.push({ id, from, d: Math.max(1, Math.round(dealt * ab.dot.d)), n: ab.dot.n, next: performance.now() + 1000 });
         }
+      } else if (ab.buff) {   /* Battle Cry: harder blows for a while */
+        buffs.set(a, { mul: ab.buff.mul, until: performance.now() + ab.buff.s * 1000 });
+        notice(from.id, ab.name + ': your blows hit ' + Math.round((ab.buff.mul - 1) * 100) + '% harder for ' + ab.buff.s + ' s.');
       } else if (ab.key === 'taunt' && pos) {
         const n = fight.taunt(pos[0], pos[1], ab.radius, from.id);
         notice(from.id, n ? 'Taunt: ' + n + (n > 1 ? ' foes come' : ' foe comes') + ' for you.' : 'Taunt: nobody near enough.');
@@ -1888,7 +1900,19 @@
         if (to !== from.id) notice(to, nameOf(from.id) + ' heals you: +' + res.heal + '.');
         for (const u of res.up) notice(from.id, u + '!');
       }
+      const ranked = book.runeUsed && book.runeUsed(a, ab.key);   /* the rune learns by use */
+      if (ranked) notice(from.id, ranked + '!');
       dirty.add(a);
+    }
+    /* POISON (Venom Strike): what is left of it, a tick a second; and BATTLE CRY's harder blows, by wallet address */
+    const dots = [], buffs = new Map();
+    function dotTick(now) {
+      if (!iAmHouse || !dots.length || !fight) return;
+      for (let i = dots.length - 1; i >= 0; i--) {
+        const t = dots[i]; if (now < t.next) continue;
+        route(fight.damage(t.id, t.d, t.from.id)); t.n--; t.next += 1000;
+        if (t.n <= 0) dots.splice(i, 1);
+      }
     }
     /* the bar: six slots over the health bar, each greyed when it cannot be used, its cooldown running down */
     let abilKey = '', abilAt = 0;
@@ -1897,16 +1921,15 @@
       const now = performance.now();
       if (!force && now - abilAt < 100) return;
       abilAt = now;
-      const list = abilityList(), key = list.map(a => a.key + a.ok).join();
+      const list = abilityList(), key = list.map(a => a.key + a.ok + (a.rk || "")).join();
       if (key !== abilKey) {
         abilKey = key;
-        bar.innerHTML = '<button data-ab="-1" title="Strike (1)"><b>⚔</b><small>1</small><i></i></button>' +
-          list.map((a, i) => '<button data-ab="' + i + '" class="' + (a.ok ? '' : 'off') + '" title="' + esc(a.name + ' (' + (i + 2) + '): ' + a.text + (a.ok ? '' : ' ' + a.why)) + '">' +
-            '<b>' + a.icon + '</b><small>' + (i + 2) + '</small><i></i></button>').join('');
+        bar.innerHTML = list.map((a, i) => a.empty ? '<button data-ab="' + i + '" class="off empty" title="Slot ' + (i + 1) + ': empty -- put a rune here from your bag"><b>·</b><small>' + (i + 1) + '</small><i></i></button>'
+            : '<button data-ab="' + i + '" class="' + (a.ok ? '' : 'off') + '" title="' + esc(a.name + ', rank ' + a.rk + ' (' + (i + 1) + '): ' + a.text + (a.ok ? '' : ' ' + a.why)) + '">' +
+            '<b>' + a.icon + '</b><small>' + (i + 1) + '</small><em>' + a.rk + '</em><i></i></button>').join('');
       }
       const btns = bar.querySelectorAll('button');
-      list.forEach((a, i) => { const left = Math.max(0, (abilCd[a.key] || 0) - now) / (a.cd * 1000), b = btns[i + 1]; if (b) b.querySelector('i').style.height = (100 * left) + '%'; });
-      if (btns[0]) btns[0].querySelector('i').style.height = (100 * Math.max(0, atkReady - now) / ((P && P.cd) || 0.6) / 1000) + '%';
+      list.forEach((a, i) => { if (a.empty) return; const left = Math.max(0, (abilCd[a.key] || 0) - now) / (a.cd * 1000), b = btns[i]; if (b) b.querySelector('i').style.height = (100 * left) + '%'; });
     }
     /* GATHERING: E on an oak, a boulder or herbs. The house decides: near enough, not spent; it rolls what it gives
        (better with the skill), teaches the skill, and after so many a thing is spent for everyone until it grows back */
@@ -2349,6 +2372,13 @@
         const a = addrOf(from);
         if (d.Q === 'equip') { const res = book.equip(a, +d.u); if (!res.ok) notice(from.id, 'Cannot wear that: ' + res.why + '.'); }
         else if (d.Q === 'unequip') book.unequip(a, String(d.s));
+        else if (d.Q === 'bar' && book.toBar) { const res = book.toBar(a, +d.u, +d.s); if (!res.ok) notice(from.id, 'Cannot: ' + res.why + '.'); }
+        else if (d.Q === 'offbar' && book.offBar) book.offBar(a, +d.s);
+        else if (d.Q === 'fuse' && book.fuse) {   /* two runes of a kind into one: a runecrafter's work, at a rune table */
+          const r = remotes.get(from.id);
+          if (r && !stationsNear(whereIs(r)[0], whereIs(r)[1]).has('rune')) notice(from.id, 'Runes are fused at a rune table.');
+          else { const res = book.fuse(a, +d.u); notice(from.id, res.ok ? 'Fused: ' + res.made + '.' : 'Cannot fuse: ' + res.why + '.'); for (const u of (res.up || [])) notice(from.id, u + '!'); }
+        }
         else if (d.Q === 'plot') housePlot(from, a, String(d.p));
         else if (d.Q === 'build') houseBuild(from, a, d);
         else if (d.Q === 'guild' && book.guildDay) {   /* today's tasks; a task turned in */
@@ -2672,7 +2702,7 @@
         left.rotation.set(-kl * 0.25, 0, -kl * 1.25);
       } else { left.position.set(-sx, -0.32, -0.52); left.rotation.set(0, 0, 0); }
       hands.visible = !P.dead && !(cinema && cinema.noHands);
-      sendRecords(now); flushOut(now);
+      sendRecords(now); dotTick(now); flushOut(now);
     }
     let askedRec = -1e9;
     let last = performance.now(), worldT = 0, netT = 0, fps = 0, fpsN = 0, fpsT = performance.now(), showFps = false, promptNow = '';
@@ -2769,6 +2799,7 @@
       }, landBuildMs: () => land ? land.buildMs() : 0,
       netStats(reset) { if (!room || !room.stats) return null; const st = room.stats(); if (reset) room.resetStats(); return st; },
       ability(i) { ability(i); },
+      openMenu(t) { if (menu) menu.open(t); },   /* tests: the book at a page */
       npcs() { return Object.keys(npcs).map(id => ({ id, x: R2(npcs[id].x), z: R2(npcs[id].z) })); },
       fight: () => fight ? fight.units() : [],
       /* the house's book of players, for tools/house.py to keep on disk: out as JSON, and back in after a start */
@@ -2921,6 +2952,6 @@
     };
   }
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 57, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 58, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
     D => ({ start: (el, opts) => start(D, el, opts) }));
 })(typeof globalThis !== 'undefined' ? globalThis : this);

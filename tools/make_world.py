@@ -26,7 +26,7 @@ import subprocess
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 LEVELS = ROOT / "src" / "levels"
 OUT = LEVELS / "world.json"
-VERSION = 24
+VERSION = 25
 
 
 def probe(land: dict, points: list) -> list:
@@ -440,6 +440,11 @@ GREENWOOD_QUESTS = [
      "offer": "Spider silk sells well on the coast. Bring me six, and I'll give you a pair of silk gloves from my stock.",
      "done": "Beautiful, strong silk. The gloves, as promised.",
      "need": {"bring": {"spider_silk": 6}}, "reward": {"items": ["silk_gloves"], "sk": {"evade": 10}}},
+    # THE FIRST RUNE (tbuuol 2026-11-10: "via Quest"): Elder Bram, before anything else
+    {"id": "rune1", "npc": "bram", "giver": "Elder Bram", "title": "The First Rune",
+     "offer": "Fists and a stick will not keep you alive out there. Bring down three boars in the meadows, and I will give you a rune I kept from my own young days.",
+     "done": "Well fought. Here -- a Rune of the Heavy Blow. Put it on your bar; it grows stronger the more you use it.",
+     "need": {"kill": {"boar": 3}}, "reward": {"items": ["rune_heavy"], "sk": {"anatomy": 5}}},
     # THE FIRST REFINING BLUEPRINTS (2026-11-10): one quest for each craft, from the people who work with the stuff
     {"id": "rf_carpenter", "npc": "foreman_tamsin", "giver": "Foreman Tamsin", "title": "Planks and Handles",
      "offer": "A log is no use to a carpenter until it's sawn. Bring me four oak logs and I'll teach you to make planks.",
@@ -748,6 +753,12 @@ def main() -> None:
     areas.extend(SHY_AREAS)
     sp.update(CAVE_SPECIES)
     areas.extend(cave_areas)
+    # RUNES FROM THE BOSSES (tbuuol 2026-11-10): each boss its own few, now and then
+    for boss, runes in (("captain", [["rune_crush", 0.15], ["rune_bash", 0.15], ["rune_whirlwind", 0.08]]),
+                        ("raider_chief", [["rune_cleave", 0.15], ["rune_battlecry", 0.1], ["rune_taunt", 0.12]]),
+                        ("broodmother", [["rune_webshot", 0.15], ["rune_venom", 0.12], ["rune_salve", 0.2]])):
+        if boss in sp:
+            sp[boss] = dict(sp[boss], loot=list(sp[boss].get("loot") or []) + runes)
     wild = {"zone": "Greenwood", "from": 28, "respawn": 25, "waterY": bch["wild"].get("waterY", -0.75), "species": sp, "areas": areas}
 
     # ---- things to gather out in the land (tbuuol 2026-10-31: "mehr sammelbare Rohstoffe verteilen"): oaks in the
