@@ -26,7 +26,7 @@ import subprocess
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 LEVELS = ROOT / "src" / "levels"
 OUT = LEVELS / "world.json"
-VERSION = 12
+VERSION = 13
 
 
 def probe(land: dict, points: list) -> list:
@@ -174,6 +174,14 @@ CAVE_SPECIES = {
                     "model": "spider", "color": "#2a2228", "loot": [["spider_silk", 0.6], ["venom_sac", 0.25]], "codex": ["evade", "toughness", "herbalism"]},
     "spiderling": {"name": "Spiderling", "lvl": 4, "hp": 30, "dmg": 4, "speed": 4.2, "aggressive": True, "sight": 9, "def": 0,
                    "model": "spider", "color": "#5a4636", "size": 0.55, "loot": [["spider_silk", 0.3]], "codex": ["evade", "toughness"]},
+    "broodmother": {"name": "The Broodmother", "lvl": 16, "hp": 1800, "dmg": 24, "speed": 2.6, "aggressive": True, "sight": 11, "def": 3,
+                    "model": "spider", "color": "#2a0f22", "size": 3.0, "cd": 2.0, "range": 2.0,
+                    "boss": {"aoe": {"every": 11, "first": 5, "radius": 6, "dmg": 32, "warn": 1.8, "name": "Venom Spray"},
+                             "adds": {"at": [0.75, 0.5, 0.25], "species": "spiderling", "n": 4, "mat": 1, "home": True},
+                             "web": {"every": 14, "first": 8, "s": 3, "name": "The Broodmother's web"}},
+                    "loot": [["broodfang", 0.3], ["silkweave_mantle", 0.3], ["venom_ring", 0.3], ["carapace_shield", 0.2],
+                             ["brood_carapace", 1], ["spider_silk", 1], ["spider_silk", 1], ["venom_sac", 1], ["venom_sac", 0.5]],
+                    "codex": ["evade", "toughness", "str"]},
     "brood_guard": {"name": "Brood Guardian", "lvl": 11, "hp": 190, "dmg": 15, "speed": 3.0, "aggressive": True, "sight": 7, "def": 2,
                     "model": "spider", "color": "#3a1e2e", "size": 1.45, "loot": [["spider_silk", 0.8], ["venom_sac", 0.45]], "codex": ["evade", "toughness", "herbalism"]},
 }
@@ -270,12 +278,14 @@ def make_cave():
             ("Mushroom Cavern", "cave_spider", "C", 8, None, None), ("Brood Corridor", "cave_spider", 3, 3, None, None),
             ("Egg Chamber", "spiderling", "D1", 6, 0, 13), ("Egg Chamber", "spiderling", "D2", 6, 0, 13), ("Egg Chamber", "spiderling", "D3", 6, 0, 13),
             ("Egg Chamber Guard", "brood_guard", "D2", 1, 1, None), ("Egg Chamber Guard", "brood_guard", "D3", 1, 1, None),
-            ("Chasm Watch", "brood_guard", 7, 2, 1, None)]
+            ("Chasm Watch", "brood_guard", 7, 2, 1, None), ("Brood Hall", "broodmother", "F", 1, 1, None)]
     areas = []
     for k, (name, species, where, n, mat, hatch) in enumerate(plan):
         spots, c, r = cave_spots(L, where, max(n * 2, 8), 900 + k)
         a = {"name": name, "species": species, "center": [ax + c[0], az + c[1]], "r": round(r, 1), "count": n,
-             "respawn": 90 if hatch else 60, "spots": [[ax + q[0], az + q[1]] for q in spots]}
+             "respawn": 600 if species == "broodmother" else 90 if hatch else 60, "spots": [[ax + q[0], az + q[1]] for q in spots]}
+        if species == "broodmother":   # she waits in the middle of her hall
+            a["spots"] = [[ax + c[0] + 3, az + c[1]]]
         if mat is not None: a["mat"] = mat
         if hatch: a["hatch"] = hatch
         areas.append(a)

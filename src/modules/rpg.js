@@ -119,7 +119,13 @@
     pirate_cutlass: { name: 'Pirate Cutlass', slot: 'main', skill: 'sword', model: 'sword', dmg: [10, 17], req: { sword_hit: 3 }, look: '#d6dde6' },
     tricorn_hat: { name: 'Tricorn Hat', slot: 'head', def: 4, at: { dex: 1 } },
     captains_coat: { name: "Captain's Coat", slot: 'chest', def: 7, at: { sta: 2 }, req: { defender: 2 } },
-    sea_boots: { name: 'Sea Boots', slot: 'feet', def: 3, at: { dex: 1 } }
+    sea_boots: { name: 'Sea Boots', slot: 'feet', def: 3, at: { dex: 1 } },
+    /* the Spider Cave's Broodmother (2026-11-10) */
+    brood_carapace: { name: 'Brood Carapace', material: true },
+    broodfang: { name: "Broodmother's Fang", slot: 'main', skill: 'sword', model: 'sword', dmg: [12, 20], req: { sword_hit: 3 }, at: { dex: 1 }, look: '#d9cfb4' },
+    silkweave_mantle: { name: 'Silkweave Mantle', slot: 'shoulders', def: 4, at: { dex: 2 }, req: { evader: 2 } },
+    venom_ring: { name: 'Venomweave Ring', slot: 'ring', at: { dex: 2, str: 1 } },
+    carapace_shield: { name: 'Carapace Shield', slot: 'off', model: 'shield', def: 7, req: { defender: 2 }, look: '#3a1e2e' }
   };
   /* what gathering a kind of thing gives: [material, chance, more per level of the profession], the skill it teaches,
      its profession, how hard it is (for the effort), and the attributes it trains */
@@ -541,5 +547,5 @@
   /* a bag entry's name as shown (a blueprint with its QR, a made thing with its quality) */
   const entryName = e => { const it = itemOf({ bag: [e] }, e[0]); return it ? it.name : String(e[1]); };
   const rpg = { api: 1, entryName, masterOf, gradeOf, SLOTS, SKILLS, PROFS, ATTRS, RANKS, ITEMS, FISTS, LOOT, GATHER, RECIPES, CODEX, ABILITIES, abilities, questState, questProgress, knows, fresh, stats, profs, rank, meets, itemOf, attr, book };
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('rpg', { api: 1, v: 11 }, () => rpg);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('rpg', { api: 1, v: 12 }, () => rpg);
 })(typeof globalThis !== 'undefined' ? globalThis : this);

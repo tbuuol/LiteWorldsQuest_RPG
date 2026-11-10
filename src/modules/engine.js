@@ -1443,6 +1443,7 @@
       let s = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0);
       if (move2.x || move2.y) { f = -move2.y; s = move2.x; }   /* the joystick: how far it is pushed is how fast */
       if (P && P.dead) f = s = 0;
+      const webbed = performance.now() < caughtUntil; if (webbed) f = s = 0;
       const sp = keys.ShiftLeft || keys.ShiftRight || runOn ? RUN : WALK, len = Math.max(1, Math.hypot(f, s));
       const sin = Math.sin(me.yaw), cos = Math.cos(me.yaw);
       let dx = ((s * cos) - (f * sin)) / len * sp * dt, dz = ((-s * sin) - (f * cos)) / len * sp * dt;
@@ -1453,7 +1454,7 @@
         dx = ((s * cos) - (f * sin * cp)) / len * fs * dt; dz = ((-s * sin) - (f * cos * cp)) / len * fs * dt;
         me.vy = (f / len) * Math.sin(me.pitch) * fs + (spaceNow ? fs * 0.6 : 0) - (keys.KeyC ? fs * 0.6 : 0);
       } else {
-        if (keys.Space && me.ground) { me.vy = JUMP; me.ground = false; }
+        if (keys.Space && me.ground && !webbed) { me.vy = JUMP; me.ground = false; }
         me.vy -= GRAVITY * dt;
       }
       /* one axis at a time, so a wall stops the part of a step that goes into it and not the rest */
@@ -1882,6 +1883,8 @@
           }
           if (e.to === myId()) hurt(d, e.from);
           else toPlayer(['D', e.to, d, e.from]);
+        } else if (e.t === 'root') {   /* caught in a web: not a step for a few seconds */
+          if (e.to === myId()) caught(e.s, e.from); else toPlayer(['W', e.to, e.s, e.from]);
         } else if (e.t === 'kill') {
           let text = 'You defeated ' + aName(e.name || 'raider') + '.';
           const r = remotes.get(e.by);
@@ -1931,6 +1934,7 @@
         if (!Array.isArray(it) || String(it[1]) !== myId()) continue;
         if (it[0] === 'N') heardNotice(String(it[2]));
         else if (it[0] === 'D') hurt(+it[2] || 0, String(it[3] || 'raider').slice(0, 30));
+        else if (it[0] === 'W') caught(+it[2] || 0, String(it[3] || '').slice(0, 40));
         else if (it[0] === 'M' && fight) fight.missed(String(it[2]));
       }
     }
@@ -1958,6 +1962,13 @@
     /* "a raider", "an old boar" */
     const aName = (name, cap) => { const n = String(name).toLowerCase(), a = /^[aeiou]/.test(n) ? 'an ' : 'a '; return (cap ? a[0].toUpperCase() + a.slice(1) : a) + n; };
     let wokeAt = 0;
+    /* CAUGHT (the Broodmother's web): your feet stay where they are for s seconds; you can still strike */
+    let caughtUntil = 0;
+    function caught(s, from) {
+      caughtUntil = performance.now() + Math.max(0, Math.min(6, s)) * 1000;
+      log((from ? from + ': ' : '') + 'you are caught in a web!');
+      if (sound) sound.blip('hit');
+    }
     function hurt(d, from) {
       if (!P || P.dead || !d) return;
       if (d > 0 && performance.now() - wokeAt < 1500) return;   /* a blow sent before you fell lands late: not on the one who just woke */
@@ -2821,6 +2832,6 @@
     };
   }
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 47, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 48, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
     D => ({ start: (el, opts) => start(D, el, opts) }));
 })(typeof globalThis !== 'undefined' ? globalThis : this);

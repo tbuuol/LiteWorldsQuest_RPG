@@ -2,7 +2,7 @@
  "lwq": "module",
  "name": "level.world",
  "api": 1,
- "v": 12,
+ "v": 13,
  "data": {
   "id": "world",
   "title": "LiteWorldsQuest",
@@ -994,85 +994,85 @@
      "eggs": [
       {
        "p": [
-        57.4,
-        104.5
+        60.9,
+        105.7
        ],
        "n": 7
       },
       {
        "p": [
-        65.9,
-        111.9
+        55.8,
+        106.8
        ],
        "n": 7
       },
       {
        "p": [
-        57.2,
-        107.7
+        63.5,
+        112.5
        ],
        "n": 7
       },
       {
        "p": [
-        67.5,
-        107.6
+        58.8,
+        106.0
        ],
        "n": 7
       },
       {
        "p": [
-        87.6,
-        171.9
+        81.5,
+        163.3
        ],
        "n": 7
       },
       {
        "p": [
-        80.2,
-        168.4
+        88.8,
+        165.9
        ],
        "n": 7
       },
       {
        "p": [
-        79.1,
-        171.7
+        87.3,
+        164.8
        ],
        "n": 7
       },
       {
        "p": [
-        86.7,
-        163.5
+        84.7,
+        166.7
        ],
        "n": 7
       },
       {
        "p": [
-        111.2,
-        103.8
+        112.1,
+        107.9
        ],
        "n": 7
       },
       {
        "p": [
-        105.1,
-        109.4
+        102.4,
+        107.1
        ],
        "n": 7
       },
       {
        "p": [
-        103.9,
-        107.7
+        109.3,
+        107.3
        ],
        "n": 7
       },
       {
        "p": [
-        108.8,
-        104.9
+        109.0,
+        111.7
        ],
        "n": 7
       },
@@ -6835,6 +6835,91 @@
       "toughness"
      ]
     },
+    "broodmother": {
+     "name": "The Broodmother",
+     "lvl": 16,
+     "hp": 1800,
+     "dmg": 24,
+     "speed": 2.6,
+     "aggressive": true,
+     "sight": 11,
+     "def": 3,
+     "model": "spider",
+     "color": "#2a0f22",
+     "size": 3.0,
+     "cd": 2.0,
+     "range": 2.0,
+     "boss": {
+      "aoe": {
+       "every": 11,
+       "first": 5,
+       "radius": 6,
+       "dmg": 32,
+       "warn": 1.8,
+       "name": "Venom Spray"
+      },
+      "adds": {
+       "at": [
+        0.75,
+        0.5,
+        0.25
+       ],
+       "species": "spiderling",
+       "n": 4,
+       "mat": 1,
+       "home": true
+      },
+      "web": {
+       "every": 14,
+       "first": 8,
+       "s": 3,
+       "name": "The Broodmother's web"
+      }
+     },
+     "loot": [
+      [
+       "broodfang",
+       0.3
+      ],
+      [
+       "silkweave_mantle",
+       0.3
+      ],
+      [
+       "venom_ring",
+       0.3
+      ],
+      [
+       "carapace_shield",
+       0.2
+      ],
+      [
+       "brood_carapace",
+       1
+      ],
+      [
+       "spider_silk",
+       1
+      ],
+      [
+       "spider_silk",
+       1
+      ],
+      [
+       "venom_sac",
+       1
+      ],
+      [
+       "venom_sac",
+       0.5
+      ]
+     ],
+     "codex": [
+      "evade",
+      "toughness",
+      "str"
+     ]
+    },
     "brood_guard": {
      "name": "Brood Guardian",
      "lvl": 11,
@@ -8235,6 +8320,24 @@
       [
        2125.6,
        -1340.1
+      ]
+     ],
+     "mat": 1
+    },
+    {
+     "name": "Brood Hall",
+     "species": "broodmother",
+     "center": [
+      2205,
+      -1340
+     ],
+     "r": 28,
+     "count": 1,
+     "respawn": 600,
+     "spots": [
+      [
+       2208,
+       -1340
       ]
      ],
      "mat": 1

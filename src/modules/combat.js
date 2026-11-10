@@ -6,7 +6,7 @@
          spawns: {points: [[x, z]], every, max, first, count, night}, raider: {name, look}}
      f.update(dt, host, players) -> events      players: [{id, x, z, hp, max, dead}]; only the host simulates, the others
                                                 draw what the host last sent; events (host only):
-                                                {t: 'hit'|'heal', to: playerId, d}  and  {t: 'kill', by: playerId, xp}
+                                                {t: 'hit'|'heal', to: playerId, d}, {t: 'kill', by: playerId, xp}, {t: 'root', to, s}
      f.damage(unitId, d, byPlayer) -> events    a player's blow (host only)
      f.missed(unitId)                           the house says my blow missed: "miss" over that raider
      f.info(unitId) -> {kind, lvl, def, species}  a beast's level and defence (for what a blow teaches)
@@ -141,7 +141,7 @@
     function beastOf(id) {
       const [, sp, m] = String(id).split('.'), spec = wild && wild.species && wild.species[sp], mt = MAT[+m] || MAT[1];
       if (!spec) return null;
-      return { sp, spec, m: +m || 0, name: mt[0] + ' ' + spec.name, max: Math.round(spec.hp * mt[1]), dmg: Math.round(spec.dmg * mt[2]),
+      return { sp, spec, m: +m || 0, name: spec.boss ? spec.name : mt[0] + ' ' + spec.name, max: Math.round(spec.hp * mt[1]), dmg: Math.round(spec.dmg * mt[2]),
                scale: mt[3], lvl: Math.max(0, (spec.lvl || 1) + mt[4]), speed: spec.speed || 2.6, range: spec.range || 1.5 };
     }
     function make(id, kind, x, z) {
@@ -179,12 +179,14 @@
     function hurt(u, d, by, events) {
       if (!alive(u)) return;
       u.hp = Math.max(0, u.hp - d);
-      if ((u.kind === 'raider' || u.kind === 'beast') && by && by.startsWith('p:')) { u.aggro = by; u.evade = false; }
+      if ((u.kind === 'raider' || u.kind === 'beast') && by && by.startsWith('p:')) { u.aggro = by; u.evade = false; (u.hitters = u.hitters || new Set()).add(by.slice(2)); }
       else if (u.kind === 'raider' && by) u.aggro = by;
       if (u.hp > 0) return;
       if (u.kind === 'beast') {
         u.state = 'dead'; u.gone = 2.0;
         if (by && by.startsWith('p:')) events.push({ t: 'kill', by: by.slice(2), name: u.name, species: u.beast.sp, mat: u.beast.m, lvl: u.beast.lvl, loot: u.beast.spec.loot || [] });
+        /* A BOSS is everybody's who fought it (the Broodmother, 2026-11-10): each one who struck it gets its own share */
+        if (u.beast.spec.boss) for (const h of u.hitters || []) if ('p:' + h !== by) events.push({ t: 'kill', by: h, name: u.name, species: u.beast.sp, mat: u.beast.m, lvl: u.beast.lvl, loot: u.beast.spec.loot || [] });
       } else if (u.kind === 'raider') {
         u.state = 'dead'; u.gone = 2.0;
         if (by && by.startsWith('p:')) events.push({ t: 'kill', by: by.slice(2), xp: statOf('raider').xp, name: u.name });
@@ -405,20 +407,28 @@
               fx.push({ id: ++fxNo, k: 'warn', x: tgt.x, z: tgt.z, r: boss.aoe.radius, at: performance.now() });
             }
           }
-          if (boss.adds && !u.added && u.hp <= u.max * (boss.adds.at || 0.5)) {
-            u.added = true;
-            for (let k = 0; k < (boss.adds.n || 2); k++) {
-              const ai = wild.areas.findIndex(x => x.species === boss.adds.species);
-              const add = make('b.' + boss.adds.species + '.' + (boss.adds.mat || 1) + '.' + (++beastNo % 10000), 'beast', u.x + (k ? 2 : -2), u.z + 1.5);
-              if (add) { add.area = ai >= 0 ? ai : u.area; add.aggro = u.aggro; add.wt = 2; add.extra = true; }
+          /* help comes at each of boss.adds.at (one share of life, or several: the Broodmother's three broods) */
+          const ats = boss.adds ? [].concat(boss.adds.at || 0.5) : [];
+          while ((u.addsDone || 0) < ats.length && u.hp <= u.max * ats[u.addsDone || 0]) {
+            u.addsDone = (u.addsDone || 0) + 1;
+            const n = boss.adds.n || 2;
+            for (let k = 0; k < n; k++) {
+              const ai = wild.areas.findIndex(x => x.species === boss.adds.species), a2 = k / n * Math.PI * 2;
+              const add = make('b.' + boss.adds.species + '.' + (boss.adds.mat || 1) + '.' + (++beastNo % 10000), 'beast', u.x + Math.cos(a2) * 2.5, u.z + Math.sin(a2) * 2.5);
+              if (add) { add.area = boss.adds.home ? u.area : ai >= 0 ? ai : u.area; add.aggro = u.aggro; add.wt = 2; add.extra = true; }
             }
+          }
+          /* THE WEB (boss.web): every so often the one it fights is caught and cannot move for boss.web.s seconds */
+          if (boss.web) {
+            u.webCd = (u.webCd == null ? boss.web.first || 8 : u.webCd) - dt;
+            if (u.webCd <= 0) { u.webCd = boss.web.every || 14; events.push({ t: 'root', to: tgt.id, s: boss.web.s || 3, from: boss.web.name || u.name }); }
           }
         }
         if (u.evade) {   /* home, and whole again */
-          u.hp = u.max;
+          u.hp = u.max; u.addsDone = 0; u.hitters = null; u.aoeCd = u.webCd = null;   /* a boss starts its fight anew */
           if (step(u, a.center[0], a.center[1], b.speed * 1.4, dt, 2)) u.state = 'walk'; else { u.evade = false; u.state = 'idle'; }
         } else if (tgt) {
-          if (step(u, tgt.x, tgt.z, b.speed, dt, armFor(b, b.scale * ((b.spec.look && b.spec.look.scale) || 1)))) u.state = 'walk';
+          if (step(u, tgt.x, tgt.z, b.speed, dt, armFor(b, b.scale * ((b.spec.look && b.spec.look.scale) || b.spec.size || 1)))) u.state = 'walk';
           else {
             u.tyaw = yawTo(tgt.x - u.x, tgt.z - u.z); u.state = 'idle';
             if (u.cd <= 0 && level(u, tgt)) { u.cd = b.spec.cd || 1.6; u.atk++; u.state = 'attack'; events.push({ t: 'hit', to: tgt.id, d: b.dmg + Math.floor(Math.random() * 3), from: u.name, lvl: b.lvl }); }
@@ -539,7 +549,8 @@
           if ((u.kind !== 'raider' && u.kind !== 'beast') || !alive(u)) continue;
           const dy = y == null ? 0 : y - footY(u);
           if (Math.abs(dy) >= TALL) continue;
-          const dx = u.x - x, dz = u.z - z, h = Math.hypot(dx, dz), d = Math.hypot(h, dy);
+          const dx = u.x - x, dz = u.z - z, h = Math.hypot(dx, dz), body = u.beast ? 0.45 * u.beast.scale * (u.beast.spec.size || 1) : 0;
+          const d = Math.max(0, Math.hypot(h, dy) - body);
           if (d > range) continue;
           if (h > 0.6 && (dx * fx + dz * fz) / h < 0.55) continue;   /* in front of you, roughly */
           if (d < bestD) { best = u.id; bestD = d; }
@@ -687,5 +698,5 @@
     return snap;
   }
   const combat = { api: 1, player, gain, nextXp, create, encode, decode };
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('combat', { api: 1, v: 21, needs: { three: 160, art: 1 } }, () => combat);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('combat', { api: 1, v: 22, needs: { three: 160, art: 1 } }, () => combat);
 })(typeof globalThis !== 'undefined' ? globalThis : this);
