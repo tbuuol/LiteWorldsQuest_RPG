@@ -646,6 +646,54 @@
     }
     return { rock, torches, rect: def.rect };
   };
+  /* --- the Greenwood's places (2026-11-10): a windmill, a stone circle, a watchtower ---------------------- */
+  /* A WINDMILL: a round stone body, a conical cap, four sails that turn (stands on 0, sails face def.face degrees) */
+  art.windmill = function (ctx, def) {
+    const [x, z] = def.pos, g = new T.Group(), stone = mat('stone'), wood = plain('#7a5a38'), cloth = plain('#e6dcc4', { side: T.DoubleSide });
+    const body = mesh(new T.CylinderGeometry(2.4, 3.2, 9, 14), stone); body.position.y = 4.5; g.add(body);
+    const cap = mesh(new T.ConeGeometry(3.0, 3.2, 14), plain('#5a3a28')); cap.position.y = 10.6; g.add(cap);
+    const door = mesh(new T.BoxGeometry(1.2, 2.0, 0.2), wood); door.position.set(0, 1.0, -3.05); g.add(door);
+    const hub = new T.Group(); hub.position.set(0, 8.4, -3.0); g.add(hub);
+    for (let k = 0; k < 4; k++) {
+      const arm = new T.Group(); arm.rotation.z = k * Math.PI / 2; hub.add(arm);
+      const spar = mesh(new T.BoxGeometry(0.2, 7, 0.2), wood); spar.position.y = 3.5; arm.add(spar);
+      const sail = mesh(new T.PlaneGeometry(1.5, 5.4), cloth); sail.position.set(0.85, 4.0, -0.05); arm.add(sail);
+    }
+    g.position.set(x, 0, z); g.rotation.y = (def.face || 0) * Math.PI / 180; ctx.scene.add(g);
+    hub.userData.keep = true;
+    ctx.every(dt => { hub.rotation.z += dt * 0.6; });
+    ctx.solid([x - 3, -1, z - 3], [x + 3, 9, z + 3]);
+  };
+  /* A STONE CIRCLE: standing stones round def.c (radius def.r), one fallen, a flat altar stone, runes that glow faintly */
+  art.stoneCircle = function (ctx, def) {
+    const [cx, cz] = def.c, R = def.r || 7, n = def.n || 9, rnd = art.rng(61), stone = plain('#8a8a82', { roughness: 1 });
+    const rune = new T.MeshBasicMaterial({ color: new T.Color(0.5, 1.4, 1.6) });
+    for (let k = 0; k < n; k++) {
+      const a = k / n * Math.PI * 2, x = cx + Math.cos(a) * R, z = cz + Math.sin(a) * R, h = 2.4 + rnd() * 1.4;
+      const st = mesh(new T.BoxGeometry(1.0, h, 0.6), stone);
+      if (k === 3) { st.rotation.z = Math.PI / 2 - 0.15; st.position.set(x, 0.4, z); st.rotation.y = a; }   /* the fallen one */
+      else { st.position.set(x, h / 2 - 0.2, z); st.rotation.set((rnd() - 0.5) * 0.12, a + Math.PI / 2, (rnd() - 0.5) * 0.1);
+        const r = new T.Mesh(new T.PlaneGeometry(0.35, 0.6), rune); r.position.set(x - Math.cos(a) * 0.31, h * 0.55, z - Math.sin(a) * 0.31); r.rotation.y = -a - Math.PI / 2; ctx.scene.add(r);
+        ctx.solid([x - 0.55, -1, z - 0.55], [x + 0.55, h, z + 0.55]); }
+      ctx.scene.add(st);
+    }
+    const altar = mesh(new T.BoxGeometry(2.2, 0.7, 1.3), stone); altar.position.set(cx, 0.35, cz); ctx.scene.add(altar);
+    ctx.solid([cx - 1.1, -1, cz - 0.65], [cx + 1.1, 0.7, cz + 0.65]);
+  };
+  /* A WATCHTOWER: a square stone tower with a timber top and battlements (stands on 0) */
+  art.watchtower = function (ctx, def) {
+    const [x, z] = def.pos, g = new T.Group(), stone = mat('stone'), wood = plain('#6a4a30');
+    const body = mesh(new T.BoxGeometry(5, 11, 5), stone); body.position.y = 5.5; g.add(body);
+    const deck = mesh(new T.BoxGeometry(6, 0.5, 6), wood); deck.position.y = 11.2; g.add(deck);
+    for (let k = 0; k < 12; k++) { const sd = Math.floor(k / 3), t = (k % 3 - 1) * 2, m2 = mesh(new T.BoxGeometry(0.9, 1.0, 0.5), stone);
+      m2.position.set(sd === 0 ? t : sd === 1 ? 2.8 : sd === 2 ? -t : -2.8, 11.9, sd === 0 ? 2.8 : sd === 1 ? t : sd === 2 ? -2.8 : -t); if (sd % 2) m2.rotation.y = Math.PI / 2; g.add(m2); }
+    const door = mesh(new T.BoxGeometry(1.3, 2.2, 0.2), wood); door.position.set(0, 1.1, -2.55); g.add(door);
+    const roof = mesh(new T.ConeGeometry(4.4, 3, 4), plain('#5a3a28')); roof.position.y = 14.6; roof.rotation.y = Math.PI / 4; g.add(roof);
+    for (const [px, pz] of [[-2.6, -2.6], [2.6, -2.6], [2.6, 2.6], [-2.6, 2.6]]) { const p2 = mesh(new T.CylinderGeometry(0.12, 0.12, 2.6, 6), wood); p2.position.set(px, 12.6, pz); g.add(p2); }
+    g.position.set(x, 0, z); g.rotation.y = (def.rot || 0) * Math.PI / 180; ctx.scene.add(g);
+    ctx.solid([x - 2.6, -1, z - 2.6], [x + 2.6, 11, z + 2.6]);
+    const flame = new T.Mesh(new T.ConeGeometry(0.25, 0.7, 7), new T.MeshBasicMaterial({ color: new T.Color(3, 1.5, 0.4) })); flame.position.set(x, 12.2, z); ctx.scene.add(flame);
+  };
   /* --- the raiders' camp (tbuuol 2026-11-10: south of Blockshire, where the guards look) ----------------------- */
   /* A PALISADE: a ring of sharpened logs round def.c (radius def.r), open where def.gap ([angle, width], radians; the
      angle is the way out, 0 = +x, a quarter turn = +z). Stands on 0 (a place lifts it). */
@@ -2022,6 +2070,17 @@
       if (def.axe) { const h = mesh(new T.CylinderGeometry(0.025, 0.025, 0.7, 6), plain('#7a5230')); h.position.set(0.1, 0.75, 0); h.rotation.z = 0.5; g.add(h); const b = mesh(new T.BoxGeometry(0.06, 0.18, 0.22), plain('#8a8f95', { metalness: 0.7, roughness: 0.35 })); b.position.set(-0.05, 0.52, 0); g.add(b); }
       box = [0.4, 0.5]; }
     else if (def.kind === 'lamppost') { const p = mesh(new T.CylinderGeometry(0.06, 0.08, 2.4, 6), mat('bark')); p.position.y = 1.2; g.add(p); const l = art.lantern(); l.position.y = 2.5; g.add(l); box = [0.15, 2.4]; }
+    else if (def.kind === 'signpost') {   /* a post with a board for each way (def.signs: [[text, degrees]]) */
+      const post = mesh(new T.CylinderGeometry(0.07, 0.09, 2.6, 6), mat('bark')); post.position.y = 1.3; g.add(post);
+      (def.signs || []).forEach(([text, deg], i) => {
+        const [c, x2] = canvas(256); x2.fillStyle = '#8a6a44'; x2.fillRect(0, 64, 256, 128); x2.fillStyle = '#2a1a0c'; x2.font = 'bold 44px Georgia';
+        x2.textAlign = 'center'; x2.textBaseline = 'middle'; x2.fillText(String(text).slice(0, 14), 128, 128);
+        const b = new T.Mesh(new T.BoxGeometry(1.3, 0.32, 0.05), [plain('#7a5a38'), plain('#7a5a38'), plain('#7a5a38'), plain('#7a5a38'),
+          new T.MeshStandardMaterial({ map: new T.CanvasTexture(c), roughness: 0.9 }), new T.MeshStandardMaterial({ map: new T.CanvasTexture(c), roughness: 0.9 })]);
+        const piv = new T.Group(); piv.position.y = 2.2 - i * 0.42; piv.rotation.y = -(deg || 0) * Math.PI / 180 - r; b.position.x = 0.6; piv.add(b); g.add(piv);
+      });
+      box = [0.12, 2.6];
+    }
     else if (def.kind === 'cart') {
       const wood = mat('planks', { m: { color: '#a5774c' } });
       const bed = mesh(boxM(1.4, 0.15, 2.2, 1), wood); bed.position.y = 0.75; g.add(bed);
@@ -2785,5 +2844,5 @@
     return { groundAt, polys, segs, half, spawn, inside, stats: { buildings: buildings.length, trees: trees.length } };
   };
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('art', { api: 1, v: 32 }, () => art);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('art', { api: 1, v: 33 }, () => art);
 })(typeof globalThis !== 'undefined' ? globalThis : this);

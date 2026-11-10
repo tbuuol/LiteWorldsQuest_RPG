@@ -26,7 +26,7 @@ import subprocess
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 LEVELS = ROOT / "src" / "levels"
 OUT = LEVELS / "world.json"
-VERSION = 16
+VERSION = 18
 
 
 def probe(land: dict, points: list) -> list:
@@ -259,6 +259,149 @@ def cave_spots(L, where, n, seed):
 CAMP, CAMP_R, CAMP_Y = (-60.0, 120.0), 17.0, 13.3
 
 
+#: THE GREENWOOD'S PLACES (tbuuol 2026-11-10: "die Welt ist immer noch sehr leer"; the accepted proposal,
+#: design/greenwood-proposal.png): something every 150 m or so between Blockshire and Genesis. Each is a place of its
+#: own on a flattened pad (its things stand on its height), with its people; resource nodes stand on the ground.
+def make_greenwood():
+    look = lambda **k: dict({"person": "m", "skin": "#d9a882", "pants": "#3b2f25"}, **k)
+    def hut(i, pos, size, rot, **k):
+        return dict({"id": i, "pos": list(pos), "size": list(size), "rot": rot, "chimney": True, "lit": True, "trim": "#6a4a2e",
+                     "inside": ["bed", "table", "shelf"], "door": {"id": "door_" + i, "label": "Door", "opens": "hand"}}, **k)
+    places, pads, nodes = [], [], []
+    def place(pid, centre, y, r, **things):
+        pads.append({"at": list(centre), "r": r, "y": y, "rim": 10, "landOnly": True})
+        places.append(dict({"id": pid, "lift": y}, **things))
+    # the hunter's lodge, at the edge of Greenwood North where the wolves are
+    hx, hz = -80, -160
+    place("hunters", (hx, hz), 10.6, 12,
+          huts=[hut("hunter", (hx, hz - 3), (5, 4), 180)], fire={"pos": [hx + 4, hz + 4]},
+          props=[{"kind": "stump", "pos": [hx - 4, hz + 3], "axe": True}, {"kind": "logpile", "pos": [hx + 5, hz - 4], "rot": 90},
+                 {"kind": "barrel", "pos": [hx - 3, hz - 5]}],
+          npcs=[{"id": "hunter_wynn", "name": "Wynn the Hunter", "pos": [hx + 1, hz + 3], "lookAt": [hx + 4, hz + 4], "talkTurn": True,
+                 "look": look(skin="#c98b62", shirt="#4a5a2a", hair="#3a2a1a", beard="#3a2a1a", hood="#3a4a22"),
+                 "lines": ["Mind the wolves to the north. They hunt in threes, and they do not give up.",
+                           "Pelts and fangs, that is what the forest pays with. Bring me some, one day I'll make it worth your while.",
+                           "Deeper west the trees turn black with webs. I don't go there any more."]}])
+    # the lumber camp: the oak Genesis is built from
+    lx, lz = 120, -120
+    place("lumbercamp", (lx, lz), 12.8, 14,
+          huts=[hut("bunkhouse", (lx - 4, lz - 4), (7, 5), 180, inside=["bed", "bed", "table"])],
+          fire={"pos": [lx + 5, lz + 3]},
+          props=[{"kind": "logpile", "pos": [lx + 6, lz - 6], "rot": 0}, {"kind": "logpile", "pos": [lx + 9, lz - 3], "rot": 90},
+                 {"kind": "logpile", "pos": [lx - 8, lz + 5], "rot": 20}, {"kind": "stump", "pos": [lx + 2, lz + 7], "axe": True},
+                 {"kind": "stump", "pos": [lx - 3, lz + 8], "axe": True}, {"kind": "cart", "pos": [lx + 10, lz + 6], "rot": 70},
+                 {"kind": "crate", "pos": [lx - 1, lz - 9]}],
+          npcs=[{"id": "foreman_tamsin", "name": "Foreman Tamsin", "pos": [lx + 2, lz + 1], "lookAt": [lx + 5, lz + 3], "talkTurn": True,
+                 "look": look(person="f", skin="#e0b48c", shirt="#7a3a22", hair="#7a3a1a", gloves="#4a3a2a"),
+                 "lines": ["Every beam in Genesis comes through this camp. Or it will, once there's a city to speak of.",
+                           "The oaks round here are good and straight. Take an axe to them if you need logs for your own walls.",
+                           "Raiders took two of our carts last week. If you see Grimwald, give him one from me."]}])
+    for k in range(10):   # oaks to fell round the camp
+        a = k / 10 * 2 * math.pi + 0.3
+        nodes.append({"id": f"lc.tree.{k + 1}", "kind": "tree", "pos": [round(lx + math.cos(a) * 19, 1), round(lz + math.sin(a) * 17, 1)], "ground": True})
+    # the wayside inn by the bridge on the road to Genesis
+    ix, iz = 232, 0
+    place("wayside", (ix, iz), 11.3, 12,
+          huts=[hut("wayside_inn", (ix, iz), (9, 6), 0, inside=["table", "table", "bed", "shelf", "rug"], rug="#7a3a22")],
+          fire={"pos": [ix - 7, iz + 6]},
+          props=[{"kind": "bench", "pos": [ix - 4, iz + 6], "rot": 0}, {"kind": "bench", "pos": [ix + 4, iz + 6], "rot": 0},
+                 {"kind": "barrel", "pos": [ix + 6, iz - 2]}, {"kind": "barrel", "pos": [ix + 6.6, iz - 1.2]}, {"kind": "lamppost", "pos": [ix + 5.5, iz + 4]},
+                 {"kind": "cart", "pos": [ix - 9, iz - 2], "rot": 90},
+                 {"kind": "signpost", "pos": [ix + 2, iz + 12], "signs": [["Genesis", 0], ["Blockshire", 180]]}],
+          npcs=[{"id": "tobin", "name": "Old Tobin", "pos": [ix + 1, iz + 5], "lookAt": [ix + 1, iz + 10], "talkTurn": True,
+                 "look": look(skin="#e8c09c", shirt="#5a4a2a", hair="#d8d8d8", beard="#e6e6e6"),
+                 "lines": ["Halfway between Blockshire and Genesis -- a good place for a rest, and a better one for news.",
+                           "The spiders have a cave under Greenwood Deep, they say. Far to the west, by the black trees.",
+                           "At night the raiders come up from their camp south of the village. You'll see their fire from the cliff."]}])
+    # a farm with its windmill on the South Fields, east of the raiders
+    fx, fz = 150, 110
+    place("farm", (fx, fz), 12.0, 18,
+          huts=[hut("farmhouse", (fx - 6, fz - 6), (7, 5), 180), hut("barn", (fx + 6, fz - 7), (8, 6), 180, chimney=False, lit=False, inside=[])],
+          windmill={"pos": [fx + 10, fz + 9], "face": 200},
+          fence={"rect": [fx - 14, fz + 1, fx + 4, fz + 15]},
+          props=[{"kind": "haystack", "pos": [fx - 9, fz + 6]}, {"kind": "haystack", "pos": [fx - 4, fz + 10]}, {"kind": "haystack", "pos": [fx - 10, fz + 11]},
+                 {"kind": "cart", "pos": [fx + 1, fz - 1], "rot": 30}, {"kind": "barrel", "pos": [fx - 1, fz - 9]}],
+          npcs=[{"id": "farmer_hal", "name": "Farmer Hal", "pos": [fx - 2, fz - 1], "lookAt": [fx - 6, fz + 6], "talkTurn": True,
+                 "look": look(skin="#c98b62", shirt="#8a7a4a", hair="#8a6a3a", beard="#8a6a3a"),
+                 "lines": ["The boars get into the fields every night. Every single night.",
+                           "Flax and wheat, that's what we grow. Genesis will need bread, once people live there.",
+                           "The mill grinds when the wind is up. Listen -- you can hear the sails from the road."]}])
+    for k in range(6):   # flax to pull at the field's edge
+        nodes.append({"id": f"farm.herb.{k + 1}", "kind": "herb", "pos": [round(fx - 12 + k * 3, 1), round(fz + 18, 1)], "ground": True})
+    # the stone circle in a clearing north of the road
+    sx, sz = 380, -150
+    place("stonecircle", (sx, sz), 5.3, 13, stoneCircle={"c": [sx, sz], "r": 8, "n": 9})
+    for k in range(5):   # herbs that grow where the old stones stand
+        a = k / 5 * 2 * math.pi
+        nodes.append({"id": f"sc.herb.{k + 1}", "kind": "herb", "pos": [round(sx + math.cos(a) * 12, 1), round(sz + math.sin(a) * 12, 1)], "ground": True})
+    # the old watchtower on the cliff
+    tx, tz = 348, 138
+    place("watchtower", (tx, tz), 10.9, 9, watchtower={"pos": [tx, tz], "rot": 180},
+          npcs=[{"id": "sentry_ulf", "name": "Old Ulf", "pos": [tx, tz - 4.5], "lookAt": [tx, tz - 10], "talkTurn": True,
+                 "look": look(skin="#d9a882", shirt="#5d6470", hair="#9a9a9a", helm="#9aa1ab", armor="#9aa1ab"),
+                 "lines": ["From up there you see the whole coast: the village on its cliff, the raiders' fire, Genesis' wall.",
+                           "Thirty years I've watched this sea. The pirates come from the west, mark my words.",
+                           "When the moon is up, the raiders move. I light the beacon, and Blockshire's guards get ready."]}])
+    # a signpost where the road leaves Blockshire
+    places.append({"id": "signs", "lift": 14.0, "props": [{"kind": "signpost", "pos": [40, 6], "signs": [["Genesis", 0], ["Beach", -90]]}]})
+    return places, pads, nodes
+
+
+#: GENESIS' SURROUNDINGS (the same proposal, 2026-11-10): a merchants' camp at the west gate, fields and a mill south
+#: of the wall, a mine at the quarry, a tourney ground before the new east gate.
+def make_outskirts():
+    look = lambda **k: dict({"person": "m", "skin": "#d9a882", "pants": "#3b2f25"}, **k)
+    places, pads, nodes = [], [], []
+    def place(pid, centre, y, r, **things):
+        pads.append({"at": list(centre), "r": r, "y": y, "rim": 10, "landOnly": True})
+        places.append(dict({"id": pid, "lift": y}, **things))
+    # the merchants' camp by the west gate, south of the road
+    cx, cz = 522, -12
+    place("caravan", (cx, cz), 7.0, 15,
+          tents=[{"pos": [cx - 7, cz + 2], "rot": 90, "color": "#2e4a6a"}, {"pos": [cx + 7, cz + 3], "rot": -90, "color": "#6a5a2e"},
+                 {"pos": [cx, cz + 8], "rot": 180, "color": "#5a2e5a"}],
+          fire={"pos": [cx, cz + 1]},
+          props=[{"kind": "cart", "pos": [cx - 10, cz - 6], "rot": 80}, {"kind": "cart", "pos": [cx + 10, cz - 6], "rot": 100},
+                 {"kind": "crate", "pos": [cx - 3, cz - 5]}, {"kind": "crate", "pos": [cx - 2, cz - 6]}, {"kind": "barrel", "pos": [cx + 3, cz - 5]},
+                 {"kind": "barrel", "pos": [cx + 4, cz - 6]}, {"kind": "lamppost", "pos": [cx + 2, cz - 8]}],
+          npcs=[{"id": "merchant_ysolde", "name": "Ysolde the Merchant", "pos": [cx - 1, cz - 3], "lookAt": [cx, cz - 12], "talkTurn": True,
+                 "look": look(person="f", skin="#c98b62", shirt="#2e4a6a", hair="#1a1a1a", hood="#5a2e5a"),
+                 "lines": ["Silks from the coast, iron from the hills, salt from Saltwind -- whatever Genesis needs, we bring it.",
+                           "We camp outside the wall. The city's levy is ten in a hundred, and we'd rather keep that tenth.",
+                           "Once the shops in town are open, we'll trade with them. Until then, the road is our market."]}])
+    # the fields and the mill south of the wall
+    fx, fz = 610, 148
+    place("genesis_fields", (fx + 8, fz), 7.6, 26,
+          windmill={"pos": [fx - 18, fz - 4], "face": 150},
+          fence={"rect": [fx - 8, fz - 10, fx + 36, fz + 6]},
+          props=[{"kind": "haystack", "pos": [fx - 2, fz - 4]}, {"kind": "haystack", "pos": [fx + 6, fz]}, {"kind": "haystack", "pos": [fx + 22, fz - 3]},
+                 {"kind": "haystack", "pos": [fx + 30, fz + 1]}, {"kind": "cart", "pos": [fx + 14, fz - 13], "rot": 0}])
+    for k in range(10):
+        nodes.append({"id": f"gf.herb.{k + 1}", "kind": "herb", "pos": [round(fx - 6 + (k % 5) * 4 + (20 if k >= 5 else 0), 1), round(fz - 6 + (k % 2) * 6, 1)], "ground": True})
+    # the mine at the north end of the quarry: a timbered mouth into the hill, ore to break round it
+    mx, mz = 488, -160
+    place("mine", (mx, mz), 5.7, 9, props=[{"kind": "cart", "pos": [mx + 4, mz + 6], "rot": 20}, {"kind": "logpile", "pos": [mx - 5, mz + 5], "rot": 90},
+                                             {"kind": "lamppost", "pos": [mx + 3, mz + 2]}])
+    places[-1]["mineMouth"] = {"pos": [mx, mz], "face": [mx, mz + 20]}
+    for k in range(8):
+        a = math.pi * (0.15 + k / 8 * 0.7)
+        nodes.append({"id": f"mine.rock.{k + 1}", "kind": "rock", "pos": [round(mx + math.cos(a) * 10, 1), round(mz + math.sin(a) * 9, 1)], "ground": True})
+    # the tourney ground before the east gate
+    tx, tz = 1100, -40
+    place("tourney", (tx, tz), 10.0, 22,
+          fence={"rect": [tx - 16, tz - 10, tx + 16, tz + 10], "gate": [tx - 3, tx + 3]},
+          banner=[{"pos": [tx - 17, tz - 11], "rot": 0, "color": "#2f4f7a"}, {"pos": [tx + 17, tz - 11], "rot": 0, "color": "#7a2a2a"},
+                  {"pos": [tx - 17, tz + 11], "rot": 180, "color": "#7a2a2a"}, {"pos": [tx + 17, tz + 11], "rot": 180, "color": "#2f4f7a"}],
+          props=[{"kind": "bench", "pos": [tx - 8, tz - 13], "rot": 0}, {"kind": "bench", "pos": [tx, tz - 13], "rot": 0}, {"kind": "bench", "pos": [tx + 8, tz - 13], "rot": 0},
+                 {"kind": "stump", "pos": [tx - 6, tz]}, {"kind": "stump", "pos": [tx + 6, tz]}],
+          npcs=[{"id": "aldric", "name": "Sir Aldric", "pos": [tx, tz - 4], "lookAt": [tx, tz + 4], "talkTurn": True,
+                 "look": look(skin="#e0b48c", shirt="#5d6470", hair="#8a6a4a", beard="#8a6a4a", helm="#9aa1ab", armor="#9aa1ab", gloves="#5a4a3a"),
+                 "lines": ["The lists of Genesis! Empty now, but one day the city's champions will meet here.",
+                           "Keep your guard up and your feet under you. The rest is practice.",
+                           "When the city has a council, there will be tourneys, and prizes worth fighting for."]}])
+    return places, pads, nodes
+
+
 def make_camp(raider_look):
     cx, cz = CAMP
     out = math.atan2(25 - cz, 0 - cx)                 # the way out: towards the gate
@@ -487,11 +630,14 @@ def main() -> None:
         ["Goblin Camp", "goblin_brute", "high", [[500, -720], [600, -735], [660, -680], [630, -610], [530, -600], [480, -650]]],
         ["Goblin Bridgehead", "goblin", "low", [[380, -500], [470, -470], [520, -430], [470, -390], [380, -420]]],
     ]
+    gw_places, gw_pads, gw_nodes = make_greenwood()
+    ox_places, ox_pads, ox_nodes = make_outskirts()
+    gw_places, gw_pads, gw_nodes = gw_places + ox_places, gw_pads + ox_pads, gw_nodes + ox_nodes
     camp_place, camp_species, camp_areas, camp_hoard, camp_spawns, camp_pad = make_camp(((blk.get("defense") or {}).get("raider") or {}).get("look"))
     land = {"pads": [{"at": [0, 0], "r": 62, "y": LIFT, "rim": 40},
                      {"at": [SW.at[0] + 6, SW.at[1]], "r": 24, "y": 0.25, "rim": 14, "landOnly": True},
                      # Genesis inside its wall, flat for the plots (2026-11-07): an ellipse round the ring
-                     {"at": [GEN[0], GEN[1]], "rx": 270, "rz": 190, "y": GEN_Y, "rim": 45, "landOnly": True}, camp_pad],
+                     {"at": [GEN[0], GEN[1]], "rx": 270, "rz": 190, "y": GEN_Y, "rim": 45, "landOnly": True}, camp_pad] + gw_pads,
             "decks": [deck]}
     areas = []
     for name, species, dens, poly in SHAPES:
@@ -556,7 +702,7 @@ def main() -> None:
                     continue
                 got += 1
                 nodes.append({"id": f"w.{kind}.{len(nodes) + 1}", "kind": kind, "pos": q, "ground": True})
-    wilds = {"lift": 0, "resources": {"nodes": nodes}}
+    wilds = {"lift": 0, "resources": {"nodes": nodes + gw_nodes}}
 
     # ---- Genesis: a city wall round the ground players will build on (tbuuol 2026-10-31), so its place and size can
     # be seen already; the gate stands where the road comes through (art.cityWall finds it)
@@ -659,7 +805,7 @@ def main() -> None:
         "spawn": spawn, "spawnYaw": blk.get("spawnYaw", 0),
         "env": env,
         "land": land,
-        "places": [blockshire, saltwind, berth, wilds, genesis, camp_place],
+        "places": [blockshire, saltwind, berth, wilds, genesis, camp_place] + gw_places,
         "resources": {k: v for k, v in (blk.get("resources") or {}).items() if k != "nodes"},   # how often, how much: the wilds' too
         # the guards and the priest; the raiders come by night only (tbuuol 2026-11-10)
         "defense": dict(blk.get("defense") or {}, spawns=dict((blk.get("defense") or {}).get("spawns") or {}, night=True, points=camp_spawns)),

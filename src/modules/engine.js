@@ -199,6 +199,10 @@
     for (const pl of many(LV.palisade)) if (art.palisade) art.palisade(ctx, pl);
     for (const t of LV.tents || []) if (art.tent) art.tent(ctx, t);
     for (const b of many(LV.banner)) if (art.banner) art.banner(ctx, b);
+    /* the Greenwood's places: a windmill, a stone circle, a watchtower */
+    for (const w of many(LV.windmill)) if (art.windmill) art.windmill(ctx, w);
+    for (const c of many(LV.stoneCircle)) if (art.stoneCircle) art.stoneCircle(ctx, c);
+    for (const t of many(LV.watchtower)) if (art.watchtower) art.watchtower(ctx, t);
     if (LV.forest_trees) {   /* a place's own few trees, placed by hand (they go up with it) */
       art.trees(ctx, LV.forest_trees, () => 0);
       for (const t of LV.forest_trees) ctx.solid([t[0] - 0.35, -1, t[1] - 0.35], [t[0] + 0.35, 3, t[1] + 0.35]);
@@ -273,6 +277,8 @@
     }
     }
     if (LV.places) for (const pl of LV.places) buildPlace(pl, pl.lift || 0);
+    /* a mine's timbered mouth (Genesis' quarry, 2026-11-10): on the ground itself, so after the places are lifted */
+    if (LV.places && TR && art.caveMouth) for (const pl of LV.places) if (pl.mineMouth) art.caveMouth(ctx, TR, pl.mineMouth);
     else buildPlace(LV, 0);
     /* THE ZONE'S NAME, as the old WoW showed it: big, golden, in the middle, when you come into it (Etappe 3) */
     let zoneNow = null, zoneEl = null;
@@ -2862,6 +2868,6 @@
     };
   }
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 51, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 52, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
     D => ({ start: (el, opts) => start(D, el, opts) }));
 })(typeof globalThis !== 'undefined' ? globalThis : this);

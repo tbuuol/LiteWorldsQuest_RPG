@@ -2,7 +2,7 @@
  "lwq": "module",
  "name": "level.world",
  "api": 1,
- "v": 16,
+ "v": 18,
  "data": {
   "id": "world",
   "title": "LiteWorldsQuest",
@@ -80,6 +80,106 @@
      "r": 21.0,
      "y": 13.3,
      "rim": 12,
+     "landOnly": true
+    },
+    {
+     "at": [
+      -80,
+      -160
+     ],
+     "r": 12,
+     "y": 10.6,
+     "rim": 10,
+     "landOnly": true
+    },
+    {
+     "at": [
+      120,
+      -120
+     ],
+     "r": 14,
+     "y": 12.8,
+     "rim": 10,
+     "landOnly": true
+    },
+    {
+     "at": [
+      232,
+      0
+     ],
+     "r": 12,
+     "y": 11.3,
+     "rim": 10,
+     "landOnly": true
+    },
+    {
+     "at": [
+      150,
+      110
+     ],
+     "r": 18,
+     "y": 12.0,
+     "rim": 10,
+     "landOnly": true
+    },
+    {
+     "at": [
+      380,
+      -150
+     ],
+     "r": 13,
+     "y": 5.3,
+     "rim": 10,
+     "landOnly": true
+    },
+    {
+     "at": [
+      348,
+      138
+     ],
+     "r": 9,
+     "y": 10.9,
+     "rim": 10,
+     "landOnly": true
+    },
+    {
+     "at": [
+      522,
+      -12
+     ],
+     "r": 15,
+     "y": 7.0,
+     "rim": 10,
+     "landOnly": true
+    },
+    {
+     "at": [
+      618,
+      148
+     ],
+     "r": 26,
+     "y": 7.6,
+     "rim": 10,
+     "landOnly": true
+    },
+    {
+     "at": [
+      488,
+      -160
+     ],
+     "r": 9,
+     "y": 5.7,
+     "rim": 10,
+     "landOnly": true
+    },
+    {
+     "at": [
+      1100,
+      -40
+     ],
+     "r": 22,
+     "y": 10.0,
+     "rim": 10,
      "landOnly": true
     }
    ],
@@ -1004,22 +1104,8 @@
      "eggs": [
       {
        "p": [
-        60.9,
-        103.1
-       ],
-       "n": 7
-      },
-      {
-       "p": [
-        60.8,
-        108.2
-       ],
-       "n": 7
-      },
-      {
-       "p": [
-        63.0,
-        108.6
+        65.7,
+        104.7
        ],
        "n": 7
       },
@@ -1032,57 +1118,71 @@
       },
       {
        "p": [
-        81.8,
-        167.3
+        57.6,
+        107.9
        ],
        "n": 7
       },
       {
        "p": [
-        88.5,
-        171.9
+        63.1,
+        108.2
        ],
        "n": 7
       },
       {
        "p": [
-        82.5,
-        166.0
+        86.0,
+        168.3
        ],
        "n": 7
       },
       {
        "p": [
-        86.8,
-        166.7
+        78.7,
+        166.2
        ],
        "n": 7
       },
       {
        "p": [
-        110.8,
-        103.5
+        80.4,
+        165.2
        ],
        "n": 7
       },
       {
        "p": [
-        110.5,
+        83.8,
+        172.2
+       ],
+       "n": 7
+      },
+      {
+       "p": [
+        104.4,
         104.6
        ],
        "n": 7
       },
       {
        "p": [
-        110.3,
-        111.8
+        106.0,
+        104.4
        ],
        "n": 7
       },
       {
        "p": [
-        111.5,
-        107.1
+        103.7,
+        109.0
+       ],
+       "n": 7
+      },
+      {
+       "p": [
+        108.5,
+        102.9
        ],
        "n": 7
       },
@@ -3730,6 +3830,357 @@
        "pos": [
         454.3,
         66.6
+       ],
+       "ground": true
+      },
+      {
+       "id": "lc.tree.1",
+       "kind": "tree",
+       "pos": [
+        138.2,
+        -115.0
+       ],
+       "ground": true
+      },
+      {
+       "id": "lc.tree.2",
+       "kind": "tree",
+       "pos": [
+        131.4,
+        -106.4
+       ],
+       "ground": true
+      },
+      {
+       "id": "lc.tree.3",
+       "kind": "tree",
+       "pos": [
+        120.3,
+        -103.0
+       ],
+       "ground": true
+      },
+      {
+       "id": "lc.tree.4",
+       "kind": "tree",
+       "pos": [
+        109.1,
+        -106.1
+       ],
+       "ground": true
+      },
+      {
+       "id": "lc.tree.5",
+       "kind": "tree",
+       "pos": [
+        102.0,
+        -114.5
+       ],
+       "ground": true
+      },
+      {
+       "id": "lc.tree.6",
+       "kind": "tree",
+       "pos": [
+        101.8,
+        -125.0
+       ],
+       "ground": true
+      },
+      {
+       "id": "lc.tree.7",
+       "kind": "tree",
+       "pos": [
+        108.6,
+        -133.6
+       ],
+       "ground": true
+      },
+      {
+       "id": "lc.tree.8",
+       "kind": "tree",
+       "pos": [
+        119.7,
+        -137.0
+       ],
+       "ground": true
+      },
+      {
+       "id": "lc.tree.9",
+       "kind": "tree",
+       "pos": [
+        130.9,
+        -133.9
+       ],
+       "ground": true
+      },
+      {
+       "id": "lc.tree.10",
+       "kind": "tree",
+       "pos": [
+        138.0,
+        -125.5
+       ],
+       "ground": true
+      },
+      {
+       "id": "farm.herb.1",
+       "kind": "herb",
+       "pos": [
+        138,
+        128
+       ],
+       "ground": true
+      },
+      {
+       "id": "farm.herb.2",
+       "kind": "herb",
+       "pos": [
+        141,
+        128
+       ],
+       "ground": true
+      },
+      {
+       "id": "farm.herb.3",
+       "kind": "herb",
+       "pos": [
+        144,
+        128
+       ],
+       "ground": true
+      },
+      {
+       "id": "farm.herb.4",
+       "kind": "herb",
+       "pos": [
+        147,
+        128
+       ],
+       "ground": true
+      },
+      {
+       "id": "farm.herb.5",
+       "kind": "herb",
+       "pos": [
+        150,
+        128
+       ],
+       "ground": true
+      },
+      {
+       "id": "farm.herb.6",
+       "kind": "herb",
+       "pos": [
+        153,
+        128
+       ],
+       "ground": true
+      },
+      {
+       "id": "sc.herb.1",
+       "kind": "herb",
+       "pos": [
+        392.0,
+        -150.0
+       ],
+       "ground": true
+      },
+      {
+       "id": "sc.herb.2",
+       "kind": "herb",
+       "pos": [
+        383.7,
+        -138.6
+       ],
+       "ground": true
+      },
+      {
+       "id": "sc.herb.3",
+       "kind": "herb",
+       "pos": [
+        370.3,
+        -142.9
+       ],
+       "ground": true
+      },
+      {
+       "id": "sc.herb.4",
+       "kind": "herb",
+       "pos": [
+        370.3,
+        -157.1
+       ],
+       "ground": true
+      },
+      {
+       "id": "sc.herb.5",
+       "kind": "herb",
+       "pos": [
+        383.7,
+        -161.4
+       ],
+       "ground": true
+      },
+      {
+       "id": "gf.herb.1",
+       "kind": "herb",
+       "pos": [
+        604,
+        142
+       ],
+       "ground": true
+      },
+      {
+       "id": "gf.herb.2",
+       "kind": "herb",
+       "pos": [
+        608,
+        148
+       ],
+       "ground": true
+      },
+      {
+       "id": "gf.herb.3",
+       "kind": "herb",
+       "pos": [
+        612,
+        142
+       ],
+       "ground": true
+      },
+      {
+       "id": "gf.herb.4",
+       "kind": "herb",
+       "pos": [
+        616,
+        148
+       ],
+       "ground": true
+      },
+      {
+       "id": "gf.herb.5",
+       "kind": "herb",
+       "pos": [
+        620,
+        142
+       ],
+       "ground": true
+      },
+      {
+       "id": "gf.herb.6",
+       "kind": "herb",
+       "pos": [
+        624,
+        148
+       ],
+       "ground": true
+      },
+      {
+       "id": "gf.herb.7",
+       "kind": "herb",
+       "pos": [
+        628,
+        142
+       ],
+       "ground": true
+      },
+      {
+       "id": "gf.herb.8",
+       "kind": "herb",
+       "pos": [
+        632,
+        148
+       ],
+       "ground": true
+      },
+      {
+       "id": "gf.herb.9",
+       "kind": "herb",
+       "pos": [
+        636,
+        142
+       ],
+       "ground": true
+      },
+      {
+       "id": "gf.herb.10",
+       "kind": "herb",
+       "pos": [
+        640,
+        148
+       ],
+       "ground": true
+      },
+      {
+       "id": "mine.rock.1",
+       "kind": "rock",
+       "pos": [
+        496.9,
+        -155.9
+       ],
+       "ground": true
+      },
+      {
+       "id": "mine.rock.2",
+       "kind": "rock",
+       "pos": [
+        495.3,
+        -153.9
+       ],
+       "ground": true
+      },
+      {
+       "id": "mine.rock.3",
+       "kind": "rock",
+       "pos": [
+        493.2,
+        -152.3
+       ],
+       "ground": true
+      },
+      {
+       "id": "mine.rock.4",
+       "kind": "rock",
+       "pos": [
+        490.7,
+        -151.3
+       ],
+       "ground": true
+      },
+      {
+       "id": "mine.rock.5",
+       "kind": "rock",
+       "pos": [
+        488.0,
+        -151.0
+       ],
+       "ground": true
+      },
+      {
+       "id": "mine.rock.6",
+       "kind": "rock",
+       "pos": [
+        485.3,
+        -151.3
+       ],
+       "ground": true
+      },
+      {
+       "id": "mine.rock.7",
+       "kind": "rock",
+       "pos": [
+        482.8,
+        -152.3
+       ],
+       "ground": true
+      },
+      {
+       "id": "mine.rock.8",
+       "kind": "rock",
+       "pos": [
+        480.7,
+        -153.9
        ],
        "ground": true
       }
@@ -8629,6 +9080,893 @@
        112.7
       ],
       "rot": 127.7
+     }
+    ]
+   },
+   {
+    "id": "hunters",
+    "lift": 10.6,
+    "huts": [
+     {
+      "id": "hunter",
+      "pos": [
+       -80,
+       -163
+      ],
+      "size": [
+       5,
+       4
+      ],
+      "rot": 180,
+      "chimney": true,
+      "lit": true,
+      "trim": "#6a4a2e",
+      "inside": [
+       "bed",
+       "table",
+       "shelf"
+      ],
+      "door": {
+       "id": "door_hunter",
+       "label": "Door",
+       "opens": "hand"
+      }
+     }
+    ],
+    "fire": {
+     "pos": [
+      -76,
+      -156
+     ]
+    },
+    "props": [
+     {
+      "kind": "stump",
+      "pos": [
+       -84,
+       -157
+      ],
+      "axe": true
+     },
+     {
+      "kind": "logpile",
+      "pos": [
+       -75,
+       -164
+      ],
+      "rot": 90
+     },
+     {
+      "kind": "barrel",
+      "pos": [
+       -83,
+       -165
+      ]
+     }
+    ],
+    "npcs": [
+     {
+      "id": "hunter_wynn",
+      "name": "Wynn the Hunter",
+      "pos": [
+       -79,
+       -157
+      ],
+      "lookAt": [
+       -76,
+       -156
+      ],
+      "talkTurn": true,
+      "look": {
+       "person": "m",
+       "skin": "#c98b62",
+       "pants": "#3b2f25",
+       "shirt": "#4a5a2a",
+       "hair": "#3a2a1a",
+       "beard": "#3a2a1a",
+       "hood": "#3a4a22"
+      },
+      "lines": [
+       "Mind the wolves to the north. They hunt in threes, and they do not give up.",
+       "Pelts and fangs, that is what the forest pays with. Bring me some, one day I'll make it worth your while.",
+       "Deeper west the trees turn black with webs. I don't go there any more."
+      ]
+     }
+    ]
+   },
+   {
+    "id": "lumbercamp",
+    "lift": 12.8,
+    "huts": [
+     {
+      "id": "bunkhouse",
+      "pos": [
+       116,
+       -124
+      ],
+      "size": [
+       7,
+       5
+      ],
+      "rot": 180,
+      "chimney": true,
+      "lit": true,
+      "trim": "#6a4a2e",
+      "inside": [
+       "bed",
+       "bed",
+       "table"
+      ],
+      "door": {
+       "id": "door_bunkhouse",
+       "label": "Door",
+       "opens": "hand"
+      }
+     }
+    ],
+    "fire": {
+     "pos": [
+      125,
+      -117
+     ]
+    },
+    "props": [
+     {
+      "kind": "logpile",
+      "pos": [
+       126,
+       -126
+      ],
+      "rot": 0
+     },
+     {
+      "kind": "logpile",
+      "pos": [
+       129,
+       -123
+      ],
+      "rot": 90
+     },
+     {
+      "kind": "logpile",
+      "pos": [
+       112,
+       -115
+      ],
+      "rot": 20
+     },
+     {
+      "kind": "stump",
+      "pos": [
+       122,
+       -113
+      ],
+      "axe": true
+     },
+     {
+      "kind": "stump",
+      "pos": [
+       117,
+       -112
+      ],
+      "axe": true
+     },
+     {
+      "kind": "cart",
+      "pos": [
+       130,
+       -114
+      ],
+      "rot": 70
+     },
+     {
+      "kind": "crate",
+      "pos": [
+       119,
+       -129
+      ]
+     }
+    ],
+    "npcs": [
+     {
+      "id": "foreman_tamsin",
+      "name": "Foreman Tamsin",
+      "pos": [
+       122,
+       -119
+      ],
+      "lookAt": [
+       125,
+       -117
+      ],
+      "talkTurn": true,
+      "look": {
+       "person": "f",
+       "skin": "#e0b48c",
+       "pants": "#3b2f25",
+       "shirt": "#7a3a22",
+       "hair": "#7a3a1a",
+       "gloves": "#4a3a2a"
+      },
+      "lines": [
+       "Every beam in Genesis comes through this camp. Or it will, once there's a city to speak of.",
+       "The oaks round here are good and straight. Take an axe to them if you need logs for your own walls.",
+       "Raiders took two of our carts last week. If you see Grimwald, give him one from me."
+      ]
+     }
+    ]
+   },
+   {
+    "id": "wayside",
+    "lift": 11.3,
+    "huts": [
+     {
+      "id": "wayside_inn",
+      "pos": [
+       232,
+       0
+      ],
+      "size": [
+       9,
+       6
+      ],
+      "rot": 0,
+      "chimney": true,
+      "lit": true,
+      "trim": "#6a4a2e",
+      "inside": [
+       "table",
+       "table",
+       "bed",
+       "shelf",
+       "rug"
+      ],
+      "door": {
+       "id": "door_wayside_inn",
+       "label": "Door",
+       "opens": "hand"
+      },
+      "rug": "#7a3a22"
+     }
+    ],
+    "fire": {
+     "pos": [
+      225,
+      6
+     ]
+    },
+    "props": [
+     {
+      "kind": "bench",
+      "pos": [
+       228,
+       6
+      ],
+      "rot": 0
+     },
+     {
+      "kind": "bench",
+      "pos": [
+       236,
+       6
+      ],
+      "rot": 0
+     },
+     {
+      "kind": "barrel",
+      "pos": [
+       238,
+       -2
+      ]
+     },
+     {
+      "kind": "barrel",
+      "pos": [
+       238.6,
+       -1.2
+      ]
+     },
+     {
+      "kind": "lamppost",
+      "pos": [
+       237.5,
+       4
+      ]
+     },
+     {
+      "kind": "cart",
+      "pos": [
+       223,
+       -2
+      ],
+      "rot": 90
+     },
+     {
+      "kind": "signpost",
+      "pos": [
+       234,
+       12
+      ],
+      "signs": [
+       [
+        "Genesis",
+        0
+       ],
+       [
+        "Blockshire",
+        180
+       ]
+      ]
+     }
+    ],
+    "npcs": [
+     {
+      "id": "tobin",
+      "name": "Old Tobin",
+      "pos": [
+       233,
+       5
+      ],
+      "lookAt": [
+       233,
+       10
+      ],
+      "talkTurn": true,
+      "look": {
+       "person": "m",
+       "skin": "#e8c09c",
+       "pants": "#3b2f25",
+       "shirt": "#5a4a2a",
+       "hair": "#d8d8d8",
+       "beard": "#e6e6e6"
+      },
+      "lines": [
+       "Halfway between Blockshire and Genesis -- a good place for a rest, and a better one for news.",
+       "The spiders have a cave under Greenwood Deep, they say. Far to the west, by the black trees.",
+       "At night the raiders come up from their camp south of the village. You'll see their fire from the cliff."
+      ]
+     }
+    ]
+   },
+   {
+    "id": "farm",
+    "lift": 12.0,
+    "huts": [
+     {
+      "id": "farmhouse",
+      "pos": [
+       144,
+       104
+      ],
+      "size": [
+       7,
+       5
+      ],
+      "rot": 180,
+      "chimney": true,
+      "lit": true,
+      "trim": "#6a4a2e",
+      "inside": [
+       "bed",
+       "table",
+       "shelf"
+      ],
+      "door": {
+       "id": "door_farmhouse",
+       "label": "Door",
+       "opens": "hand"
+      }
+     },
+     {
+      "id": "barn",
+      "pos": [
+       156,
+       103
+      ],
+      "size": [
+       8,
+       6
+      ],
+      "rot": 180,
+      "chimney": false,
+      "lit": false,
+      "trim": "#6a4a2e",
+      "inside": [],
+      "door": {
+       "id": "door_barn",
+       "label": "Door",
+       "opens": "hand"
+      }
+     }
+    ],
+    "windmill": {
+     "pos": [
+      160,
+      119
+     ],
+     "face": 200
+    },
+    "fence": {
+     "rect": [
+      136,
+      111,
+      154,
+      125
+     ]
+    },
+    "props": [
+     {
+      "kind": "haystack",
+      "pos": [
+       141,
+       116
+      ]
+     },
+     {
+      "kind": "haystack",
+      "pos": [
+       146,
+       120
+      ]
+     },
+     {
+      "kind": "haystack",
+      "pos": [
+       140,
+       121
+      ]
+     },
+     {
+      "kind": "cart",
+      "pos": [
+       151,
+       109
+      ],
+      "rot": 30
+     },
+     {
+      "kind": "barrel",
+      "pos": [
+       149,
+       101
+      ]
+     }
+    ],
+    "npcs": [
+     {
+      "id": "farmer_hal",
+      "name": "Farmer Hal",
+      "pos": [
+       148,
+       109
+      ],
+      "lookAt": [
+       144,
+       116
+      ],
+      "talkTurn": true,
+      "look": {
+       "person": "m",
+       "skin": "#c98b62",
+       "pants": "#3b2f25",
+       "shirt": "#8a7a4a",
+       "hair": "#8a6a3a",
+       "beard": "#8a6a3a"
+      },
+      "lines": [
+       "The boars get into the fields every night. Every single night.",
+       "Flax and wheat, that's what we grow. Genesis will need bread, once people live there.",
+       "The mill grinds when the wind is up. Listen -- you can hear the sails from the road."
+      ]
+     }
+    ]
+   },
+   {
+    "id": "stonecircle",
+    "lift": 5.3,
+    "stoneCircle": {
+     "c": [
+      380,
+      -150
+     ],
+     "r": 8,
+     "n": 9
+    }
+   },
+   {
+    "id": "watchtower",
+    "lift": 10.9,
+    "watchtower": {
+     "pos": [
+      348,
+      138
+     ],
+     "rot": 180
+    },
+    "npcs": [
+     {
+      "id": "sentry_ulf",
+      "name": "Old Ulf",
+      "pos": [
+       348,
+       133.5
+      ],
+      "lookAt": [
+       348,
+       128
+      ],
+      "talkTurn": true,
+      "look": {
+       "person": "m",
+       "skin": "#d9a882",
+       "pants": "#3b2f25",
+       "shirt": "#5d6470",
+       "hair": "#9a9a9a",
+       "helm": "#9aa1ab",
+       "armor": "#9aa1ab"
+      },
+      "lines": [
+       "From up there you see the whole coast: the village on its cliff, the raiders' fire, Genesis' wall.",
+       "Thirty years I've watched this sea. The pirates come from the west, mark my words.",
+       "When the moon is up, the raiders move. I light the beacon, and Blockshire's guards get ready."
+      ]
+     }
+    ]
+   },
+   {
+    "id": "signs",
+    "lift": 14.0,
+    "props": [
+     {
+      "kind": "signpost",
+      "pos": [
+       40,
+       6
+      ],
+      "signs": [
+       [
+        "Genesis",
+        0
+       ],
+       [
+        "Beach",
+        -90
+       ]
+      ]
+     }
+    ]
+   },
+   {
+    "id": "caravan",
+    "lift": 7.0,
+    "tents": [
+     {
+      "pos": [
+       515,
+       -10
+      ],
+      "rot": 90,
+      "color": "#2e4a6a"
+     },
+     {
+      "pos": [
+       529,
+       -9
+      ],
+      "rot": -90,
+      "color": "#6a5a2e"
+     },
+     {
+      "pos": [
+       522,
+       -4
+      ],
+      "rot": 180,
+      "color": "#5a2e5a"
+     }
+    ],
+    "fire": {
+     "pos": [
+      522,
+      -11
+     ]
+    },
+    "props": [
+     {
+      "kind": "cart",
+      "pos": [
+       512,
+       -18
+      ],
+      "rot": 80
+     },
+     {
+      "kind": "cart",
+      "pos": [
+       532,
+       -18
+      ],
+      "rot": 100
+     },
+     {
+      "kind": "crate",
+      "pos": [
+       519,
+       -17
+      ]
+     },
+     {
+      "kind": "crate",
+      "pos": [
+       520,
+       -18
+      ]
+     },
+     {
+      "kind": "barrel",
+      "pos": [
+       525,
+       -17
+      ]
+     },
+     {
+      "kind": "barrel",
+      "pos": [
+       526,
+       -18
+      ]
+     },
+     {
+      "kind": "lamppost",
+      "pos": [
+       524,
+       -20
+      ]
+     }
+    ],
+    "npcs": [
+     {
+      "id": "merchant_ysolde",
+      "name": "Ysolde the Merchant",
+      "pos": [
+       521,
+       -15
+      ],
+      "lookAt": [
+       522,
+       -24
+      ],
+      "talkTurn": true,
+      "look": {
+       "person": "f",
+       "skin": "#c98b62",
+       "pants": "#3b2f25",
+       "shirt": "#2e4a6a",
+       "hair": "#1a1a1a",
+       "hood": "#5a2e5a"
+      },
+      "lines": [
+       "Silks from the coast, iron from the hills, salt from Saltwind -- whatever Genesis needs, we bring it.",
+       "We camp outside the wall. The city's levy is ten in a hundred, and we'd rather keep that tenth.",
+       "Once the shops in town are open, we'll trade with them. Until then, the road is our market."
+      ]
+     }
+    ]
+   },
+   {
+    "id": "genesis_fields",
+    "lift": 7.6,
+    "windmill": {
+     "pos": [
+      592,
+      144
+     ],
+     "face": 150
+    },
+    "fence": {
+     "rect": [
+      602,
+      138,
+      646,
+      154
+     ]
+    },
+    "props": [
+     {
+      "kind": "haystack",
+      "pos": [
+       608,
+       144
+      ]
+     },
+     {
+      "kind": "haystack",
+      "pos": [
+       616,
+       148
+      ]
+     },
+     {
+      "kind": "haystack",
+      "pos": [
+       632,
+       145
+      ]
+     },
+     {
+      "kind": "haystack",
+      "pos": [
+       640,
+       149
+      ]
+     },
+     {
+      "kind": "cart",
+      "pos": [
+       624,
+       135
+      ],
+      "rot": 0
+     }
+    ]
+   },
+   {
+    "id": "mine",
+    "lift": 5.7,
+    "props": [
+     {
+      "kind": "cart",
+      "pos": [
+       492,
+       -154
+      ],
+      "rot": 20
+     },
+     {
+      "kind": "logpile",
+      "pos": [
+       483,
+       -155
+      ],
+      "rot": 90
+     },
+     {
+      "kind": "lamppost",
+      "pos": [
+       491,
+       -158
+      ]
+     }
+    ],
+    "mineMouth": {
+     "pos": [
+      488,
+      -160
+     ],
+     "face": [
+      488,
+      -140
+     ]
+    }
+   },
+   {
+    "id": "tourney",
+    "lift": 10.0,
+    "fence": {
+     "rect": [
+      1084,
+      -50,
+      1116,
+      -30
+     ],
+     "gate": [
+      1097,
+      1103
+     ]
+    },
+    "banner": [
+     {
+      "pos": [
+       1083,
+       -51
+      ],
+      "rot": 0,
+      "color": "#2f4f7a"
+     },
+     {
+      "pos": [
+       1117,
+       -51
+      ],
+      "rot": 0,
+      "color": "#7a2a2a"
+     },
+     {
+      "pos": [
+       1083,
+       -29
+      ],
+      "rot": 180,
+      "color": "#7a2a2a"
+     },
+     {
+      "pos": [
+       1117,
+       -29
+      ],
+      "rot": 180,
+      "color": "#2f4f7a"
+     }
+    ],
+    "props": [
+     {
+      "kind": "bench",
+      "pos": [
+       1092,
+       -53
+      ],
+      "rot": 0
+     },
+     {
+      "kind": "bench",
+      "pos": [
+       1100,
+       -53
+      ],
+      "rot": 0
+     },
+     {
+      "kind": "bench",
+      "pos": [
+       1108,
+       -53
+      ],
+      "rot": 0
+     },
+     {
+      "kind": "stump",
+      "pos": [
+       1094,
+       -40
+      ]
+     },
+     {
+      "kind": "stump",
+      "pos": [
+       1106,
+       -40
+      ]
+     }
+    ],
+    "npcs": [
+     {
+      "id": "aldric",
+      "name": "Sir Aldric",
+      "pos": [
+       1100,
+       -44
+      ],
+      "lookAt": [
+       1100,
+       -36
+      ],
+      "talkTurn": true,
+      "look": {
+       "person": "m",
+       "skin": "#e0b48c",
+       "pants": "#3b2f25",
+       "shirt": "#5d6470",
+       "hair": "#8a6a4a",
+       "beard": "#8a6a4a",
+       "helm": "#9aa1ab",
+       "armor": "#9aa1ab",
+       "gloves": "#5a4a3a"
+      },
+      "lines": [
+       "The lists of Genesis! Empty now, but one day the city's champions will meet here.",
+       "Keep your guard up and your feet under you. The rest is practice.",
+       "When the city has a council, there will be tourneys, and prizes worth fighting for."
+      ]
      }
     ]
    }

@@ -218,8 +218,13 @@ async def _session(p, level: str = "") -> None:
     # THE WEBSITE, NOT THE DESKTOP OR THE PHONE'S HOME SCREEN (2026-10-29): since that day's arcade update a browser
     # goes to /desktop (wider than 640 px) or /home (the house's 320 px) unless "Website" is chosen under Themes, and
     # the house never reached the Apps page ("our card is not on the Apps page" from 20:16 on).
+    # THE IDLE LOCK OFF (2026-11-10, tbuuol: "das Haus muss durchgehend online bleiben"): since an arcade update every
+    # tab forgets the wallet after 15 minutes with no key or click ("arcade.idle-lock", on /me "Lock the wallet"); the
+    # house never touches anything, so it dropped out of its game every quarter of an hour. "Off" is the arcade's own
+    # choice for one's own machine -- and this browser is the house's alone, on this server.
     await ctx.add_init_script("""try { localStorage.setItem('arcade.deskview', 'web');
-                                       localStorage.setItem('arcade.phoneview', 'web'); } catch (e) {}""")
+                                       localStorage.setItem('arcade.phoneview', 'web');
+                                       localStorage.setItem('arcade.idle-lock', 'off'); } catch (e) {}""")
     try:
         pg = ctx.pages[0] if ctx.pages else await ctx.new_page()
         if not await wallet_access(pg, game, password):
