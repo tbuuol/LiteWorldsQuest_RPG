@@ -167,11 +167,11 @@
       } else if (tab === 'craft') {
         /* the recipes this player knows, by craft: what each needs (have / need), what it makes, and Make -- at the forge */
         const at = o.atForge ? o.atForge() : false;
-        let h = (at ? '<p class="muted">At the forge. You make from the blueprints in your bag. Your skill (up to the blueprint\'s master level) gives three quarters of how well it goes, the blueprint\'s QR (0 to 100, up with each use) the last quarter. Now and then a new blueprint turns up while you work.</p>'
-                    : '<p class="bad">Walk to the forge in Blockshire (east of the square) to make things. You can look at your blueprints here.</p>') +
-                '<p class="muted">The smith at the forge has the first blueprints for those who help him.</p>';
+        let h = (at ? '<p class="muted">At a workbench. You make from the blueprints in your bag. Your skill (up to the blueprint\'s master level) gives three quarters of how well it goes, the blueprint\'s QR the rest.</p>'
+                    : '<p class="bad">Walk to a workbench to make things. You can look at your blueprints here.</p>') +
+                '<p class="muted">Blockshire\'s village forge makes a smith\'s first recipes only. Anything better needs its own workbench -- a forge, a carpenter\'s bench, a loom or a jeweler\'s bench -- built on a workshop plot in Genesis.</p>';
         let hidden = 0;
-        for (const craft of ['smith', 'carpenter', 'tailor']) {
+        for (const craft of ['smith', 'carpenter', 'tailor', 'jeweler']) {
           const sk = rpg.PROFS[craft], lv = stats.prof[craft] || 0;
           h += '<h4 style="margin-top:12px">' + esc(sk.name) + ' · level ' + lv.toFixed(1) + '</h4>';
           for (const rid in rpg.RECIPES) {
@@ -184,7 +184,7 @@
               return '<span class="' + (ok ? 'good' : 'bad') + '">' + esc(rpg.ITEMS[m].name) + ' ' + have + '/' + rc.needs[m] + '</span>'; }).join(' · ');
             h += '<div class="detail" style="margin-top:6px"><b>' + esc(it.name) + '</b> <span class="muted">' + esc(statLine(it) || '') + ' · blueprint QR ' + qr.toFixed(1) + ' · ' + Math.round(100 * (0.35 + 0.6 * rpg.gradeOf(rc, lv, qr))) + ' % success · best ' + Math.round(35 + 90 * rpg.gradeOf(rc, lv, qr)) + ' % quality · mastered at level ' + rpg.masterOf(rc) + '</span>' +
               '<div>' + needs + (rc.level ? ' · <span class="' + (tooLow ? 'bad' : 'good') + '">' + esc(sk.name) + ' level ' + rc.level + '</span>' : '') + '</div>' +
-              '<button class="act" data-act="make" data-recipe="' + rid + '"' + (at && enough && !tooLow ? '' : ' disabled') + '>Make</button></div>';
+              '<button class="act" data-act="make" data-recipe="' + rid + '"' + ((o.canMake ? o.canMake(rc) : at) && enough && !tooLow ? '' : ' disabled title="not at the right workbench"') + '>Make</button></div>';
           }
         }
         if (hidden) h += '<p class="muted" style="margin-top:12px">' + hidden + ' more blueprints are still to be found (or bought).</p>';
@@ -224,5 +224,5 @@
   }
 
   const menu = { api: 1, create };
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('menu', { api: 1, v: 7 }, () => menu);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('menu', { api: 1, v: 8 }, () => menu);
 })(typeof globalThis !== 'undefined' ? globalThis : this);

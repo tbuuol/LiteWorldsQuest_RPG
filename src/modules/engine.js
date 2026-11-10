@@ -146,6 +146,15 @@
     const plots = [];   /* Genesis' plots, for "where am I" */
     let plotLook = null, plotPlan = null;
     const nearForge = (x, z) => !!forgeDef && Math.hypot(x - forgeDef.pos[0], z - forgeDef.pos[1]) < 5;
+    /* WORKBENCHES (tbuuol 2026-11-10): each craft at its own -- Blockshire's forge, or one built on a workshop plot in
+       Genesis (anybody may work at one). Blockshire's forge is the village's (tbuuol: "eine Schmiede der eigenen Art"):
+       there a smith's first recipes (level 0) can be made, nothing else. stationsNear: the kinds within reach */
+    const canMakeAt = (near, rc) => !!rc && (near.has(rpg && rpg.stationOf ? rpg.stationOf(rc) : 'forge') || (near.has('village') && !rc.level && rc.skill === 'smithing'));
+    function stationsNear(x, z) {
+      const out = new Set(); if (nearForge(x, z)) out.add('village');   /* Blockshire's forge: the village's, for first recipes only */
+      for (const id in furniture) { const f = furniture[id]; if (f.station && Math.hypot(x - f.pos[0], z - f.pos[2]) < 3.5) out.add(f.station); }
+      return out;
+    }
     /* a piece of the real Earth (tools/realworld.py): the ground is its heights, the houses its footprints */
     const realW = LV.real ? art.realworld(ctx, LV.real) : null;
     const grid = new Map(), CELL = 25, cellKey = (i, j) => i + ',' + j;
@@ -686,20 +695,21 @@
     /* WHAT A PIECE COSTS (2026-11-07): wood takes oak logs, stone and plaster take rough stone (the quarry by Genesis,
        and the ore boulders now and then); taken from your bag when the house puts the piece, given back when it comes
        down */
-    const PIECE_N = [1, 2, 2, 2, 1, 2, 3, 4, 3];
-    const costOf = pc => ({ [(pc[5] | 0) === 0 || pc[0] >= 6 ? 'oak_log' : 'stone_block']: PIECE_N[pc[0] | 0] || 1 });   /* a chest and a bed: oak */
+    const PIECE_N = [1, 2, 2, 2, 1, 2, 3, 4, 3, 6, 4, 4, 3];
+    const costOf = pc => ({ [(pc[0] | 0) === 9 ? 'stone_block' : (pc[5] | 0) === 0 || pc[0] >= 6 ? 'oak_log' : 'stone_block']: PIECE_N[pc[0] | 0] || 1 });   /* a chest and a bed: oak; a forge: stone */
     const slotOf = pc => (pc[0] >= 1 && pc[0] <= 3 ? 'e' : pc[0] >= 6 ? 'f' : 'c') + ':' + pc[1] + ':' + pc[2] + ':' + pc[3] + (pc[0] >= 1 && pc[0] <= 3 ? ':' + (pc[4] % 2) : '');
     function pieceAt(slot) { for (const id in built) for (const pc of built[id]) if (slotOf(pc) === slot) return [id, pc]; return null; }
     function houseBuild(from, a, d) {
       if (!builtLoaded) { notice(from.id, 'The builders are not here yet. Try again in a moment.'); return; }
       const k = d.k | 0, L = Math.max(0, Math.min(5, d.L | 0)), r = ((d.r | 0) % 4 + 4) % 4, m = Math.max(0, Math.min(2, d.m | 0));
-      if (!Array.isArray(d.c) || k < 0 || k > 8) return;
+      if (!Array.isArray(d.c) || k < 0 || k > 12) return;
       const pc = [k, r1(+d.c[0]), r1(+d.c[1]), L, k >= 1 && k <= 3 ? (r % 2 ? 3 : 0) : r, m];
       if (!isFinite(pc[1]) || !isFinite(pc[2])) return;
       const home = pieceHome(pc, a);
       if (!home) { notice(from.id, 'You can build only on your own plots.'); return; }
       if (plotOwn[home.id] && plotOwn[home.id][4]) { notice(from.id, 'Plot ' + home.id + ' is frozen until the city\'s levy is paid at the town hall.'); return; }
       if (k === 8 && home.kind !== 'shop' && d.x !== 'del') { notice(from.id, 'A counter goes on a shop plot.'); return; }
+      if (k >= 9 && home.kind !== 'workshop' && d.x !== 'del') { notice(from.id, 'A workbench goes on a workshop plot.'); return; }
       const slot = slotOf(pc), had = pieceAt(slot);
       if (d.x === 'del') {
         if (!had || !pieceHome(had[1], a)) return;
@@ -896,7 +906,7 @@
         look.solids.push(Object.assign({}, d.box, { on: () => !W.open[d.id] }));
       }
       for (const f of look.furniture || []) {
-        furniture[f.id] = { kind: f.kind, pos: f.pos, plot: id };
+        furniture[f.id] = { kind: f.kind, station: f.station || null, pos: f.pos, plot: id };
         f.hit.userData = { kind: f.kind, id: f.id }; usable.push(f.hit); uses.push(f.hit); furnIds.push(f.id);
       }
       builtLook.set(id, { group: look.group, solids: look.solids, c: [(p.rect[0] + p.rect[2]) / 2, (p.rect[1] + p.rect[3]) / 2], dispose: look.dispose, uses, doorIds, furnIds });
@@ -919,7 +929,8 @@
     /* THE PICKER (tbuuol 2026-11-08: "die Zahlen sind bald alle belegt"): Q in build mode shows every piece with what it
        costs; a click takes it and goes back to building. The mouse wheel goes through them too. */
     let pickerBox = null;
-    const PIECES = [['Floor', '▭'], ['Wall', '▮'], ['Window', '◫'], ['Door', '🚪'], ['Roof', '◢'], ['Stairs', '⌸'], ['Chest', '🧰'], ['Bed', '🛏'], ['Counter', '🏪']];
+    const PIECES = [['Floor', '▭'], ['Wall', '▮'], ['Window', '◫'], ['Door', '🚪'], ['Roof', '◢'], ['Stairs', '⌸'], ['Chest', '🧰'], ['Bed', '🛏'], ['Counter', '🏪'],
+                    ['Forge', '🔥'], ['Workbench', '🪚'], ['Loom', '🧶'], ['Jeweler', '💎']];   /* the workbenches (9-12): on a workshop plot */
     function openPicker() {
       try { document.exitPointerLock(); } catch (e) { /* not locked */ }
       if (!pickerBox) {
@@ -1167,7 +1178,7 @@
        the house, which keeps the record; I or Tab, or the ☰ button on a phone. */
     let menu = null;
     if (D.menu && D.rpg && (LV.defense || LV.wild)) {
-      menu = D.menu.create({ el, rpg: D.rpg, touch: TOUCH, wild: LV.wild || null, quests: LV.quests || [], atForge: () => nearForge(me.x, me.z),
+      menu = D.menu.create({ el, rpg: D.rpg, touch: TOUCH, wild: LV.wild || null, quests: LV.quests || [], atForge: () => stationsNear(me.x, me.z).size > 0, canMake: rc => canMakeAt(stationsNear(me.x, me.z), rc),
         ask(q) {
           if (!live()) return;
           sendIntent(Object.assign({ Q: q.op }, q.op === 'equip' || q.op === 'salvage' ? { u: q.uid } : q.op === 'craft' ? { r: q.recipe } : q.op === 'codex' ? { sp: q.species, k: q.skill } : { s: q.slot }));
@@ -1203,7 +1214,7 @@
     on(canvas, 'click', () => { if (!TOUCH && !locked()) try { canvas.requestPointerLock(); } catch (e) { /* ignore */ } });
     on(canvas, 'mousedown', e => { if (!locked()) return; if (building) { if (e.button === 0 || e.button === 2) buildClick(e.button === 2); return; } if (e.button === 0) attack(); });
     on(canvas, 'contextmenu', e => e.preventDefault());
-    on(canvas, 'wheel', e => { if (!building) return; e.preventDefault(); bKind = (bKind + (e.deltaY > 0 ? 1 : 8)) % 9; drawBuildBar(); }, { passive: false });
+    on(canvas, 'wheel', e => { if (!building) return; e.preventDefault(); bKind = (bKind + (e.deltaY > 0 ? 1 : PIECES.length - 1)) % PIECES.length; drawBuildBar(); }, { passive: false });
     on(document, 'pointerlockchange', () => { if (!TOUCH) $('.lwq-start').style.display = locked() ? 'none' : 'flex'; });
 
     /* --- phones: full screen, a joystick and buttons ------------------------------------------------------- */
@@ -1566,10 +1577,11 @@
         return d.opens === 'key' ? (hasItem(d.key) ? 'E: unlock the ' + word : d.label + ': it needs a key') : d.label + ': opened somewhere else';
       }
       if (u.kind === 'npc') return 'E: talk to ' + npcs[u.id].def.name;
+      if (u.kind === 'station') return 'E: work at ' + (((rpg && rpg.STATIONS) || {})[(furniture[u.id] || {}).station] || { name: 'the bench' }).name;
       if (u.kind === 'chest') return isMineFurn(u.id) ? 'E: open your chest' : 'A chest (not yours)';
       if (u.kind === 'bed') return isMineFurn(u.id) ? 'E: sleep here (you will wake here)' : 'A bed (not yours)';
       if (u.kind === 'counter') return isMineFurn(u.id) ? 'E: your shop' : 'E: see what is for sale';
-      if (u.kind === 'forge') return 'E: work at the forge';
+      if (u.kind === 'forge') return 'E: work at the village forge (first smithing recipes)';
       if (u.kind === 'res') {
         const n = resources[u.id].def, name = RES_NAME[n.kind], g = rpg && rpg.GATHER[n.kind];
         if (W.dep[u.id]) return 'The ' + name + (n.kind === 'herb' ? ' are' : ' is') + ' spent; it grows back';
@@ -1591,6 +1603,7 @@
       if (u.kind === 'hoard') { askHouse({ Q: 'hoard', h: u.id }); act('interact-right'); return; }
       if (u.kind === 'chest') { if (isMineFurn(u.id)) openChest(u.id); else log('It is not your chest.'); return; }
       if (u.kind === 'counter') { if (furniture[u.id]) openShop(furniture[u.id].plot); return; }
+      if (u.kind === 'station') { if (menu) { try { document.exitPointerLock(); } catch (e) { /* not locked */ } menu.open('craft'); } return; }
       if (u.kind === 'bed') { if (isMineFurn(u.id)) { askHouse({ Q: 'home', f: u.id }); act('interact-right'); } else log('It is not your bed.'); return; }
       if (u.kind === 'forge') { if (menu) { try { document.exitPointerLock(); } catch (e) { /* not locked */ } menu.open('craft'); } return; }
       if (u.kind === 'door') {
@@ -2308,7 +2321,7 @@
         }
         else if (d.Q === 'salvage') {   /* taking a made thing apart, at the forge (the only workbench there is yet) */
           const r = remotes.get(from.id);
-          if (r && !nearForge(whereIs(r)[0], whereIs(r)[1])) notice(from.id, 'You are not at the forge.');
+          if (r && !stationsNear(whereIs(r)[0], whereIs(r)[1]).size) notice(from.id, 'Things are taken apart at a forge or a workbench.');
           else { const res = book.salvage(a, +d.u); notice(from.id, res.ok ? 'You took apart the ' + res.of + ': ' + res.got.join(', ') + '.' : 'Cannot take that apart: ' + res.why + '.'); }
         }
         else if (d.Q === 'sell' || d.Q === 'unsell' || d.Q === 'levy') houseSell(from, a, d);
@@ -2329,7 +2342,8 @@
         }
         else if (d.Q === 'craft') {
           const r = remotes.get(from.id);
-          if (r && !nearForge(whereIs(r)[0], whereIs(r)[1])) notice(from.id, 'You are not at the forge.');
+          const rc = rpg.RECIPES[String(d.r)], st = rc && rpg.stationOf ? rpg.stationOf(rc) : 'forge';
+          if (r && !canMakeAt(stationsNear(whereIs(r)[0], whereIs(r)[1]), rc)) notice(from.id, 'You need ' + ((rpg.STATIONS || {})[st] || { name: 'a forge' }).name + ' for that' + (rc && rc.level ? ' (the village forge makes only a smith\'s first recipes; build one on a workshop plot in Genesis)' : '') + '.');
           else {
             const res = book.craft(a, String(d.r));
             if (!res.ok) notice(from.id, 'Cannot make that: ' + res.why + '.');
@@ -2869,6 +2883,6 @@
     };
   }
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 53, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 54, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
     D => ({ start: (el, opts) => start(D, el, opts) }));
 })(typeof globalThis !== 'undefined' ? globalThis : this);

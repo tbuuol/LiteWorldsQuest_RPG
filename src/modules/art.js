@@ -646,6 +646,46 @@
     }
     return { rock, torches, rect: def.rect };
   };
+  /* --- WORKBENCHES (2026-11-10): the carpenter's bench, the loom, the jeweler's bench (and a small forge to build) --- */
+  /* a station's look, standing on 0, facing -z: [group, half width, half depth, height] */
+  art.stationModel = function (kind) {
+    const g = new T.Group(), wood = mat('planks', { m: { color: '#9a7048' } }), dark = plain('#5a3a22'), iron = plain('#3b3d42', { metalness: 0.7, roughness: 0.4 });
+    if (kind === 'bench') {   /* a heavy bench: a vise, a plane, planks, a saw on the wall of it */
+      const top = mesh(boxM(1.9, 0.12, 0.75, 1), wood); top.position.y = 0.86; g.add(top);
+      for (const [x, z] of [[-0.85, -0.3], [0.85, -0.3], [-0.85, 0.3], [0.85, 0.3]]) { const l = mesh(new T.BoxGeometry(0.1, 0.82, 0.1), dark); l.position.set(x, 0.41, z); g.add(l); }
+      const shelf = mesh(boxM(1.7, 0.06, 0.6, 1), wood); shelf.position.y = 0.25; g.add(shelf);
+      const vise = mesh(new T.BoxGeometry(0.22, 0.2, 0.18), iron); vise.position.set(0.75, 1.02, -0.3); g.add(vise);
+      const plank = mesh(boxM(1.2, 0.05, 0.25, 1), mat('planks', { m: { color: '#d8b48a' } })); plank.position.set(-0.2, 0.95, 0.05); g.add(plank);
+      const plane = mesh(new T.BoxGeometry(0.28, 0.08, 0.08), dark); plane.position.set(-0.5, 1.0, -0.15); g.add(plane);
+      const saw = mesh(new T.BoxGeometry(0.6, 0.18, 0.01), iron); saw.position.set(0.2, 0.55, 0.38); g.add(saw);
+      return [g, 1.0, 0.42, 1.0];
+    }
+    if (kind === 'loom') {   /* a standing loom: two posts, beams, warp threads and cloth half woven */
+      for (const x of [-0.75, 0.75]) { const p = mesh(new T.BoxGeometry(0.1, 1.7, 0.1), dark); p.position.set(x, 0.85, 0); g.add(p); const f = mesh(new T.BoxGeometry(0.1, 0.1, 0.8), dark); f.position.set(x, 0.05, 0.15); g.add(f); }
+      for (const y of [0.45, 1.6]) { const b = mesh(new T.CylinderGeometry(0.05, 0.05, 1.5, 8), wood); b.rotation.z = Math.PI / 2; b.position.set(0, y, 0); g.add(b); }
+      const cloth = mesh(new T.PlaneGeometry(1.3, 0.5), plain('#7a2e3a', { side: T.DoubleSide })); cloth.position.set(0, 0.72, 0.01); g.add(cloth);
+      for (let i = 0; i < 14; i++) { const t = mesh(new T.BoxGeometry(0.01, 0.65, 0.01), plain('#e8dcc4')); t.position.set(-0.62 + i * 0.095, 1.27, 0.01); g.add(t); }
+      const bench = mesh(boxM(0.9, 0.08, 0.3, 1), wood); bench.position.set(0, 0.45, -0.55); g.add(bench);
+      return [g, 0.85, 0.6, 1.7];
+    }
+    if (kind === 'jewel') {   /* a small desk: a tiny anvil, a lamp, a tray of stones */
+      const top = mesh(boxM(1.2, 0.08, 0.6, 1), mat('planks', { m: { color: '#6a4a30' } })); top.position.y = 0.8; g.add(top);
+      for (const [x, z] of [[-0.52, -0.24], [0.52, -0.24], [-0.52, 0.24], [0.52, 0.24]]) { const l = mesh(new T.BoxGeometry(0.07, 0.78, 0.07), dark); l.position.set(x, 0.39, z); g.add(l); }
+      const anvil = mesh(new T.BoxGeometry(0.2, 0.08, 0.1), iron); anvil.position.set(-0.3, 0.9, 0); g.add(anvil);
+      const lamp = mesh(new T.SphereGeometry(0.07, 8, 6), new T.MeshBasicMaterial({ color: new T.Color(2.2, 1.8, 1.0) })); lamp.position.set(0.4, 1.12, 0.15); g.add(lamp);
+      const arm = mesh(new T.CylinderGeometry(0.015, 0.015, 0.32, 5), iron); arm.position.set(0.4, 0.98, 0.15); g.add(arm);
+      const tray = mesh(new T.BoxGeometry(0.3, 0.03, 0.2), plain('#2a1a1a')); tray.position.set(0.05, 0.86, -0.05); g.add(tray);
+      for (const [c, x] of [['#e04a6a', -0.05], ['#4ac0e0', 0.05], ['#6ae04a', 0.15]]) { const gem = mesh(new T.OctahedronGeometry(0.03), plain(c, { metalness: 0.3, roughness: 0.1 })); gem.position.set(x - 0.05, 0.9, -0.05); g.add(gem); }
+      return [g, 0.65, 0.35, 0.9];
+    }
+    /* a small forge to build: a hearth with coals and an anvil */
+    const stone = mat('stone', { m: { color: '#8f877c' } });
+    const hearth = mesh(boxM(1.4, 0.9, 1.0, 1), stone); hearth.position.y = 0.45; g.add(hearth);
+    const coals = mesh(new T.BoxGeometry(0.9, 0.08, 0.6), new T.MeshStandardMaterial({ color: '#ff6a1a', emissive: '#ff4a00', emissiveIntensity: 2.2 }), false); coals.position.y = 0.93; g.add(coals);
+    const anvil = mesh(new T.BoxGeometry(0.45, 0.14, 0.2), iron); anvil.position.set(0.95, 0.6, -0.2); g.add(anvil);
+    const stump = mesh(new T.CylinderGeometry(0.25, 0.3, 0.5, 8), mat('bark')); stump.position.set(0.95, 0.25, -0.2); g.add(stump);
+    return [g, 1.2, 0.55, 1.0];
+  };
   /* --- the Greenwood's places (2026-11-10): a windmill, a stone circle, a watchtower ---------------------- */
   /* A WINDMILL: a round stone body, a conical cap, four sails that turn (stands on 0, sails face def.face degrees) */
   art.windmill = function (ctx, def) {
@@ -1763,9 +1803,12 @@
        them usable (furniture: [{id, kind, hit, pos}]) */
     for (const pc of pieces) {
       const [k, cx, cz, L, r] = pc;
-      if (k !== 6 && k !== 7 && k !== 8) continue;
+      if (k < 6 || k > 12) continue;
       const y0 = base + L * H + (floorAt.has(cx + ',' + cz + ',' + L) ? TH : 0), turn = (r | 0) % 2 === 1, fg = new T.Group();
-      if (k === 6) {
+      const ST = { 9: 'forge', 10: 'bench', 11: 'loom', 12: 'jewel' }[k];
+      let sm = null;
+      if (ST) { sm = art.stationModel(ST); fg.add(sm[0]); }
+      else if (k === 6) {
         const body = mesh(boxM(1.1, 0.55, 0.65, 1), buildM.leaf); body.position.y = 0.275; fg.add(body);
         const lid = mesh(boxM(1.14, 0.16, 0.69, 1), buildM.leaf); lid.position.y = 0.63; fg.add(lid);
         for (const sx of [-0.4, 0.4]) { const band = mesh(new T.BoxGeometry(0.06, 0.72, 0.71), buildM.iron); band.position.set(sx, 0.36, 0); fg.add(band); }
@@ -1785,11 +1828,12 @@
         const head = mesh(boxM(1.1, 0.7, 0.1, 1), buildM.leaf); head.position.set(0, 0.35, -0.97); fg.add(head);
       }
       fg.rotation.y = -(r | 0) * Math.PI / 2; fg.position.set(cx, y0, cz); g.add(fg);
-      const w = k === 6 ? (turn ? 0.35 : 0.57) : k === 8 ? (turn ? 0.35 : 1.0) : (turn ? 1.0 : 0.55), d = k === 6 ? (turn ? 0.57 : 0.35) : k === 8 ? (turn ? 1.0 : 0.35) : (turn ? 0.55 : 1.0), h = k === 6 ? 0.72 : k === 8 ? 1.1 : 0.6;
+      let w = k === 6 ? (turn ? 0.35 : 0.57) : k === 8 ? (turn ? 0.35 : 1.0) : (turn ? 1.0 : 0.55), d = k === 6 ? (turn ? 0.57 : 0.35) : k === 8 ? (turn ? 1.0 : 0.35) : (turn ? 0.55 : 1.0), h = k === 6 ? 0.72 : k === 8 ? 1.1 : 0.6;
+      if (sm) { w = turn ? sm[2] : sm[1]; d = turn ? sm[1] : sm[2]; h = sm[3]; }
       solids.push({ min: [cx - w, y0, cz - d], max: [cx + w, y0 + h, cz + d] });
       const hit = new T.Mesh(new T.BoxGeometry(w * 2 + 0.2, h + 0.4, d * 2 + 0.2), new T.MeshBasicMaterial({ visible: false }));
       hit.position.set(cx, y0 + h / 2, cz); ctx.scene.add(hit);
-      furniture.push({ id: 'bf:' + slotKey(pc), kind: k === 6 ? 'chest' : k === 8 ? 'counter' : 'bed', hit, pos: [cx, y0, cz] });
+      furniture.push({ id: 'bf:' + slotKey(pc), kind: ST ? 'station' : k === 6 ? 'chest' : k === 8 ? 'counter' : 'bed', station: ST || null, hit, pos: [cx, y0, cz] });
     }
     /* a post where walls end: it closes the corner where two meet, and stands a little proud of them */
     for (const [x, z, y0, mm] of ends.values()) box(0.26, H, 0.26, x, y0, z, mm);
@@ -2844,5 +2888,5 @@
     return { groundAt, polys, segs, half, spawn, inside, stats: { buildings: buildings.length, trees: trees.length } };
   };
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('art', { api: 1, v: 33 }, () => art);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('art', { api: 1, v: 34 }, () => art);
 })(typeof globalThis !== 'undefined' ? globalThis : this);

@@ -39,7 +39,7 @@
     woodcutting: { name: 'Woodcutting', group: 'Gathering' }, mining: { name: 'Mining', group: 'Gathering' },
     herbalism: { name: 'Herbalism', group: 'Gathering' },
     smithing: { name: 'Smithing', group: 'Crafting' }, woodworking: { name: 'Woodworking', group: 'Crafting' },
-    tailoring: { name: 'Tailoring', group: 'Crafting' }
+    tailoring: { name: 'Tailoring', group: 'Crafting' }, jewelcrafting: { name: 'Jewelcrafting', group: 'Crafting' }
   };
   /* professions: what each is made of (weights add up to 1; attribute points count like skill points) */
   const PROFS = {
@@ -58,7 +58,8 @@
     herbalist: { name: 'Herbalist', group: 'Gathering', w: { herbalism: 0.7, int: 0.2, dex: 0.1 } },
     smith: { name: 'Smith', group: 'Crafting', w: { smithing: 0.6, mining: 0.2, str: 0.2 } },
     carpenter: { name: 'Carpenter', group: 'Crafting', w: { woodworking: 0.6, woodcutting: 0.2, dex: 0.2 } },
-    tailor: { name: 'Tailor', group: 'Crafting', w: { tailoring: 0.6, herbalism: 0.2, dex: 0.2 } }
+    tailor: { name: 'Tailor', group: 'Crafting', w: { tailoring: 0.6, herbalism: 0.2, dex: 0.2 } },
+    jeweler: { name: 'Jeweler', group: 'Crafting', w: { jewelcrafting: 0.6, mining: 0.1, int: 0.15, dex: 0.15 } }
   };
   /* a skill's standing, by its points: the names say how far along it is, the bar shows the way to the next */
   const RANKS = [[0, 'Untrained'], [25, 'Novice'], [100, 'Apprentice'], [250, 'Journeyman'], [500, 'Adept'], [1000, 'Expert'],
@@ -143,24 +144,24 @@
     copper_axe: { skill: 'smithing', prof: 'smith', level: 0, needs: { copper_ore: 3, oak_log: 2 }, known: true },
     copper_bracers: { skill: 'smithing', prof: 'smith', level: 0, needs: { copper_ore: 2, leather_scrap: 1 }, known: true },
     oak_shield: { skill: 'woodworking', prof: 'carpenter', level: 0, needs: { oak_log: 3, leather_scrap: 1 }, known: true },
-    oak_belt_charm: { skill: 'woodworking', prof: 'carpenter', level: 0, needs: { oak_log: 1, wild_herb: 1 }, known: true },
+    oak_belt_charm: { skill: 'jewelcrafting', prof: 'jeweler', level: 0, needs: { oak_log: 1, wild_herb: 1 }, known: true },
     flax_tunic: { skill: 'tailoring', prof: 'tailor', level: 0, needs: { flax: 4 }, known: true },
     leather_belt: { skill: 'tailoring', prof: 'tailor', level: 0, needs: { leather_scrap: 2 }, known: true },
     iron_sword: { skill: 'smithing', prof: 'smith', level: 1, needs: { iron_ore: 4, oak_log: 1, leather_scrap: 1 } },
     iron_mace: { skill: 'smithing', prof: 'smith', level: 1, needs: { iron_ore: 4, oak_log: 1 } },
     iron_helm: { skill: 'smithing', prof: 'smith', level: 1, needs: { iron_ore: 3, torn_cloth: 1 } },
-    iron_ring: { skill: 'smithing', prof: 'smith', level: 2, needs: { iron_ore: 1, copper_ore: 1 } },
+    iron_ring: { skill: 'jewelcrafting', prof: 'jeweler', level: 2, needs: { iron_ore: 1, copper_ore: 1 } },
     leather_boots: { skill: 'tailoring', prof: 'tailor', level: 1, needs: { leather_scrap: 3, torn_cloth: 1 } },
-    herb_amulet: { skill: 'tailoring', prof: 'tailor', level: 1, needs: { wild_herb: 3, flax: 1, copper_ore: 1 } },
+    herb_amulet: { skill: 'jewelcrafting', prof: 'jeweler', level: 1, needs: { wild_herb: 3, flax: 1, copper_ore: 1 } },
     hide_jerkin: { skill: 'tailoring', prof: 'tailor', level: 0, needs: { boar_hide: 3, flax: 1 }, known: true },
-    tusk_amulet: { skill: 'woodworking', prof: 'carpenter', level: 0, needs: { boar_tusk: 2, leather_scrap: 1 }, known: true },
+    tusk_amulet: { skill: 'jewelcrafting', prof: 'jeweler', level: 0, needs: { boar_tusk: 2, leather_scrap: 1 }, known: true },
     wolfskin_mantle: { skill: 'tailoring', prof: 'tailor', level: 1, needs: { wolf_pelt: 3, leather_scrap: 2 } },
-    fang_ring: { skill: 'smithing', prof: 'smith', level: 1, needs: { wolf_fang: 2, copper_ore: 1 } },
+    fang_ring: { skill: 'jewelcrafting', prof: 'jeweler', level: 1, needs: { wolf_fang: 2, copper_ore: 1 } },
     silk_gloves: { skill: 'tailoring', prof: 'tailor', level: 1, needs: { spider_silk: 4 } },
     shell_shield: { skill: 'woodworking', prof: 'carpenter', level: 1, needs: { crab_shell: 4, oak_log: 1 }, known: true },
-    coral_ring: { skill: 'smithing', prof: 'smith', level: 1, needs: { coral: 2, copper_ore: 1 }, known: true },
+    coral_ring: { skill: 'jewelcrafting', prof: 'jeweler', level: 1, needs: { coral: 2, copper_ore: 1 }, known: true },
     sea_boots: { skill: 'tailoring', prof: 'tailor', level: 1, needs: { leather_scrap: 3, siren_scale: 1 } },
-    siren_charm: { skill: 'tailoring', prof: 'tailor', level: 2, needs: { siren_scale: 3, pearl: 1 } },
+    siren_charm: { skill: 'jewelcrafting', prof: 'jeweler', level: 2, needs: { siren_scale: 3, pearl: 1 } },
     boarding_axe: { skill: 'smithing', prof: 'smith', level: 2, needs: { iron_ore: 5, oak_log: 2, sea_salt: 1 } }
   };
   /* THE CODEX (Entropia's, tbuuol 2026-10-27): every beast of a kind killed counts; at each rank the player may put a
@@ -177,7 +178,11 @@
     { key: 'taunt', name: 'Taunt', icon: '!', cd: 12, radius: 8, last: 6, shield: true, text: 'Every foe within 8 m comes for you for 6 s.' },
     { key: 'salve', name: 'Herbal Salve', icon: '✚', cd: 8, range: 7, cost: { wild_herb: 1 }, req: { herbalist: 0.5 }, text: 'Heals the player you look at, or yourself. Uses a Wild Herb.' }
   ];
-  const CRAFT_AT = { smithing: { str: 0.5, int: 0.3 }, woodworking: { dex: 0.3, str: 0.2 }, tailoring: { dex: 0.4, int: 0.2 } };
+  const CRAFT_AT = { smithing: { str: 0.5, int: 0.3 }, woodworking: { dex: 0.3, str: 0.2 }, tailoring: { dex: 0.4, int: 0.2 }, jewelcrafting: { dex: 0.4, int: 0.3 } };
+  /* WORKBENCHES (tbuuol 2026-11-10): each craft only at its own -- the forge, the carpenter's bench, the loom, the jeweler's bench */
+  const STATIONS = { forge: { skill: 'smithing', name: 'a forge' }, bench: { skill: 'woodworking', name: "a carpenter's bench" },
+                     loom: { skill: 'tailoring', name: 'a loom' }, jewel: { skill: 'jewelcrafting', name: "a jeweler's bench" } };
+  const stationOf = rc => Object.keys(STATIONS).find(k => STATIONS[k].skill === (rc && rc.skill)) || 'forge';
   const RECIPE_DROP = 0.04;   /* very low: that a blueprint drops at all, from a successful craft */
   /* WHICH BLUEPRINT (tbuuol 2026-11-10): not the crafter's level but what is being made decides it -- a pool round the
      recipe's own level, the higher above it the rarer, lower ones too (so a better one stays hard to get); 75 % from
@@ -586,6 +591,6 @@
 
   /* a bag entry's name as shown (a blueprint with its QR, a made thing with its quality) */
   const entryName = e => { const it = itemOf({ bag: [e] }, e[0]); return it ? it.name : String(e[1]); };
-  const rpg = { api: 1, entryName, masterOf, gradeOf, SLOTS, SKILLS, PROFS, ATTRS, RANKS, ITEMS, FISTS, LOOT, GATHER, RECIPES, SALVAGE, CODEX, ABILITIES, abilities, questState, questProgress, knows, fresh, stats, profs, rank, meets, itemOf, attr, book };
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('rpg', { api: 1, v: 13 }, () => rpg);
+  const rpg = { api: 1, entryName, masterOf, gradeOf, SLOTS, SKILLS, PROFS, ATTRS, RANKS, ITEMS, FISTS, LOOT, GATHER, RECIPES, SALVAGE, STATIONS, stationOf, CODEX, ABILITIES, abilities, questState, questProgress, knows, fresh, stats, profs, rank, meets, itemOf, attr, book };
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('rpg', { api: 1, v: 14 }, () => rpg);
 })(typeof globalThis !== 'undefined' ? globalThis : this);

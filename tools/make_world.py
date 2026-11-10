@@ -26,7 +26,7 @@ import subprocess
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 LEVELS = ROOT / "src" / "levels"
 OUT = LEVELS / "world.json"
-VERSION = 19
+VERSION = 20
 
 
 def probe(land: dict, points: list) -> list:
@@ -410,7 +410,7 @@ GREENWOOD_QUESTS = [
      "need": {"kill": {"wolf": 6}}, "reward": {"items": ["wolfskin_mantle"], "sk": {"anatomy": 15}}},
     {"id": "gw_fangs", "npc": "hunter_wynn", "giver": "Wynn the Hunter", "title": "A Ring of Fangs", "after": "gw_wolves",
      "offer": "Wolf fangs make a fine ring, if you know how. Bring me four, and I'll show you -- and give you the plans.",
-     "done": "Good fangs, sharp ones. The plans are yours; the forge will do the rest.",
+     "done": "Good fangs, sharp ones. The plans are yours -- a jeweler's work, at a jeweler's bench.",
      "need": {"bring": {"wolf_fang": 4}}, "reward": {"bp": ["fang_ring"], "sk": {"smithing": 10}}},
     {"id": "gw_oak", "npc": "foreman_tamsin", "giver": "Foreman Tamsin", "title": "Oak for Genesis",
      "offer": "Genesis needs beams, and my crew is short. Fell ten oaks round the camp and bring me the logs.",
