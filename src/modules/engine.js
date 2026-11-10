@@ -368,6 +368,8 @@
        tells everyone, and says no when a plot is taken, the buyer is a guest, or holds PLOT_LIMIT already. The deed is
        simulated for now (an id, later an inscription), and so is the price: in Litecoin, not charged in the beta. */
     const PLOT_LIMIT = 3, PLOT_PRICE = { house: '0.05', workshop: '0.12', shop: '0.08' };
+    /* a plot's own price (the second plan, 2026-11-10: it grows with the ground), else its kind's */
+    const priceOf = p => (p && p.price) || PLOT_PRICE[p && p.kind];
     let plotOwn = {}, plotsLoaded = false;
     const plotsDirty = new Set();
     /* PAID IN LITECOIN TESTNET (beta, 2026-11-07): with tools/ltc_pay.py behind it (housePay(true)) a Buy asks the keeper
@@ -402,14 +404,14 @@
       const hold = held[id];
       if (hold && hold.addr !== a && hold.until > Date.now()) { notice(from.id, 'Plot ' + id + ' is held for ' + (hold.tag || 'another buyer') + ' until their payment comes or their invoice runs out.'); return; }
       if (payOn) {
-        if (!plotAsks.some(q => q.plot === id)) plotAsks.push({ plot: id, addr: a, tag: tagOf(from), to: from.id, price: PLOT_PRICE[p.kind] });
+        if (!plotAsks.some(q => q.plot === id)) plotAsks.push({ plot: id, addr: a, tag: tagOf(from), to: from.id, price: priceOf(p) });
         notice(from.id, 'Registrar Aldous writes your invoice for plot ' + id + '…');
         return;
       }
       const at = Date.now(), deed = 'sim-' + (at.toString(36) + id).slice(-10);
       plotOwn = Object.assign({}, plotOwn, { [id]: [tagOf(from), a, at, deed] });
       plotsDirty.add(id); applyPlots(plotOwn); sendPlots();
-      notice(from.id, 'Plot ' + id + ' is yours. Your deed: ' + deed + ' (simulated; the price, ' + PLOT_PRICE[p.kind] + ' LTC, is not charged in the beta).');
+      notice(from.id, 'Plot ' + id + ' is yours. Your deed: ' + deed + ' (simulated; the price, ' + priceOf(p) + ' LTC, is not charged in the beta).');
     }
     function houseSell(from, a, d) {
       const id = String(d.p), o = plotOwn[id];
@@ -586,9 +588,9 @@
       const head = 'Blue: houses · red: workshops · gold-orange: shops · grey: owned · yellow: yours (' + mine.length + ' of ' + PLOT_LIMIT + ')';
       if (!p) { info.innerHTML = esc(head) + '<br>Click a plot.'; return; }
       const sz = Math.round(p.rect[2] - p.rect[0]) + ' × ' + Math.round(p.rect[3] - p.rect[1]) + ' m', own = plotOwnerText(p.id);
-      info.innerHTML = esc(head) + '<br><b>Plot ' + esc(p.id) + '</b> · ' + esc(PLOT_KIND[p.kind] || p.kind) + ' · ' + sz + ' · ' + esc(own) +
+      info.innerHTML = esc(head) + '<br><b>Plot ' + esc(p.id) + '</b> · ' + esc(PLOT_KIND[p.size] || PLOT_KIND[p.kind] || p.kind) + ' · ' + sz + ' · ' + esc(own) +
         (plotOwn[p.id] ? (plotOwn[p.id][1] === me2 ? (/^[0-9a-f]{64}$/.test(plotOwn[p.id][3] || '') ? ' · deed: inscription ' + esc(plotOwn[p.id][3].slice(0, 12)) + '… (in your wallet)' : ' · deed ' + esc(plotOwn[p.id][3] || '') + ' (the inscription is on its way)') : '')
-          : ' · price ' + PLOT_PRICE[p.kind] + ' tLTC (Litecoin testnet) ' + (me2 ? '<button data-buy style="background:#3f6a2a;color:#fff;border:1px solid #8fbf5a;border-radius:4px;padding:3px 12px;cursor:pointer">Buy</button>' : '· sign in to buy'));
+          : ' · price ' + priceOf(p) + ' tLTC (Litecoin testnet) ' + (me2 ? '<button data-buy style="background:#3f6a2a;color:#fff;border:1px solid #8fbf5a;border-radius:4px;padding:3px 12px;cursor:pointer">Buy</button>' : '· sign in to buy'));
       const iv = myInvoice && myInvoice.until > Date.now() ? myInvoice : null;
       if (iv) {
         const mins = Math.max(0, Math.round((iv.until - Date.now()) / 60000));
@@ -1240,10 +1242,10 @@
       return String.fromCharCode(65 + Math.max(0, Math.min(25, c))) + (r + 1);
     }
     /* on a plot of Genesis: its number and kind too, so it can be named ("W12") */
-    const PLOT_KIND = { house: 'house', workshop: 'workshop', shop: 'shop' };
+    const PLOT_KIND = { house: 'house', workshop: 'workshop', shop: 'shop', house_s: 'small house', house_m: 'house', house_l: 'large house', estate: 'estate' };
     function plotAt(x, z) { for (const p of plots) { const r = p.rect; if (x >= r[0] && x <= r[2] && z >= r[1] && z <= r[3]) return p; } return null; }
     const whereText = () => { const p = plotAt(me.x, me.z);
-      return square(me.x, me.z) + ' · ' + Math.round(me.x) + ' / ' + Math.round(me.z) + (p ? ' · plot ' + p.id + ' (' + (PLOT_KIND[p.kind] || p.kind) + ') · ' + plotOwnerText(p.id) : ''); };
+      return square(me.x, me.z) + ' · ' + Math.round(me.x) + ' / ' + Math.round(me.z) + (p ? ' · plot ' + p.id + ' (' + (PLOT_KIND[p.size] || PLOT_KIND[p.kind] || p.kind) + ') · ' + plotOwnerText(p.id) : ''); };
     let posKey = '';
     function posTick() {
       if (!TR) return;
@@ -2783,7 +2785,7 @@
           let tag = ''; for (const [, r] of remotes) if (r.from.address === holder) tag = tagOf(r.from);
           /* FROZEN (tbuuol 2026-11-08): a deed handed on outside the registry skipped the city's levy -- the new holder
              owns the plot, but builds and sells nothing on it until the levy (10 % of the registry's price) is paid */
-          const kind = (plots.find(q => q.id === id) || {}).kind, levy = String(+(+PLOT_PRICE[kind] * 0.1).toFixed(8));
+          const kind = (plots.find(q => q.id === id) || {}).kind, levy = String(+(+priceOf(plots.find(q => q.id === id) || { kind }) * 0.1).toFixed(8));
           plotOwn = Object.assign({}, plotOwn, { [id]: [tag, holder, Date.now(), o[3], levy] }); plotsDirty.add(id); n++;
           for (const [rid, r] of remotes) if (r.from.address === holder) notice(rid, 'The deed to plot ' + id + ' came to you outside the registry. The plot is yours, but frozen until the city\'s levy of ' + levy + ' tLTC is paid at the town hall.');
         }
@@ -2860,6 +2862,6 @@
     };
   }
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 50, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 51, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
     D => ({ start: (el, opts) => start(D, el, opts) }));
 })(typeof globalThis !== 'undefined' ? globalThis : this);

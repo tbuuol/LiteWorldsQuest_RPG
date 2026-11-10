@@ -26,7 +26,7 @@ import subprocess
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 LEVELS = ROOT / "src" / "levels"
 OUT = LEVELS / "world.json"
-VERSION = 15
+VERSION = 16
 
 
 def probe(land: dict, points: list) -> list:
@@ -104,7 +104,7 @@ class Place:
 #: the plots -- is design/genesis/plots.json (design/genesis/plan.py, the map tbuuol approved); here it becomes a place
 #: on its flat ground (a pad at GEN_Y), with the fountain, the town hall's registrar and the guild's master.
 GEN, GEN_Y = (790, -40), 7.0
-PLAN = ROOT / "design" / "genesis" / "plots.json"
+PLAN = ROOT / "design" / "genesis" / "plan2.json"   # the second plan (2026-11-10); plots.json was the first
 
 
 def make_genesis(ring: list) -> dict:
@@ -128,13 +128,28 @@ def make_genesis(ring: list) -> dict:
                   ["The Adventurers' Guild. Out there are boars, wolves, goblins and worse, and the city needs what they guard.",
                    "Soon this board will hold work for every day: hunts, deliveries, things to fetch. Come back, and come back again.",
                    "Until then: Blockshire's elder and the people of Saltwind have tasks for you."]),
+        "tavern": ("innkeeper", "Mabel the Innkeeper", "The Green Boar Inn", "#6a4a1a", {"person": "f", "skin": "#e8c09c", "shirt": "#8a5a2a", "pants": "#4a3a2a", "hair": "#9a5a2a"},
+                   ["Come in, come in! A warm fire and a cold ale, that is what the Green Boar is for.",
+                    "Everyone who comes through the west gate stops here first. You hear things, at an inn.",
+                    "They say raiders camp south of Blockshire, and spiders nest under Greenwood. Mind yourself."]),
+        "temple": ("priestess", "Sister Elowen", "Temple of the Light", "#d8cfa8", {"person": "c", "skin": "#e8c09c", "shirt": "#e9e2cf", "pants": "#c9bfa5", "hair": "#c9a04a", "hood": "#d8cfb6", "robe": "#e9e2cf"},
+                   ["Peace be with you. The temple's doors are open to all who come to Genesis.",
+                    "One day the light will bless those who ask. For now, rest a while; this is a quiet place."]),
+        "stables": ("stablemaster", "Hob the Stablemaster", "Stables", "#5a3a22", {"person": "m", "skin": "#c98b62", "shirt": "#5a4a2a", "pants": "#3a2a1a", "hair": "#3a2a1a", "beard": "#3a2a1a"},
+                    ["Stables, aye. No horses yet -- the roads east are not safe enough to bring them in.",
+                     "When there are mounts, you'll find them here, by the east gate."]),
     }
+    DOOR = {"townhall": 1, "guild": 1, "tavern": 1, "temple": -1, "stables": -1}   # +1: the door on the south side, -1: north
     for b in plan["buildings"]:
         x0, z0, x1, z1 = b["rect"]
-        hx, hz = (x0 + x1) / 2, z1 - 12   # 22 m deep, its door on the plaza side (south)
+        dz = DOOR[b["id"]]
+        dep = 22 if b["id"] in ("townhall", "guild") else round(z1 - z0 - 2, 1)
+        hx, hz = (x0 + x1) / 2, (z1 - 1 - dep / 2) if dz > 0 else (z0 + 1 + dep / 2)   # against the street its door is on
         nid, name, sign, banner, look, lines = KEEPER[b["id"]]
-        halls.append({"id": b["id"], "pos": [round(hx, 1), round(hz, 1)], "size": [round(x1 - x0 - 8, 1), 22], "rot": 180, "sign": sign, "banner": banner})
-        npc = {"id": nid, "name": name, "pos": [round(hx, 1), round(hz - 9, 1)], "lookAt": [round(hx, 1), round(hz + 11, 1)], "talkTurn": True, "look": look, "lines": lines}
+        halls.append({"id": b["id"], "pos": [round(hx, 1), round(hz, 1)], "size": [round(x1 - x0 - (8 if dep == 22 else 4), 1), dep],
+                      "rot": 180 if dz > 0 else 0, "sign": sign, "banner": banner})
+        npc = {"id": nid, "name": name, "pos": [round(hx, 1), round(hz - dz * (dep / 2 - 2), 1)], "lookAt": [round(hx, 1), round(hz + dz * dep / 2, 1)],
+               "talkTurn": True, "look": look, "lines": lines}
         if b["id"] == "townhall":   # the registry of plots (engine: E on him opens it)
             npc.update({"office": "plots", "greet": "Welcome to the registry of Genesis. Pick a plot on the plan, and it can be yours."})
         if b["id"] == "guild":   # the guild's board: three tasks a day (engine: E on him opens it)
@@ -155,9 +170,37 @@ def make_genesis(ring: list) -> dict:
                 continue
             nx, nz = -(z1 - z0) / L * (w / 2 + 0.4), (x1 - x0) / L * (w / 2 + 0.4)
             props.append({"kind": "lamppost", "pos": [round(px + nx * (1 if i % 2 else -1), 1), round(pz + nz * (1 if i % 2 else -1), 1)]})
-    plots = [{"id": p["id"], "kind": p["kind"], "rect": p["rect"]} for p in plan["plots"]]
+    # the plots: the game's three kinds (house, shop, workshop) and their size; the price grows with the ground
+    BASE = {"house": (0.05, 320), "shop": (0.08, 168), "workshop": (0.12, 572)}
+    plots = []
+    for p in plan["plots"]:
+        kind = p["kind"] if p["kind"] in ("shop", "workshop") else "house"
+        w, d = p["rect"][2] - p["rect"][0], p["rect"][3] - p["rect"][1]
+        price = max(0.02, round(BASE[kind][0] * w * d / BASE[kind][1], 3))
+        plots.append({"id": p["id"], "kind": kind, "size": p["kind"], "rect": p["rect"], "price": f"{price:g}"})
+    # the squares: a few trees, benches and a lantern round each (the ground there is left green)
+    trees = []
+    for _, (sx, sz), h in plan.get("squares", []):
+        for k, (ax, az) in enumerate(((-1, -1), (1, -1), (1, 1), (-1, 1))):
+            trees.append([round(sx + ax * (h - 3), 1), round(sz + az * (h - 3), 1), 1.0 + 0.1 * k, "oak"])
+        props += [{"kind": "bench", "pos": [sx, sz - 5], "rot": 0}, {"kind": "bench", "pos": [sx, sz + 5], "rot": 0},
+                  {"kind": "lamppost", "pos": [sx + 5, sz]}]
+    # GARDENS by the wall (tbuuol's plan, 2026-11-10): the strips no plot fits in get trees, every 7 m or so
+    taken = [q["rect"] for q in plots] + [b["rect"] for b in plan["buildings"]] + [[sx - h, sz - h, sx + h, sz + h] for _, (sx, sz), h in plan.get("squares", [])]
+    for sx_, a, b_, c, e, w in plan["streets"]:
+        taken.append([min(a, c) - (w / 2 if a == c else 0) - 2, min(b_, e) - (w / 2 if b_ == e else 0) - 2, max(a, c) + (w / 2 if a == c else 0) + 2, max(b_, e) + (w / 2 if b_ == e else 0) + 2])
+    rnd = random.Random(707)
+    for gz in range(-236, 136, 7):
+        for gx in range(562, 1060, 7):
+            x, z = gx + rnd.uniform(-2, 2), gz + rnd.uniform(-2, 2)
+            if not inside(ring, x, z) or min(math.hypot(x - r[0], z - r[1]) for r in ring) < 4 or math.hypot(x - cx, z - cz) < plan["plaza_r"] + 3:
+                continue
+            if any(r[0] - 3 < x < r[2] + 3 and r[1] - 3 < z < r[3] + 3 for r in taken):
+                continue
+            trees.append([round(x, 1), round(z, 1), round(0.9 + rnd.random() * 0.4, 2), "oak" if rnd.random() < 0.7 else "pine"])
     return {"id": "genesis", "lift": GEN_Y, "paths": {"paved": True, "circles": [[cx, cz, plan["plaza_r"]]], "strips": strips},
-            "fountain": {"pos": [cx, cz], "r": plan["fountain_r"]}, "halls": halls, "npcs": npcs, "props": props, "plots": plots}
+            "fountain": {"pos": [cx, cz], "r": plan["fountain_r"]}, "halls": halls, "npcs": npcs, "props": props, "plots": plots,
+            "forest_trees": trees}
 
 
 
@@ -533,7 +576,9 @@ def main() -> None:
         if not moved:
             break
     land["caves"] = [cave]
-    land["walls"] = [{"name": "Genesis", "pts": [[round(x, 1), round(z, 1)] for x, z in ring], "h": 7, "th": 2.4, "gate": 9}]
+    land["walls"] = [{"name": "Genesis", "pts": [[round(x, 1), round(z, 1)] for x, z in ring], "h": 7, "th": 2.4, "gate": 9,
+                      # gates where no road comes through (the plan's north and east gates, 2026-11-10); the west one is the road's
+                      "gates": [list(v) for k, v in json.loads(PLAN.read_text())["gates"].items() if k != "west"]}]
     genesis = make_genesis(land["walls"][0]["pts"])
 
     quests, seen = [], set()

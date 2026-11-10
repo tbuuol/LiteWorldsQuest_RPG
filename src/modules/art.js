@@ -1776,6 +1776,17 @@
       if (nr[0] * (gx - cx) + nr[1] * (gz - cz) < 0) nr = [-nr[0], -nr[1]];   /* outward */
       gates.push({ x: gx, z: gz, d, nr });
     }
+    /* gates where no road comes in (def.gates: [[x, z]], Genesis' north and east gates, 2026-11-10): on the side nearest */
+    for (const [px, pz] of def.gates || []) {
+      let best = null;
+      for (let j = 0; j < n; j++) {
+        const [qx, qz] = P[j], [wx, wz] = P[(j + 1) % n], L = Math.hypot(wx - qx, wz - qz);
+        const v = Math.max(0, Math.min(1, ((px - qx) * (wx - qx) + (pz - qz) * (wz - qz)) / (L * L))), gx = qx + (wx - qx) * v, gz = qz + (wz - qz) * v;
+        const dd = Math.hypot(px - gx, pz - gz);
+        if (!best || dd < best.dd) { const d = [(wx - qx) / L, (wz - qz) / L]; let nr = [d[1], -d[0]]; if (nr[0] * (gx - cx) + nr[1] * (gz - cz) < 0) nr = [-nr[0], -nr[1]]; best = { dd, x: gx, z: gz, d, nr }; }
+      }
+      if (best) gates.push({ x: best.x, z: best.z, d: best.d, nr: best.nr });
+    }
     /* a road through one of the ring's corners crosses both its sides there: one gate, not two (2026-11-07) */
     for (let i = gates.length - 1; i > 0; i--) if (gates.slice(0, i).some(g => Math.hypot(g.x - gates[i].x, g.z - gates[i].z) < 12)) gates.splice(i, 1);
     const nearGate = (x, z, m) => gates.some(g => Math.hypot(x - g.x, z - g.z) < m);
@@ -2774,5 +2785,5 @@
     return { groundAt, polys, segs, half, spawn, inside, stats: { buildings: buildings.length, trees: trees.length } };
   };
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('art', { api: 1, v: 31 }, () => art);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('art', { api: 1, v: 32 }, () => art);
 })(typeof globalThis !== 'undefined' ? globalThis : this);
