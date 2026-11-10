@@ -316,7 +316,7 @@ async def _session(p, level: str = "") -> None:
             n = await frame.evaluate("json => window.LWQGAME.houseLoad ? window.LWQGAME.houseLoad(json) : 0", PLAYERS.read_text())
             log("players' records loaded:", n)
         let_in_next(level)   # in its zone: the next house may come through the door
-        log("started:", await frame.evaluate("(() => { const s = window.LWQGAME.state; return {online: s.online, house: s.house, players: s.players, seq: s.world.seq, engine: (window.LWQ.get('$report').find(r => r[0] === 'engine') || [])[1]}; })()"))
+        log("started:", await frame.evaluate("(() => { const s = window.LWQGAME.state; return {online: s.online, house: s.house, players: s.players, seq: s.world.seq, gate: s.gate, log: window.LWQGAME.log().slice(-3), engine: (window.LWQ.get('$report').find(r => r[0] === 'engine') || [])[1]}; })()"))
         worker = node_pid()
         build = beta_build()
         while time.time() - started < FRESH_EVERY:
@@ -330,7 +330,7 @@ async def _session(p, level: str = "") -> None:
             if not frame:
                 log("the game frame is gone; starting again")
                 return
-            s = await frame.evaluate("(() => { const s = window.LWQGAME.state; return {online: s.online, house: s.house, players: s.players, seq: s.world.seq}; })()")
+            s = await frame.evaluate("(() => { const s = window.LWQGAME.state; return {online: s.online, house: s.house, players: s.players, seq: s.world.seq, gate: s.gate}; })()")
             s["zone"] = level or "main"
             if not s["online"] or s["house"] != "me":
                 log("not the house any more:", s, "; starting again")
