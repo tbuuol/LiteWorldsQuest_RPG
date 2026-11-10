@@ -2650,7 +2650,10 @@
     }
 
     /* --- the loop ------------------------------------------------------------------------------------ */
-    let stepAcc = 0, drawing = !keep.noDraw, mapT = 0;
+    /* THE HOUSE'S PAGE DRAWS NOTHING FROM THE START (2026-11-10): tools/house.py marks it (LWQ_HOUSE_PAGE) before it loads;
+       before, it drew the whole world in software until it had joined, and the reloads timed out */
+    let stepAcc = 0, drawing = !keep.noDraw && !(G.LWQ_HOUSE_PAGE || (G.parent && G.parent !== G && (() => { try { return G.parent.LWQ_HOUSE_PAGE; } catch (e) { return false; } })())), mapT = 0;
+    if (!drawing && G.LWQ_HOUSE_PAGE) renderer.setPixelRatio(0.25);
     /* RESOLUTION FOLLOWS THE FRAME RATE (tbuuol 2026-10-21: 22 fps): the picture is drawn at fewer pixels while the
        frames are slow, and at more again once they have been fast for a while; never above 1.5 per screen pixel */
     const maxPR = Math.min(1.5, G.devicePixelRatio || 1);
@@ -2954,6 +2957,6 @@
     };
   }
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 59, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 60, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
     D => ({ start: (el, opts) => start(D, el, opts) }));
 })(typeof globalThis !== 'undefined' ? globalThis : this);

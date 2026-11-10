@@ -219,7 +219,8 @@ async def _session(p, level: str = "") -> None:
     # choice for one's own machine -- and this browser is the house's alone, on this server.
     await ctx.add_init_script("""try { localStorage.setItem('arcade.deskview', 'web');
                                        localStorage.setItem('arcade.phoneview', 'web');
-                                       localStorage.setItem('arcade.idle-lock', 'off'); } catch (e) {}""")
+                                       localStorage.setItem('arcade.idle-lock', 'off'); } catch (e) {}
+                                 window.LWQ_HOUSE_PAGE = true;   /* the game draws nothing in this browser, from the first frame */""")
     try:
         pg = ctx.pages[0] if ctx.pages else await ctx.new_page()
         if not await wallet_access(pg, game, password):
