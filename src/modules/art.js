@@ -427,8 +427,19 @@
     const moonDir = sky.material.uniforms.moon.value;
     const smooth = (a, b, x) => { const k = Math.max(0, Math.min(1, (x - a) / (b - a))); return k * k * (3 - 2 * k); };
     const sunMax = env.sun || 2.2, hemiMax = env.hemi || 0.75;
-    let lightFrom = sunDir, lastSky = -1;
-    function daylight() {
+    let lightFrom = sunDir, lastSky = -1, wasUnder = false, fogKept = null;
+    /* UNDER GROUND (the Spider Cave): no sun, no sky; a dim warm light, a dark fog, and your lantern */
+    const lantern = new THREE.PointLight('#ffc88a', 0, 16, 1.4); lantern.userData.keep = true; scene.add(lantern);
+    function daylight(under) {
+      if (under !== wasUnder) { wasUnder = under; lastSky = -1;
+        if (under) fogKept = [scene.fog.near, scene.fog.far]; else if (fogKept) { scene.fog.near = fogKept[0]; scene.fog.far = fogKept[1]; } }
+      caveLamp.value = under ? 1 : 0; lantern.intensity = under ? 9 : 0;
+      if (under) {
+        if (lastSky === -2) return; lastSky = -2;
+        sunL.intensity = 0; hemi.intensity = 0.32; hemi.color.set('#8a7a68'); hemi.groundColor.set('#1e1812');
+        scene.fog.color.set('#0a0806'); scene.fog.near = 6; scene.fog.far = 60;
+        return;
+      }
       const d = art.dayTime();
       if (Math.abs(d.p - lastSky) < 1 / 20000) return; lastSky = d.p;   /* changes slowly: not every frame */
       const N = 1 - smooth(-0.14, 0.1, d.sun), W = (1 - N) * (1 - smooth(0.03, 0.42, d.sun)) + N * (1 - smooth(-0.3, -0.06, d.sun)) * 0.6;
@@ -448,13 +459,146 @@
     }
     return {
       sun: sunL,
-      update(dt, t, eye) {
-        daylight();
+      update(dt, t, eye, under) {
+        daylight(!!under);
+        if (eye) { lantern.position.copy(eye); caveEye.value = eye; }
         for (const s of clouds) { s.position.x += dt * 0.8; if (s.position.x > 240) s.position.x = -240; }
         if (eye) for (const f of followers) { f.position.x = eye.x; f.position.z = eye.z; }
         if (eye) { sky.position.copy(eye); sunL.target.position.set(eye.x, 0, eye.z); sunL.position.copy(lightFrom).multiplyScalar(60).add(sunL.target.position); }
       }
     };
+  };
+
+  /* --- a cave (tbuuol 2026-11-10: the Spider Cave) ------------------------------------------------------- */
+  /* The hollow the terrain module describes (TR.caveAt), made into rock: a floor, a roof and walls on a 1 m grid, every
+     corner nudged by one seeded wobble so the walls are rock and not steps. No light reaches it: the light of its torches
+     and glowing mushrooms is baked into the rock's colours, and your own lantern (caveLamp, lit by setup's update while
+     you are under ground) adds to whatever is near you. Returns {torches, rect}. */
+  const caveLamp = { value: 0 }, caveEye = { value: { x: 0, y: -1e4, z: 0 } };
+  art.cave = function (ctx, TR, def) {
+    const [x0, z0, x1, z1] = def.rect, nx = Math.round(x1 - x0), nz = Math.round(z1 - z0), at = def.at;
+    const wob = (x, z) => [0.42 * Math.sin(x * 1.37 + z * 0.61) * Math.cos(z * 1.11 - x * 0.27), 0.42 * Math.cos(x * 0.93 - z * 1.29) * Math.sin(z * 0.77 + x * 0.41)];
+    /* the grid: corners (nx+1 by nz+1) and cells (nx by nz), each what the terrain says is there */
+    const V = (i, j) => TR.caveAt(x0 + i, z0 + j), C = [];
+    const corner = [];
+    for (let j = 0; j <= nz; j++) for (let i = 0; i <= nx; i++) corner.push(V(i, j));
+    for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) C.push(TR.caveAt(x0 + i + 0.5, z0 + j + 0.5));
+    const cell = (i, j) => i < 0 || j < 0 || i >= nx || j >= nz ? null : C[j * nx + i];
+    const open = k => k && k.kind !== 'rock';
+    const low = k => k.kind === 'bridge' ? k.pit : k.y;   /* the rock under a bridge is the chasm's bottom */
+    /* the light: torches along the tunnels and in the chambers, the mushrooms' cold glow (def.lights, the cave's metres) */
+    const lights = (def.lights || []).map(L => { const k = TR.caveAt(at[0] + L.p[0], at[1] + L.p[1]); return { x: at[0] + L.p[0], z: at[1] + L.p[1], h: L.h || 2.2, y: (k && k.kind !== 'rock' ? k.y : def.y) + (L.h || 2.2), c: new T.Color(L.col || '#ff9a4a'), i: L.i || 1, r: L.r || 7, kind: L.kind }; });
+    const AMB = new T.Color(def.ambient || '#120e0c'), tmp = new T.Color();
+    function lit(x, y, z, albedo, out) {
+      out.copy(AMB);
+      for (const L of lights) {
+        const dx = x - L.x, dy = y - L.y, dz = z - L.z, d2 = dx * dx + dy * dy + dz * dz;
+        if (d2 > L.r * L.r * 9) continue;
+        const k = L.i / (1 + d2 / (L.r * L.r)) * (1 - Math.sqrt(d2) / (L.r * 3)); out.r += L.c.r * k; out.g += L.c.g * k; out.b += L.c.b * k;
+      }
+      return out.multiply(albedo);
+    }
+    const P = [], COL = [], ALB = [];
+    const ROCK = new T.Color(def.rock || '#6a5c50'), FLOOR = new T.Color(def.floor || '#5e5145'), ROOF = new T.Color(def.roof || '#43392f');
+    const al = new T.Color();
+    function vert(x, y, z, base, shade) {
+      const [wx, wz] = wob(x, z), n = 0.85 + 0.3 * (0.5 + 0.5 * Math.sin(x * 2.3 + y * 1.7) * Math.cos(z * 1.9 - y));
+      al.copy(base).multiplyScalar(n * (shade || 1));
+      P.push(x + wx, y, z + wz); ALB.push(al.r, al.g, al.b); lit(x, y, z, al, tmp); COL.push(tmp.r, tmp.g, tmp.b);
+    }
+    const quad = (a, b, c, d, base, sh) => { for (const v of [a, b, c, a, c, d]) vert(v[0], v[1], v[2], base, sh); };
+    for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) {
+      const k = cell(i, j); if (!open(k)) continue;
+      const X = x0 + i, Z = z0 + j;
+      /* each corner: its own floor and roof where it is open, else this cell's */
+      const cs = [[0, 0], [1, 0], [1, 1], [0, 1]].map(([a, b]) => { const v = corner[(j + b) * (nx + 1) + i + a]; return open(v) && Math.abs(low(v) - low(k)) < 2 ? v : k; });
+      const f = cs.map((v, n) => [X + [0, 1, 1, 0][n], low(v), Z + [0, 0, 1, 1][n]]);
+      const r = cs.map((v, n) => { const cx = X + [0, 1, 1, 0][n], cz = Z + [0, 0, 1, 1][n]; return [cx, v.top + 0.3 * Math.sin(cx * 0.7) * Math.cos(cz * 0.5), cz]; });
+      quad(f[0], f[1], f[2], f[3], FLOOR, k.kind === 'floor' ? 1 : 0.6);
+      quad(r[0], r[3], r[2], r[1], ROOF);
+      /* walls where the rock begins, and a step where the floor drops (the chasm's edge) */
+      const side = [[0, -1, 0, 1], [1, 0, 1, 2], [0, 1, 2, 3], [-1, 0, 3, 0]];
+      for (const [di, dj, a, b] of side) {
+        const n = cell(i + di, j + dj);
+        if (!open(n)) {
+          /* the middle of the wall bulges by a wobble of its own place, so two walls that share a corner share it */
+          const mid = (x, z) => [x + 0.45 * Math.sin(x * 0.83 + z * 1.31), z + 0.45 * Math.cos(z * 0.77 - x * 1.13)];
+          const A = [f[a][0], f[a][2]], B = [f[b][0], f[b][2]], Am = mid(A[0], A[1]), Bm = mid(B[0], B[1]);
+          const a0 = f[a][1] - 0.6, b0 = f[b][1] - 0.6, a1 = r[a][1] + 0.6, b1 = r[b][1] + 0.6;   /* each corner its own heights */
+          quad([A[0], a0, A[1]], [B[0], b0, B[1]], [Bm[0], (b0 + b1) / 2, Bm[1]], [Am[0], (a0 + a1) / 2, Am[1]], ROCK);
+          quad([Am[0], (a0 + a1) / 2, Am[1]], [Bm[0], (b0 + b1) / 2, Bm[1]], [B[0], b1, B[1]], [A[0], a1, A[1]], ROCK, 0.9);
+        } else {
+          if (low(n) < low(k) - 1.2) quad([f[a][0], low(n) - 0.3, f[a][2]], [f[b][0], low(n) - 0.3, f[b][2]], f[b], f[a], ROCK, 0.8);
+          /* the roof steps up next door (a chasm's high roof over a tunnel's low one): rock down to ours */
+          if (n.top > k.top + 0.6) quad(r[a], r[b], [r[b][0], n.top + 0.5, r[b][2]], [r[a][0], n.top + 0.5, r[a][2]], ROOF, 0.9);
+        }
+      }
+    }
+    const g = new T.BufferGeometry();
+    g.setAttribute('position', new T.Float32BufferAttribute(P, 3)); g.setAttribute('color', new T.Float32BufferAttribute(COL, 3));
+    g.setAttribute('alb', new T.Float32BufferAttribute(ALB, 3)); g.computeVertexNormals();
+    const m = new T.MeshBasicMaterial({ vertexColors: true, side: T.DoubleSide });
+    m.onBeforeCompile = sh => {
+      sh.uniforms.uLamp = caveLamp; sh.uniforms.uEye = caveEye;
+      sh.vertexShader = 'attribute vec3 alb; varying vec3 vAlb; varying vec3 vWp;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n vAlb = alb; vWp = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+      sh.fragmentShader = 'uniform float uLamp; uniform vec3 uEye; varying vec3 vAlb; varying vec3 vWp;\n' + sh.fragmentShader
+        .replace('#include <opaque_fragment>', 'float dL = distance(vWp, uEye); outgoingLight += vAlb * uLamp * 1.5 / (1.0 + dL * dL * 0.05);\n#include <opaque_fragment>');
+    };
+    const rock = new T.Mesh(g, m); rock.userData.keep = true; ctx.scene.add(rock);
+    /* the torches themselves (the light they give is in the rock): a stick, and a flame bright enough to bloom */
+    const stick = plain('#3a2616'), flame = new T.MeshBasicMaterial({ color: new T.Color(3.2, 1.6, 0.5) }), shroom = new T.MeshBasicMaterial({ color: new T.Color(0.4, 1.8, 1.7) });
+    const torches = [];
+    for (const L of lights) {
+      if (L.kind === 'mushroom') {
+        for (let n = 0; n < 5; n++) {
+          const a = n * 2.4, d = 0.4 + n * 0.25, s = 0.7 + (n % 3) * 0.35, x = L.x + Math.cos(a) * d, z = L.z + Math.sin(a) * d, y = TR.walk(x, z);
+          const st = mesh(new T.CylinderGeometry(0.05 * s, 0.07 * s, 0.5 * s, 6), plain('#cfe8e0'), false); st.position.set(x, y + 0.25 * s, z); ctx.scene.add(st);
+          const cap = mesh(new T.SphereGeometry(0.22 * s, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), shroom, false); cap.position.set(x, y + 0.5 * s, z); ctx.scene.add(cap);
+        }
+        continue;
+      }
+      if (L.kind === 'glow') continue;   /* light without a torch: a chamber's dim fill */
+      const base = L.y - L.h;
+      const s = mesh(new T.CylinderGeometry(0.05, 0.06, 1.4, 6), stick, false); s.position.set(L.x, base + 0.7, L.z); ctx.scene.add(s);
+      const fl = new T.Mesh(new T.ConeGeometry(0.13, 0.36, 7), flame); fl.position.set(L.x, base + 1.55, L.z); ctx.scene.add(fl);
+      torches.push(fl);
+    }
+    /* the web bridge over the chasm: a pale band of silk, sagging between its ends, with a strand on each side */
+    if (def.bridge) {
+      const B = [], pts = def.bridge.pts, hw = def.bridge.w / 2, silk = new T.MeshBasicMaterial({ color: '#6e675e', side: T.DoubleSide, transparent: true, opacity: 0.85 });
+      for (let n = 0; n < pts.length - 1; n++) {
+        const [ax, az, ay] = pts[n], [bx, bz, by] = pts[n + 1], L = Math.hypot(bx - ax, bz - az), ux = -(bz - az) / L, uz = (bx - ax) / L, steps = Math.ceil(L);
+        for (let k = 0; k < steps; k++) {
+          const P0 = [ax + (bx - ax) * k / steps, ay + (by - ay) * k / steps - 0.02, az + (bz - az) * k / steps], P1 = [ax + (bx - ax) * (k + 1) / steps, ay + (by - ay) * (k + 1) / steps - 0.02, az + (bz - az) * (k + 1) / steps];
+          for (const side of [-1, 1]) {   /* two halves, a thread of light between: woven, not boarded */
+            const o0 = side * 0.08, o1 = side * hw;
+            B.push(P0[0] + ux * o0, P0[1], P0[2] + uz * o0, P1[0] + ux * o0, P1[1], P1[2] + uz * o0, P1[0] + ux * o1, P1[1], P1[2] + uz * o1,
+                   P0[0] + ux * o0, P0[1], P0[2] + uz * o0, P1[0] + ux * o1, P1[1], P1[2] + uz * o1, P0[0] + ux * o1, P0[1], P0[2] + uz * o1);
+            /* the side strand, knee high */
+            B.push(P0[0] + ux * o1, P0[1], P0[2] + uz * o1, P1[0] + ux * o1, P1[1], P1[2] + uz * o1, P1[0] + ux * o1, P1[1] + 0.7, P1[2] + uz * o1,
+                   P0[0] + ux * o1, P0[1], P0[2] + uz * o1, P1[0] + ux * o1, P1[1] + 0.7, P1[2] + uz * o1, P0[0] + ux * o1, P0[1] + 0.7, P0[2] + uz * o1);
+          }
+        }
+      }
+      const bg = new T.BufferGeometry(); bg.setAttribute('position', new T.Float32BufferAttribute(B.map((v, i) => i % 3 === 0 ? v + at[0] : i % 3 === 2 ? v + at[1] : v + def.y), 3));
+      const br = new T.Mesh(bg, silk); br.userData.keep = true; ctx.scene.add(br);
+    }
+    return { rock, torches, rect: def.rect };
+  };
+  /* THE WAY DOWN: a mound of boulders round a black mouth in the ground, facing def.face ([x, z]) */
+  art.caveMouth = function (ctx, TR, def) {
+    const [x, z] = def.pos, y = TR.walk(x, z), rnd = art.rng(77), stone = mat('stone');
+    const yaw = Math.atan2(def.face[0] - x, def.face[1] - z), g = new T.Group();
+    for (let n = 0; n < 11; n++) {
+      const a = -1.25 + n * 0.25, r = 2.6 + rnd() * 0.6, s = rnd.range(1.1, 1.9);
+      const b = mesh(new T.DodecahedronGeometry(s, 1), stone); b.position.set(Math.sin(a) * r, s * 0.5 + (Math.abs(a) < 0.6 ? 1.6 : 0.2), -Math.cos(a) * r * 0.6 - 0.8);
+      b.rotation.set(rnd() * 3, rnd() * 3, rnd() * 3); b.scale.y = 0.8; g.add(b);
+    }
+    const hole = new T.Mesh(new T.CircleGeometry(1.5, 20, 0, Math.PI), new T.MeshBasicMaterial({ color: '#030202' }));
+    hole.position.set(0, 0.05, -0.9); hole.scale.y = 1.4; g.add(hole);
+    const pit = new T.Mesh(new T.CircleGeometry(1.4, 20), new T.MeshBasicMaterial({ color: '#060404' })); pit.rotation.x = -Math.PI / 2; pit.position.set(0, 0.06, -0.5); pit.scale.y = 0.7; g.add(pit);
+    g.position.set(x, y, z); g.rotation.y = yaw; ctx.scene.add(g);
+    return g;
   };
 
   /* --- a hut ------------------------------------------------------------------------------------------- */
@@ -2510,5 +2654,5 @@
     return { groundAt, polys, segs, half, spawn, inside, stats: { buildings: buildings.length, trees: trees.length } };
   };
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('art', { api: 1, v: 27 }, () => art);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('art', { api: 1, v: 28 }, () => art);
 })(typeof globalThis !== 'undefined' ? globalThis : this);

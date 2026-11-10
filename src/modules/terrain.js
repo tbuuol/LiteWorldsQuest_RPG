@@ -11,7 +11,8 @@
      T.EXT             [x0, z0, x1, z1], the world's rectangle;  T.SEA the sea's level;  T.I(ix, iy) the draft's pixel -> metres
    Metres, x east, z south (north is -z), Blockshire's middle at (0, 0). The draft's pixels are 2 m each.
    pads: [{at: [x, z], r, y}] flat ground for a settlement (its things stand on y);  decks: [{rect, y, aft, quarter}];
-   walls: [{pts}] a city wall's ring (no trees on its line). */
+   walls: [{pts}] a city wall's ring (no trees on its line);  caves: see caveAt below.
+     T.caveAt(x, z)    the cave here ({cave, kind, y, top}), undefined outside every cave */
 (function (G) {
   'use strict';
   const K = 2, I = (ix, iy) => [(ix - 300) * K, (iy - 790) * K];
@@ -57,6 +58,47 @@
   function create(opts) {
     opts = opts || {};
     const pads = opts.pads || [], decks = opts.decks || [], walls = (opts.walls || []).map(w => w.pts.concat([w.pts[0]]));
+    /* CAVES (tbuuol 2026-11-10, the Spider Cave): a hollow deep in the mountains' rock, reached through a mouth
+       elsewhere. Inside its rect the ground is the cave's floor where the cave is open, and the rock high above where it
+       is not, so its walls stop you like any cliff. {at: [x, z] the origin, y: the floor's level there, rect: [x0, z0,
+       x1, z1] (world), chambers: [{c: [x, z], r: [rx, rz], y, dome}], tunnels: [{pts: [[x, z, y]], w}],
+       chasm: {rect: [x0, z0, x1, z1], y}, bridge: {pts: [[x, z, y]], w}} -- all but rect in the cave's own metres */
+    const caves = opts.caves || [];
+    function along(x, z, pts) {   /* metres to a path of [x, z, y] points, and its y there */
+      let best = 1e9, y = 0;
+      for (let i = 0; i < pts.length - 1; i++) {
+        const [ax, az, ay] = pts[i], [bx, bz, by] = pts[i + 1], vx = bx - ax, vz = bz - az, L = vx * vx + vz * vz;
+        const t = Math.max(0, Math.min(1, ((x - ax) * vx + (z - az) * vz) / L)), d = Math.hypot(x - ax - vx * t, z - az - vz * t);
+        if (d < best) { best = d; y = ay + (by - ay) * t; }
+      }
+      return [best, y];
+    }
+    /* the cave here: {cave, kind: 'floor'|'pit'|'bridge'|'rock', y: what is stood on, top: its roof, pit: a chasm's
+       bottom under a bridge}; undefined outside every cave */
+    function caveAt(x, z) {
+      for (const c of caves) {
+        const r = c.rect; if (x < r[0] || x > r[2] || z < r[1] || z > r[3]) continue;
+        const lx = x - c.at[0], lz = z - c.at[1], bump = 0.18 * Math.sin(lx * 0.9 + lz * 0.3) * Math.cos(lz * 0.7);
+        const ch = c.chasm;
+        if (ch && lx >= ch.rect[0] && lx <= ch.rect[2] && lz >= ch.rect[1] && lz <= ch.rect[3]) {
+          const [d, by] = along(lx, lz, c.bridge.pts), pit = c.y + ch.y + bump * 3;
+          return d <= c.bridge.w / 2 ? { cave: c, kind: 'bridge', y: c.y + by, top: c.y + by + 8, pit }
+                                     : { cave: c, kind: 'pit', y: pit, top: c.y + by + 8 };
+        }
+        let y = -1e9, top = 0;
+        for (const h of c.chambers) {
+          const e = ((lx - h.c[0]) / h.r[0]) ** 2 + ((lz - h.c[1]) / h.r[1]) ** 2;
+          if (e <= 1) { y = Math.max(y, h.y + 0.9 * e * e); top = Math.max(top, 5.5 + (h.dome || 4) * (1 - e)); }
+        }
+        for (const t of c.tunnels) {
+          const [d, ty] = along(lx, lz, t.pts), k = d / (t.w / 2);
+          if (k <= 1) { y = Math.max(y, ty + 0.5 * k * k); top = Math.max(top, 5 - 1.5 * k * k); }
+        }
+        if (y < -1e8) return { cave: c, kind: 'rock', y: c.y + 40, top: c.y + 40 };
+        return { cave: c, kind: 'floor', y: c.y + y + bump, top: c.y + y + top };
+      }
+      return undefined;
+    }
     /* metres outside a pad's flat ground (- inside): a circle (r), or an ellipse (rx, rz: Genesis inside its wall) */
     const padOut = (p, x, z) => p.rx ? (Math.hypot((x - p.at[0]) / p.rx, (z - p.at[1]) / p.rz) - 1) * Math.min(p.rx, p.rz)
                                      : Math.hypot(x - p.at[0], z - p.at[1]) - p.r;
@@ -172,6 +214,7 @@
     }
     /* what is walked on: the ground, and the bridges over it */
     function walk(x, z) {
+      if (caves.length) { const k = caveAt(x, z); if (k) return k.y; }
       const f = ground(x, z);
       for (const br of bridges) { const y = deckAt(br, x, z); if (y != null && y > f) return y; }
       return f;
@@ -222,10 +265,10 @@
       }
       return out;
     }
-    return { height, floor, ground, river, walk, SHOAL, deckAt, bridges, weights, road, nearRoad, trees, coast, EXT, SEA, I, ROADS, RIVER, ARM };
+    return { height, floor, ground, river, walk, caveAt, caves, SHOAL, deckAt, bridges, weights, road, nearRoad, trees, coast, EXT, SEA, I, ROADS, RIVER, ARM };
   }
 
   const terrain = { api: 1, create, I, EXT, SEA };
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('terrain', { api: 1, v: 6 }, () => terrain);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('terrain', { api: 1, v: 7 }, () => terrain);
   if (typeof module !== 'undefined') module.exports = terrain;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

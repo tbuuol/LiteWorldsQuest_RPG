@@ -26,7 +26,7 @@ import subprocess
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 LEVELS = ROOT / "src" / "levels"
 OUT = LEVELS / "world.json"
-VERSION = 10
+VERSION = 11
 
 
 def probe(land: dict, points: list) -> list:
@@ -158,6 +158,77 @@ def make_genesis(ring: list) -> dict:
     plots = [{"id": p["id"], "kind": p["kind"], "rect": p["rect"]} for p in plan["plots"]]
     return {"id": "genesis", "lift": GEN_Y, "paths": {"paved": True, "circles": [[cx, cz, plan["plaza_r"]]], "strips": strips},
             "fountain": {"pos": [cx, cz], "r": plan["fountain_r"]}, "halls": halls, "npcs": npcs, "props": props, "plots": plots}
+
+
+
+#: THE SPIDER CAVE (tbuuol 2026-11-10: "richtig schön groß", a Broodmother at the end): laid out in
+#: design/spidercave/layout.py, hollowed out of the northern mountains' rock (the mountain is 98 m and more over all of
+#: it; nobody walks up there), its mouth in Greenwood Deep. The cave's own metres: the entrance grotto at 0, 0.
+CAVE_AT, CAVE_Y = (2000, -1480), 40.0
+CAVE_MOUTH, CAVE_FACE = (-290.0, -20.0), (-270.0, -20.0)
+
+
+def make_cave():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("cavelayout", ROOT / "design" / "spidercave" / "layout.py")
+    L = importlib.util.module_from_spec(spec); spec.loader.exec_module(L)
+    chambers = [{"id": cid, "name": name, "c": list(c), "r": list(r), "y": y, "dome": dome} for cid, name, c, r, y, _, dome in L.CHAMBERS]
+    tunnels = [{"pts": [list(p) for p in pts], "w": w} for pts, w in L.TUNNELS]
+    (cx0, cz0), (cx1, cz1), cy = L.CHASM
+    lights = []
+    # torches along every tunnel, every 14 m, against one wall and then the other
+    for t in tunnels:
+        pts, side = t["pts"], 1
+        for a, b in zip(pts, pts[1:]):
+            n = max(1, int(math.dist(a[:2], b[:2]) // 14))
+            for k in range(n):
+                f = (k + 0.5) / n
+                x, z = a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f
+                L_ = math.dist(a[:2], b[:2]) or 1
+                nx, nz = -(b[1] - a[1]) / L_, (b[0] - a[0]) / L_
+                off = t["w"] / 2 - 0.9
+                lights.append({"p": [round(x + nx * off * side, 1), round(z + nz * off * side, 1)], "col": "#ff9a4a", "i": 1.1, "r": 6})
+                side = -side
+    for h in chambers:
+        rx, rz = h["r"]
+        if h["id"] == "C":   # the mushroom cavern: their cold glow, no torches
+            for k in range(9):
+                a = k * 0.7 + 0.3
+                lights.append({"p": [round(h["c"][0] + math.cos(a) * rx * 0.72, 1), round(h["c"][1] + math.sin(a) * rz * 0.72, 1)],
+                               "col": "#4fe0d0", "i": 0.9, "r": 7, "h": 0.6, "kind": "mushroom"})
+            lights.append({"p": h["c"], "col": "#2a7a8a", "i": 0.5, "r": 22, "h": 6, "kind": "glow"})
+            continue
+        n = 4 if rx > 20 else 2
+        for k in range(n):
+            a = k * 2 * math.pi / n + 0.5
+            lights.append({"p": [round(h["c"][0] + math.cos(a) * (rx - 1.5), 1), round(h["c"][1] + math.sin(a) * (rz - 1.5), 1)], "col": "#ff9a4a", "i": 1.2, "r": 7})
+        if h["id"] == "F":   # the Broodmother's hall: a sickly violet over it all
+            lights.append({"p": h["c"], "col": "#8a4ab0", "i": 0.7, "r": 18, "h": 8, "kind": "glow"})
+    lights.append({"p": [(cx0 + cx1) / 2, (cz0 + cz1) / 2], "col": "#2a3a6a", "i": 0.6, "r": 14, "h": -20, "kind": "glow"})
+    lights.append({"p": list(L.BACK), "col": "#cfe0ff", "i": 0.8, "r": 6, "h": 4, "kind": "glow"})   # the light from above
+    ax, az = CAVE_AT
+    xs = [h["c"][0] - h["r"][0] for h in chambers] + [p[0] - 4 for t in tunnels for p in t["pts"]]
+    xe = [h["c"][0] + h["r"][0] for h in chambers] + [p[0] + 4 for t in tunnels for p in t["pts"]]
+    zs = [h["c"][1] - h["r"][1] for h in chambers] + [p[1] - 4 for t in tunnels for p in t["pts"]] + [L.BACK[1] - 3]
+    ze = [h["c"][1] + h["r"][1] for h in chambers] + [p[1] + 4 for t in tunnels for p in t["pts"]]
+    rect = [math.floor(ax + min(xs)) - 3, math.floor(az + min(zs)) - 3, math.ceil(ax + max(xe)) + 3, math.ceil(az + max(ze)) + 3]
+    cave = {"name": "Spider Cave", "at": [ax, az], "y": CAVE_Y, "rect": rect, "chambers": chambers, "tunnels": tunnels,
+            "chasm": {"rect": [cx0, cz0, cx1, cz1], "y": cy, "out": [122, 140]},
+            "bridge": {"pts": [list(p) for p in L.BRIDGE[0]], "w": L.BRIDGE[1]}, "lights": lights}
+    mx, mz = CAVE_MOUTH
+    fx, fz = CAVE_FACE
+    d = math.dist(CAVE_MOUTH, CAVE_FACE)
+    out = [round(mx + (fx - mx) / d * 5, 1), round(mz + (fz - mz) / d * 5, 1)]
+    yaw_out = math.atan2(-(fx - mx), -(fz - mz))
+    links = [
+        {"at": [mx, mz], "r": 1.3, "to": [ax + L.ARRIVE[0], az + L.ARRIVE[1]], "yaw": math.pi,
+         "text": "You climb down into the dark. Webs brush your face.", "mouth": {"pos": [mx, mz], "face": [fx, fz]}},
+        {"at": [ax + L.BACK[0], az + L.BACK[1]], "r": 1.6, "to": out, "yaw": yaw_out, "text": "You climb back up into the daylight of Greenwood."},
+        {"at": [ax + L.EXIT[0], az + L.EXIT[1]], "r": 2.0, "to": out, "yaw": yaw_out, "text": "A long climb, and you are out in Greenwood again."},
+    ]
+    revive = {"at": [ax + 120, az + 90], "spawn": [ax + L.ARRIVE[0], CAVE_Y + 0.1, az + L.ARRIVE[1]], "yaw": math.pi,
+              "text": "You wake in the cave's first grotto. Something skitters away in the dark."}
+    return cave, links, revive
 
 
 def main() -> None:
@@ -329,6 +400,8 @@ def main() -> None:
                 moved = True
         if not moved:
             break
+    cave, cave_links, cave_revive = make_cave()
+    land["caves"] = [cave]
     land["walls"] = [{"name": "Genesis", "pts": [[round(x, 1), round(z, 1)] for x, z in ring], "h": 7, "th": 2.4, "gate": 9}]
     genesis = make_genesis(land["walls"][0]["pts"])
 
@@ -383,6 +456,7 @@ def main() -> None:
         (x0, z0), (x1, z1) = I(*a), I(*b)
         return {"name": name, "rect": [min(x0, x1), min(z0, z1), max(x0, x1), max(z0, z1)]}
     zones = [
+        {"name": "Spider Cave", "rect": cave["rect"]},
         {"name": "The Pirate Ship", "rect": deck["rect"]},
         {"name": "Blockshire", "rect": [-30, -30, 30, 40]},
         zone("Saltwind", (385, 530), (440, 590)),
@@ -414,7 +488,9 @@ def main() -> None:
         # the guards and the priest; the raiders come by night only (tbuuol 2026-11-10)
         "defense": dict(blk.get("defense") or {}, spawns=dict((blk.get("defense") or {}).get("spawns") or {}, night=True)),
         "wild": wild, "quests": quests, "zones": zones,
+        "links": cave_links,
         "revives": [
+            cave_revive,
             {"at": [0, 0], "spawn": spawn, "yaw": blk.get("spawnYaw", 0)},
             {"at": SW.at, "spawn": SW.p3(bch["spawn"]), "yaw": 0, "text": bch.get("revive")},
             {"at": [sx, sz], "spawn": BERTH.p3([16, 0.6, 0]), "yaw": math.pi, "text": "You wake on the pirates' dock, soaked. The sea spat you back."},

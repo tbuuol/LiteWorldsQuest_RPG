@@ -295,6 +295,32 @@
         if (!travelling && armed.has(i) && d < 0.9 && Math.abs(me.y - P.y) < 2) travel(P);
       }
     }
+    /* LINKS (the cave's way down and up): step on one and you are at its other end, in this same world and room.
+       {at: [x, z], r, to: [x, z], yaw, text}; like a portal it waits until you have stepped off where you arrived */
+    const linkArmed = new Set();
+    let underNow = false;
+    function linkTick() {
+      underNow = caves.some(c => me.x >= c.rect[0] && me.x <= c.rect[2] && me.z >= c.rect[1] && me.z <= c.rect[3]);
+      (LV.links || []).forEach((L, i) => {
+        const d = Math.hypot(me.x - L.at[0], me.z - L.at[1]);
+        if (d > L.r + 2) linkArmed.add(i);
+        if (!linkArmed.has(i) || d > L.r || Math.abs(me.y - groundAt(L.at[0], L.at[1])) > 2.5) return;
+        linkArmed.clear();
+        me.x = prev.x = L.to[0]; me.z = prev.z = L.to[1]; me.y = prev.y = groundAt(L.to[0], L.to[1]) + 0.05; me.vy = 0;
+        if (L.yaw != null) me.yaw = L.yaw;
+        if (L.text) log(L.text);
+        if (sound) sound.blip('pickup');
+      });
+      /* down in a chasm: you climb back out where it began */
+      for (const c of caves) {
+        const k = TR.caveAt(me.x, me.z);
+        if (k && k.kind === 'pit' && me.ground && k.cave.chasm && k.cave.chasm.out) {
+          const o = k.cave.chasm.out; me.x = prev.x = k.cave.at[0] + o[0]; me.z = prev.z = k.cave.at[1] + o[1];
+          me.y = prev.y = groundAt(me.x, me.z) + 0.05; me.vy = 0; log('You fall into the dark, and climb out again, bruised.');
+        }
+        break;
+      }
+    }
     function travel(P) {   /* in this page: start() stops this zone and plays the next */
       travelling = true;
       if (sound) sound.blip('pickup');
@@ -1001,6 +1027,9 @@
     if (frozen) console.info('LWQ: ' + frozen.joined + ' still parts drawn in ' + frozen.calls + ' calls');
     /* city walls on the land (Genesis', 2026-10-31): they stop you where they are drawn */
     if (TR && art.cityWall) for (const w of (LV.land && LV.land.walls) || []) for (const sg of art.cityWall(ctx, TR, w).segs) fileSeg(sg);
+    /* THE CAVES (the Spider Cave, 2026-11-10): rock round the hollow the terrain describes, and their mouths up here */
+    const caves = TR && art.cave ? ((LV.land && LV.land.caves) || []).map(c => art.cave(ctx, TR, c)) : [];
+    if (TR && art.caveMouth) for (const L of LV.links || []) if (L.mouth) art.caveMouth(ctx, TR, L.mouth);
 
     /* --- the shared world --------------------------------------------------------------------------- */
     let W = { seq: 0, open: {}, taken: {}, dep: {} };
@@ -2564,8 +2593,8 @@
       const t = now / 1000, fdt = Math.min(dt, 0.1);
       if (!iAmHouse) for (const fn of updates) fn(fdt, t);   /* flames, smoke, water: nothing the house needs */
       npcTick(fdt, t);
-      if (!iAmHouse) { gateTick(now); if (live()) portalTick(); zoneTick(); drawAbilities(); compassTick(); posTick(); buildTick(); if (mapOpen && now - (mapT || 0) > 200) { mapT = now; mapTick(); } }
-      if (env && !iAmHouse) env.update(fdt, t, camera.position);
+      if (!iAmHouse) { gateTick(now); if (live()) { portalTick(); linkTick(); } zoneTick(); drawAbilities(); compassTick(); posTick(); buildTick(); if (mapOpen && now - (mapT || 0) > 200) { mapT = now; mapTick(); } }
+      if (env && !iAmHouse) env.update(fdt, t, camera.position, underNow);
       if (land && !iAmHouse) land.update(camera.position);
       /* things to gather out in the land are drawn near you only: there are a hundred and more, each a few meshes */
       if (TR && !iAmHouse && (resFrame = (resFrame + 1) % 30) === 0) for (const id in resources) { const r = resources[id]; if (r.look.group) r.look.group.visible = Math.hypot(r.def.pos[0] - camera.position.x, r.def.pos[1] - camera.position.z) < RES_NEAR; }
@@ -2792,6 +2821,6 @@
     };
   }
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 46, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 47, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
     D => ({ start: (el, opts) => start(D, el, opts) }));
 })(typeof globalThis !== 'undefined' ? globalThis : this);
