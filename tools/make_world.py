@@ -26,7 +26,7 @@ import subprocess
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 LEVELS = ROOT / "src" / "levels"
 OUT = LEVELS / "world.json"
-VERSION = 18
+VERSION = 19
 
 
 def probe(land: dict, points: list) -> list:
@@ -308,7 +308,7 @@ def make_greenwood():
                  {"kind": "barrel", "pos": [ix + 6, iz - 2]}, {"kind": "barrel", "pos": [ix + 6.6, iz - 1.2]}, {"kind": "lamppost", "pos": [ix + 5.5, iz + 4]},
                  {"kind": "cart", "pos": [ix - 9, iz - 2], "rot": 90},
                  {"kind": "signpost", "pos": [ix + 2, iz + 12], "signs": [["Genesis", 0], ["Blockshire", 180]]}],
-          npcs=[{"id": "tobin", "name": "Old Tobin", "pos": [ix + 1, iz + 5], "lookAt": [ix + 1, iz + 10], "talkTurn": True,
+          npcs=[{"id": "hennick", "name": "Old Hennick", "pos": [ix + 1, iz + 5], "lookAt": [ix + 1, iz + 10], "talkTurn": True,
                  "look": look(skin="#e8c09c", shirt="#5a4a2a", hair="#d8d8d8", beard="#e6e6e6"),
                  "lines": ["Halfway between Blockshire and Genesis -- a good place for a rest, and a better one for news.",
                            "The spiders have a cave under Greenwood Deep, they say. Far to the west, by the black trees.",
@@ -400,6 +400,51 @@ def make_outskirts():
                            "Keep your guard up and your feet under you. The rest is practice.",
                            "When the city has a council, there will be tourneys, and prizes worth fighting for."]}])
     return places, pads, nodes
+
+
+#: QUESTS FOR THE NEW PLACES (2026-11-10): each place's keeper has work, most of it leading somewhere new
+GREENWOOD_QUESTS = [
+    {"id": "gw_wolves", "npc": "hunter_wynn", "giver": "Wynn the Hunter", "title": "Wolf Trouble",
+     "offer": "The wolves of Greenwood North have grown bold. Bring down six of them, and I'll give you a mantle of their skins.",
+     "done": "Six! The forest is quieter already. Here -- it'll keep the rain off.",
+     "need": {"kill": {"wolf": 6}}, "reward": {"items": ["wolfskin_mantle"], "sk": {"anatomy": 15}}},
+    {"id": "gw_fangs", "npc": "hunter_wynn", "giver": "Wynn the Hunter", "title": "A Ring of Fangs", "after": "gw_wolves",
+     "offer": "Wolf fangs make a fine ring, if you know how. Bring me four, and I'll show you -- and give you the plans.",
+     "done": "Good fangs, sharp ones. The plans are yours; the forge will do the rest.",
+     "need": {"bring": {"wolf_fang": 4}}, "reward": {"bp": ["fang_ring"], "sk": {"smithing": 10}}},
+    {"id": "gw_oak", "npc": "foreman_tamsin", "giver": "Foreman Tamsin", "title": "Oak for Genesis",
+     "offer": "Genesis needs beams, and my crew is short. Fell ten oaks round the camp and bring me the logs.",
+     "done": "Ten good logs. That's a roof for somebody. Take this axe, it's better than the one you've got.",
+     "need": {"bring": {"oak_log": 10}}, "reward": {"items": ["copper_axe"], "mats": {"stone_block": 4}, "sk": {"woodcutting": 20}}},
+    {"id": "gw_boars", "npc": "farmer_hal", "giver": "Farmer Hal", "title": "Boars in the Fields",
+     "offer": "Eight boars, every night, in my fields. Thin them out for me, and you'll have boots fit for mud.",
+     "done": "Ha! Maybe I'll get a harvest this year after all. The boots are yours.",
+     "need": {"kill": {"boar": 8}}, "reward": {"items": ["leather_boots"], "mats": {"flax": 3}, "sk": {"anatomy": 10}}},
+    {"id": "gw_camp", "npc": "sentry_ulf", "giver": "Old Ulf", "title": "The Raiders' Camp",
+     "offer": "Every night I light the beacon because of them. Go to their camp south of Blockshire and break it: six raiders.",
+     "done": "Six fewer to watch for. You fight well -- better than I did at your age.",
+     "need": {"kill": {"camp_raider": 6}}, "reward": {"items": ["iron_helm"], "sk": {"toughness": 15}}},
+    {"id": "gw_chief", "npc": "sentry_ulf", "giver": "Old Ulf", "title": "Grimwald", "after": "gw_camp",
+     "offer": "Their chief is Grimwald. As long as he lives, they'll keep coming. End it.",
+     "done": "Grimwald is gone? Then tonight I'll sleep. Take this ring -- it was my captain's.",
+     "need": {"kill": {"raider_chief": 1}}, "reward": {"items": ["iron_ring", "lucky_coin"], "sk": {"toughness": 20}}},
+    {"id": "gw_spiders", "npc": "hennick", "giver": "Old Hennick", "title": "Into the Dark",
+     "offer": "Travellers vanish near the black trees in the west. There's a cave there, full of spiders. Kill ten, and come tell me what you saw.",
+     "done": "A whole nest, under our feet... Here, something for your trouble, and keep your lantern lit.",
+     "need": {"kill": {"cave_spider": 10}}, "reward": {"items": ["leather_cap"], "mats": {"wild_herb": 4}, "sk": {"evade": 15}}},
+    {"id": "gw_brood", "npc": "hennick", "giver": "Old Hennick", "title": "The Broodmother", "after": "gw_spiders",
+     "offer": "Where there are that many, there's a mother. Deep in that cave, past the chasm. Kill her, if you can.",
+     "done": "You did it? Then Greenwood owes you more than I can pay. Take this, at least.",
+     "need": {"kill": {"broodmother": 1}}, "reward": {"items": ["bone_amulet"], "mats": {"pearl": 2}, "sk": {"toughness": 25}}},
+    {"id": "gw_silk", "npc": "merchant_ysolde", "giver": "Ysolde the Merchant", "title": "Silk for the Road",
+     "offer": "Spider silk sells well on the coast. Bring me six, and I'll give you the plans for silk gloves.",
+     "done": "Beautiful, strong silk. The plans, as promised -- a tailor's work.",
+     "need": {"bring": {"spider_silk": 6}}, "reward": {"bp": ["silk_gloves"], "sk": {"tailoring": 10}}},
+    {"id": "gw_lists", "npc": "aldric", "giver": "Sir Aldric", "title": "Prove Yourself",
+     "offer": "Words are cheap in the lists. Show me what you can do: two goblins from the Goblin Bridgehead in the north.",
+     "done": "Not bad at all. The city will have need of fighters like you. Take this shield.",
+     "need": {"kill": {"goblin": 2}}, "reward": {"items": ["oak_shield"], "sk": {"toughness": 10}}},
+]
 
 
 def make_camp(raider_look):
@@ -809,7 +854,7 @@ def main() -> None:
         "resources": {k: v for k, v in (blk.get("resources") or {}).items() if k != "nodes"},   # how often, how much: the wilds' too
         # the guards and the priest; the raiders come by night only (tbuuol 2026-11-10)
         "defense": dict(blk.get("defense") or {}, spawns=dict((blk.get("defense") or {}).get("spawns") or {}, night=True, points=camp_spawns)),
-        "wild": wild, "quests": quests, "zones": zones,
+        "wild": wild, "quests": quests + GREENWOOD_QUESTS, "zones": zones,
         "links": cave_links,
         "hoards": [cave_hoard, camp_hoard],
         "revives": [

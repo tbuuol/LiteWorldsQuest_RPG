@@ -2,7 +2,7 @@
  "lwq": "module",
  "name": "level.world",
  "api": 1,
- "v": 18,
+ "v": 19,
  "data": {
   "id": "world",
   "title": "LiteWorldsQuest",
@@ -1104,85 +1104,85 @@
      "eggs": [
       {
        "p": [
-        65.7,
-        104.7
+        67.3,
+        109.2
        ],
        "n": 7
       },
       {
        "p": [
-        66.4,
-        106.1
+        64.7,
+        111.1
+       ],
+       "n": 7
+      },
+      {
+       "p": [
+        59.3,
+        103.4
        ],
        "n": 7
       },
       {
        "p": [
         57.6,
-        107.9
+        109.2
        ],
        "n": 7
       },
       {
        "p": [
-        63.1,
-        108.2
+        79.0,
+        171.1
        ],
        "n": 7
       },
       {
        "p": [
-        86.0,
-        168.3
+        83.9,
+        164.6
        ],
        "n": 7
       },
       {
        "p": [
-        78.7,
-        166.2
+        88.7,
+        165.3
        ],
        "n": 7
       },
       {
        "p": [
-        80.4,
-        165.2
+        84.9,
+        169.4
        ],
        "n": 7
       },
       {
        "p": [
-        83.8,
-        172.2
+        105.9,
+        102.5
        ],
        "n": 7
       },
       {
        "p": [
-        104.4,
-        104.6
+        110.8,
+        110.1
        ],
        "n": 7
       },
       {
        "p": [
-        106.0,
-        104.4
+        112.7,
+        105.0
        ],
        "n": 7
       },
       {
        "p": [
-        103.7,
-        109.0
-       ],
-       "n": 7
-      },
-      {
-       "p": [
-        108.5,
-        102.9
+        101.5,
+        108.0
        ],
        "n": 7
       },
@@ -9401,8 +9401,8 @@
     ],
     "npcs": [
      {
-      "id": "tobin",
-      "name": "Old Tobin",
+      "id": "hennick",
+      "name": "Old Hennick",
       "pos": [
        233,
        5
@@ -12551,6 +12551,232 @@
      ],
      "sk": {
       "tailoring": 10
+     }
+    }
+   },
+   {
+    "id": "gw_wolves",
+    "npc": "hunter_wynn",
+    "giver": "Wynn the Hunter",
+    "title": "Wolf Trouble",
+    "offer": "The wolves of Greenwood North have grown bold. Bring down six of them, and I'll give you a mantle of their skins.",
+    "done": "Six! The forest is quieter already. Here -- it'll keep the rain off.",
+    "need": {
+     "kill": {
+      "wolf": 6
+     }
+    },
+    "reward": {
+     "items": [
+      "wolfskin_mantle"
+     ],
+     "sk": {
+      "anatomy": 15
+     }
+    }
+   },
+   {
+    "id": "gw_fangs",
+    "npc": "hunter_wynn",
+    "giver": "Wynn the Hunter",
+    "title": "A Ring of Fangs",
+    "after": "gw_wolves",
+    "offer": "Wolf fangs make a fine ring, if you know how. Bring me four, and I'll show you -- and give you the plans.",
+    "done": "Good fangs, sharp ones. The plans are yours; the forge will do the rest.",
+    "need": {
+     "bring": {
+      "wolf_fang": 4
+     }
+    },
+    "reward": {
+     "bp": [
+      "fang_ring"
+     ],
+     "sk": {
+      "smithing": 10
+     }
+    }
+   },
+   {
+    "id": "gw_oak",
+    "npc": "foreman_tamsin",
+    "giver": "Foreman Tamsin",
+    "title": "Oak for Genesis",
+    "offer": "Genesis needs beams, and my crew is short. Fell ten oaks round the camp and bring me the logs.",
+    "done": "Ten good logs. That's a roof for somebody. Take this axe, it's better than the one you've got.",
+    "need": {
+     "bring": {
+      "oak_log": 10
+     }
+    },
+    "reward": {
+     "items": [
+      "copper_axe"
+     ],
+     "mats": {
+      "stone_block": 4
+     },
+     "sk": {
+      "woodcutting": 20
+     }
+    }
+   },
+   {
+    "id": "gw_boars",
+    "npc": "farmer_hal",
+    "giver": "Farmer Hal",
+    "title": "Boars in the Fields",
+    "offer": "Eight boars, every night, in my fields. Thin them out for me, and you'll have boots fit for mud.",
+    "done": "Ha! Maybe I'll get a harvest this year after all. The boots are yours.",
+    "need": {
+     "kill": {
+      "boar": 8
+     }
+    },
+    "reward": {
+     "items": [
+      "leather_boots"
+     ],
+     "mats": {
+      "flax": 3
+     },
+     "sk": {
+      "anatomy": 10
+     }
+    }
+   },
+   {
+    "id": "gw_camp",
+    "npc": "sentry_ulf",
+    "giver": "Old Ulf",
+    "title": "The Raiders' Camp",
+    "offer": "Every night I light the beacon because of them. Go to their camp south of Blockshire and break it: six raiders.",
+    "done": "Six fewer to watch for. You fight well -- better than I did at your age.",
+    "need": {
+     "kill": {
+      "camp_raider": 6
+     }
+    },
+    "reward": {
+     "items": [
+      "iron_helm"
+     ],
+     "sk": {
+      "toughness": 15
+     }
+    }
+   },
+   {
+    "id": "gw_chief",
+    "npc": "sentry_ulf",
+    "giver": "Old Ulf",
+    "title": "Grimwald",
+    "after": "gw_camp",
+    "offer": "Their chief is Grimwald. As long as he lives, they'll keep coming. End it.",
+    "done": "Grimwald is gone? Then tonight I'll sleep. Take this ring -- it was my captain's.",
+    "need": {
+     "kill": {
+      "raider_chief": 1
+     }
+    },
+    "reward": {
+     "items": [
+      "iron_ring",
+      "lucky_coin"
+     ],
+     "sk": {
+      "toughness": 20
+     }
+    }
+   },
+   {
+    "id": "gw_spiders",
+    "npc": "hennick",
+    "giver": "Old Hennick",
+    "title": "Into the Dark",
+    "offer": "Travellers vanish near the black trees in the west. There's a cave there, full of spiders. Kill ten, and come tell me what you saw.",
+    "done": "A whole nest, under our feet... Here, something for your trouble, and keep your lantern lit.",
+    "need": {
+     "kill": {
+      "cave_spider": 10
+     }
+    },
+    "reward": {
+     "items": [
+      "leather_cap"
+     ],
+     "mats": {
+      "wild_herb": 4
+     },
+     "sk": {
+      "evade": 15
+     }
+    }
+   },
+   {
+    "id": "gw_brood",
+    "npc": "hennick",
+    "giver": "Old Hennick",
+    "title": "The Broodmother",
+    "after": "gw_spiders",
+    "offer": "Where there are that many, there's a mother. Deep in that cave, past the chasm. Kill her, if you can.",
+    "done": "You did it? Then Greenwood owes you more than I can pay. Take this, at least.",
+    "need": {
+     "kill": {
+      "broodmother": 1
+     }
+    },
+    "reward": {
+     "items": [
+      "bone_amulet"
+     ],
+     "mats": {
+      "pearl": 2
+     },
+     "sk": {
+      "toughness": 25
+     }
+    }
+   },
+   {
+    "id": "gw_silk",
+    "npc": "merchant_ysolde",
+    "giver": "Ysolde the Merchant",
+    "title": "Silk for the Road",
+    "offer": "Spider silk sells well on the coast. Bring me six, and I'll give you the plans for silk gloves.",
+    "done": "Beautiful, strong silk. The plans, as promised -- a tailor's work.",
+    "need": {
+     "bring": {
+      "spider_silk": 6
+     }
+    },
+    "reward": {
+     "bp": [
+      "silk_gloves"
+     ],
+     "sk": {
+      "tailoring": 10
+     }
+    }
+   },
+   {
+    "id": "gw_lists",
+    "npc": "aldric",
+    "giver": "Sir Aldric",
+    "title": "Prove Yourself",
+    "offer": "Words are cheap in the lists. Show me what you can do: two goblins from the Goblin Bridgehead in the north.",
+    "done": "Not bad at all. The city will have need of fighters like you. Take this shield.",
+    "need": {
+     "kill": {
+      "goblin": 2
+     }
+    },
+    "reward": {
+     "items": [
+      "oak_shield"
+     ],
+     "sk": {
+      "toughness": 10
      }
     }
    }

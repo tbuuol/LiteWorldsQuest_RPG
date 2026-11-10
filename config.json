@@ -117,7 +117,7 @@
     },
     "world": {
       "file": "src/levels/world.json",
-      "v": 18,
+      "v": 19,
       "api": 1,
       "kind": "json",
       "id": null,
