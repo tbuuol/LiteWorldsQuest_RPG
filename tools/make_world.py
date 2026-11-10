@@ -26,7 +26,7 @@ import subprocess
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 LEVELS = ROOT / "src" / "levels"
 OUT = LEVELS / "world.json"
-VERSION = 21
+VERSION = 22
 
 
 def probe(land: dict, points: list) -> list:
@@ -447,6 +447,29 @@ GREENWOOD_QUESTS = [
 ]
 
 
+#: THE SHY ONES (2026-11-10): deer in Greenwood's glades, hares on the fields -- they never fight, they run (combat's
+#: spec.flee: from whoever comes within shy metres, or struck them); hunted for hides, antlers and pelts
+SHY_SPECIES = {
+    "deer": {"name": "Red Deer", "lvl": 3, "hp": 60, "dmg": 0, "speed": 2.0, "run": 6.2, "flee": True, "shy": 11, "aggressive": False,
+             "sight": 0, "def": 0, "model": "deer", "color": "#9a6a40", "loot": [["deer_hide", 0.8], ["antler", 0.45]], "codex": ["anatomy", "dex"]},
+    "hind": {"name": "Red Deer Hind", "lvl": 2, "hp": 48, "dmg": 0, "speed": 2.0, "run": 6.4, "flee": True, "shy": 12, "aggressive": False,
+             "sight": 0, "def": 0, "model": "deer", "hind": True, "color": "#a8784c", "loot": [["deer_hide", 0.8]], "codex": ["anatomy", "dex"]},
+    "hare": {"name": "Brown Hare", "lvl": 1, "hp": 16, "dmg": 0, "speed": 2.4, "run": 6.9, "flee": True, "shy": 7, "aggressive": False,
+             "sight": 0, "def": 0, "model": "hare", "color": "#8a6a48", "loot": [["hare_pelt", 0.7], ["hare_foot", 0.15]], "codex": ["anatomy", "dex"]},
+}
+SHY_AREAS = [
+    {"name": "Greenwood Glade", "species": "deer", "center": [60, -165], "r": 45, "count": 3},
+    {"name": "Greenwood Glade", "species": "hind", "center": [60, -165], "r": 45, "count": 4},
+    {"name": "Stone Circle Glade", "species": "deer", "center": [330, -110], "r": 55, "count": 2},
+    {"name": "Stone Circle Glade", "species": "hind", "center": [330, -110], "r": 55, "count": 3},
+    {"name": "South Fields", "species": "hare", "center": [110, 145], "r": 45, "count": 6},
+    {"name": "Blockshire Meadows", "species": "hare", "center": [215, -40], "r": 45, "count": 4},
+    {"name": "Genesis Fields", "species": "hare", "center": [630, 160], "r": 35, "count": 5},
+]
+for _a in SHY_AREAS:
+    _a.update({"respawn": 45, "maxMat": 1})
+
+
 def make_camp(raider_look):
     cx, cz = CAMP
     out = math.atan2(25 - cz, 0 - cx)                 # the way out: towards the gate
@@ -704,6 +727,8 @@ def main() -> None:
     cave, cave_links, cave_revive, cave_areas, cave_hoard = make_cave()
     sp.update(camp_species)
     areas.extend(camp_areas)
+    sp.update(SHY_SPECIES)
+    areas.extend(SHY_AREAS)
     sp.update(CAVE_SPECIES)
     areas.extend(cave_areas)
     wild = {"zone": "Greenwood", "from": 28, "respawn": 25, "waterY": bch["wild"].get("waterY", -0.75), "species": sp, "areas": areas}

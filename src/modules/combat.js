@@ -152,7 +152,7 @@
       if (bs && bs.spec.model === 'human') {   /* people of a dungeon (pirates): our own figure, a weapon in hand */
         u.c = art.character(ctx, Object.assign({}, bs.spec.look || {}, { scale: ((bs.spec.look && bs.spec.look.scale) || 0.9) * bs.scale }));
         if (bs.spec.weapon && art.held) u.c.holdItem(art.held(bs.spec.weapon, bs.spec.weaponLook));
-      } else u.c = bs ? art.creature(ctx, { kind: bs.spec.model || bs.sp, color: bs.spec.color, scale: bs.scale * (bs.spec.size || 1) }) : art.character(ctx, look(kind, id));
+      } else u.c = bs ? art.creature(ctx, { kind: bs.spec.model || bs.sp, color: bs.spec.color, scale: bs.scale * (bs.spec.size || 1), hind: bs.spec.hind }) : art.character(ctx, look(kind, id));
       u.c.setName(u.name, kind === 'raider' ? '#ff9a8a' : kind === 'priest' ? '#c9f5c0' : kind === 'beast' ? ['#c8d0c0', '#ffe9a8', '#ffb46a', '#ff7a5a'][bs.m] : '#cfe1ff');
       u.bar = bar(u);
       u.c.group.position.set(x, 0, z);
@@ -380,6 +380,21 @@
         if (u.state === 'dead') { u.gone -= dt; if (u.gone <= 0) drop(u); continue; }
         if (u.stun > 0) { u.stun -= dt; u.state = 'idle'; continue; }
         const a = wild.areas[u.area] || { center: [u.x, u.z], r: 10 }, b = u.beast, home = outside(a, u.x, u.z);
+        /* THE SHY ONES (deer, hares, 2026-11-10): they never fight -- whoever comes within spec.shy metres, or struck
+           them, they run from, fast, until they are far enough; then they graze again */
+        if (b.spec.flee) {
+          let from = null;
+          if (u.aggro) { const p = livePlayers.find(q => 'p:' + q.id === u.aggro); if (p && dist(u, p) < 30) from = p; else u.aggro = null; }
+          if (!from) for (const p of livePlayers) if (dist(u, p) < (b.spec.shy || 8) && (!from || dist(u, p) < dist(u, from))) from = p;
+          if (from) {
+            const dx = u.x - from.x, dz = u.z - from.z, d = Math.hypot(dx, dz) || 1;
+            let gx = u.x + dx / d * 12, gz = u.z + dz / d * 12;
+            if (home > 25) { gx = (gx + a.center[0]) / 2; gz = (gz + a.center[1]) / 2; }   /* not out of its land for good */
+            if (step(u, gx, gz, b.spec.run || b.speed * 2, dt, 0.3)) u.state = 'walk'; else u.state = 'idle';
+            u.wt = 2 + Math.random() * 3;
+            continue;
+          }
+        }
         let tgt = null;
         if (u.aggro) {
           const p = livePlayers.find(q => 'p:' + q.id === u.aggro);
@@ -698,5 +713,5 @@
     return snap;
   }
   const combat = { api: 1, player, gain, nextXp, create, encode, decode };
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('combat', { api: 1, v: 22, needs: { three: 160, art: 1 } }, () => combat);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('combat', { api: 1, v: 23, needs: { three: 160, art: 1 } }, () => combat);
 })(typeof globalThis !== 'undefined' ? globalThis : this);

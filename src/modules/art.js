@@ -2601,6 +2601,46 @@
       }
       tail = joint(body, 0, 0.12, 0.5); part(cap(0.07, 0.35), fur, tail, 0, -0.1, 0.18).rotation.x = 1.0;
       barY = 1.45;
+    } else if (kind === 'deer') {   /* a red deer (2026-11-10): slender, long legs with knees, a pale rump, antlers on the stag */
+      const fur = look.color || '#9a6a40', light = shade(fur, 1.45), dark = shade(fur, 0.6);
+      body.position.y = 1.0;
+      part(new T.SphereGeometry(0.3, 12, 9), fur, body, 0, 0, 0).scale.set(0.8, 0.85, 1.8);
+      part(new T.SphereGeometry(0.2, 8, 6), light, body, 0, 0.02, 0.48).scale.set(0.9, 0.9, 0.5);   /* the rump */
+      const neck = joint(body, 0, 0.18, -0.45); part(cap(0.1, 0.32), fur, neck, 0, 0.12, -0.05).rotation.x = -0.5;
+      head = joint(body, 0, 0.5, -0.62);
+      part(new T.SphereGeometry(0.13, 10, 8), fur, head, 0, 0, 0).scale.set(0.85, 0.9, 1.3);
+      const muzzle = part(new T.ConeGeometry(0.08, 0.22, 8), light, head, 0, -0.04, -0.17); muzzle.rotation.x = -Math.PI / 2;
+      part(new T.SphereGeometry(0.03, 6, 5), '#111', head, 0, -0.04, -0.28);
+      for (const sx of [-1, 1]) {
+        part(new T.ConeGeometry(0.05, 0.16, 5), fur, head, sx * 0.1, 0.12, 0.03).rotation.z = sx * -0.9;   /* ears */
+        part(new T.SphereGeometry(0.022, 6, 5), '#111', head, sx * 0.08, 0.04, -0.08);
+        if (!look.hind) {   /* antlers: a beam and three tines */
+          const beam = part(new T.CylinderGeometry(0.015, 0.022, 0.36, 5), '#d8c8a8', head, sx * 0.07, 0.25, 0.02); beam.rotation.z = sx * -0.35;
+          for (const [ty, tz] of [[0.32, -0.05], [0.38, 0.06], [0.44, -0.02]]) { const t = part(new T.CylinderGeometry(0.01, 0.014, 0.14, 4), '#d8c8a8', head, sx * (0.1 + ty * 0.25), ty, tz); t.rotation.set(-0.6, 0, sx * -0.6); }
+        }
+      }
+      for (const [x, z, ph] of [[-0.13, -0.4, 0], [0.13, -0.4, Math.PI], [-0.13, 0.4, Math.PI], [0.13, 0.4, 0]]) {
+        const l = joint(body, x, -0.1, z), knee = joint(l, 0, -0.42, 0);
+        part(cap(0.05, 0.36), fur, l, 0, -0.2, 0); part(cap(0.032, 0.36), dark, knee, 0, -0.2, 0); legs.push([l, ph, knee]);
+      }
+      tail = joint(body, 0, 0.12, 0.58); part(new T.ConeGeometry(0.05, 0.14, 5), light, tail, 0, -0.04, 0.02).rotation.x = 2.6;
+      barY = 1.95;
+    } else if (kind === 'hare') {   /* a brown hare: a round body, long hind legs, long black-tipped ears */
+      const fur = look.color || '#8a6a48', light = shade(fur, 1.4), dark = shade(fur, 0.65);
+      body.position.y = 0.2;
+      part(new T.SphereGeometry(0.16, 10, 8), fur, body, 0, 0, 0.02).scale.set(0.85, 0.9, 1.35);
+      head = joint(body, 0, 0.1, -0.2);
+      part(new T.SphereGeometry(0.09, 10, 8), fur, head, 0, 0, 0).scale.set(0.9, 0.95, 1.15);
+      for (const sx of [-1, 1]) {
+        const ear = part(cap(0.025, 0.2), fur, head, sx * 0.04, 0.17, 0.03); ear.rotation.set(0.3, 0, sx * -0.15);
+        part(new T.SphereGeometry(0.025, 5, 4), '#111', head, sx * 0.05, 0.29, 0.06);
+        part(new T.SphereGeometry(0.016, 6, 5), '#2a1a0a', head, sx * 0.05, 0.03, -0.06);
+      }
+      for (const [x, z, ph, big] of [[-0.06, -0.12, 0, 0], [0.06, -0.12, 0, 0], [-0.08, 0.1, Math.PI, 1], [0.08, 0.1, Math.PI, 1]]) {
+        const l = joint(body, x, -0.06, z); part(cap(big ? 0.035 : 0.022, big ? 0.14 : 0.1), big ? fur : dark, l, 0, -0.08, big ? 0.03 : 0); legs.push([l, ph]);
+      }
+      tail = joint(body, 0, 0.05, 0.22); part(new T.SphereGeometry(0.04, 6, 5), light, tail, 0, 0, 0);
+      barY = 0.6;
     } else if (kind === 'crab') {   /* a shore crab (zone 2): a wide shell, eight thin legs, two big claws, eyes on stalks */
       const shell = look.color || '#c4532e', dark = shade(shell, 0.65), light = shade(shell, 1.25);
       body.position.y = 0.32;
@@ -2903,5 +2943,5 @@
     return { groundAt, polys, segs, half, spawn, inside, stats: { buildings: buildings.length, trees: trees.length } };
   };
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('art', { api: 1, v: 35 }, () => art);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('art', { api: 1, v: 36 }, () => art);
 })(typeof globalThis !== 'undefined' ? globalThis : this);

@@ -29,7 +29,7 @@
     },
     "art": {
       "file": "src/modules/art.js",
-      "v": 35,
+      "v": 36,
       "api": 1,
       "kind": "js",
       "id": null,
@@ -37,7 +37,7 @@
     },
     "combat": {
       "file": "src/modules/combat.js",
-      "v": 22,
+      "v": 23,
       "api": 1,
       "kind": "js",
       "id": null,
@@ -45,7 +45,7 @@
     },
     "rpg": {
       "file": "src/modules/rpg.js",
-      "v": 15,
+      "v": 16,
       "api": 1,
       "kind": "js",
       "id": null,
@@ -117,7 +117,7 @@
     },
     "world": {
       "file": "src/levels/world.json",
-      "v": 21,
+      "v": 22,
       "api": 1,
       "kind": "json",
       "id": null,
