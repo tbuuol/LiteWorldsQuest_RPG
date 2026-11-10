@@ -2199,27 +2199,38 @@
       posSaved = now;
       for (const r of remotes.values()) if (!r.house) savePos(r);
     }
-    /* NOBODY LOCKED IN (tbuuol 2026-11-10): when every door of a building is shut -- its owner closed it, or the house
-       started again with all doors shut -- whoever is inside and is not its owner is set down outside the nearest door */
+    /* NOBODY LOCKED IN (tbuuol 2026-11-10): when every FRONT door of a building is shut -- its owner closed it, or the
+       house started again with all doors shut -- whoever stands on its floor and is not its owner is set down outside a
+       front door ("vor die Haustür, nicht vor eine Innentür"). A front door has the building's floor on one side and
+       none on the other (on its storey); the person goes to that other side. Inner doors do not count. */
     let guardT = 0;
+    function frontDoors(list) {
+      const floor = new Set(); for (const pc of list) if (pc[0] === 0) floor.add(pc[1] + ',' + pc[2] + ',' + pc[3]);
+      const out = [];
+      for (const pc of list) {
+        if (pc[0] !== 3) continue;
+        const [, cx, cz, L, r] = pc, alongX = (r | 0) % 2 === 0, ox = alongX ? cx : cx - 2, oz = alongX ? cz - 2 : cz;
+        const here = floor.has(cx + ',' + cz + ',' + L), there = floor.has(ox + ',' + oz + ',' + L);
+        if (here === there) continue;   /* floor on both sides: an inner door; on neither: a door into nothing */
+        const ex = alongX ? cx : cx - 1, ez = alongX ? cz - 1 : cz, [fx, fz] = here ? [ox, oz] : [cx, cz];   /* the side without floor */
+        const did = Object.keys(doors).find(k => { const q = doors[k].mesh.getWorldPosition(new THREE.Vector3()); return Math.hypot(q.x - ex, q.z - ez) < 1.2 && doors[k].def.plot; });
+        if (did) out.push({ did, x: ex + (fx - ex) * 0.8, z: ez + (fz - ez) * 0.8 });
+      }
+      return out;
+    }
     function doorGuard(now) {
       if (!iAmHouse || now - guardT < 1000) return;
       guardT = now;
-      for (const [id, lk] of builtLook) {
-        const dids = (lk.doorIds || []).filter(did => doors[did]);
-        if (!dids.length || dids.some(did => W.open[did])) continue;
-        const list = built[id] || [], own = ownerOfPlot(id);
-        if (!list.length) continue;
-        let x0 = 1e9, z0 = 1e9, x1 = -1e9, z1 = -1e9;
-        for (const pc of list) { x0 = Math.min(x0, pc[1]); x1 = Math.max(x1, pc[1]); z0 = Math.min(z0, pc[2]); z1 = Math.max(z1, pc[2]); }
-        const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
+      for (const [id] of builtLook) {
+        const list = built[id] || []; if (!list.length) continue;
+        const fronts = frontDoors(list);
+        if (!fronts.length || fronts.some(f => W.open[f.did])) continue;
+        const own = ownerOfPlot(id), cells = list.filter(pc => pc[0] === 0);
         for (const [pid, r] of remotes) {
           if (r.house || !r.from || r.from.address === own) continue;
-          const at = whereIs(r); if (!at || at[0] < x0 - 0.2 || at[0] > x1 + 0.2 || at[1] < z0 - 0.2 || at[1] > z1 + 0.2) continue;
-          let best = null;
-          for (const did of dids) { const q = doors[did].mesh.getWorldPosition(new THREE.Vector3()), dd = Math.hypot(q.x - at[0], q.z - at[1]); if (!best || dd < best.dd) best = { dd, q }; }
-          const ox = best.q.x - cx, oz = best.q.z - cz, ol = Math.hypot(ox, oz) || 1;
-          toPlayer(['T', pid, +(best.q.x + ox / ol * 1.6).toFixed(2), +(best.q.z + oz / ol * 1.6).toFixed(2), 'The door is shut; you step outside.']);
+          const at = whereIs(r); if (!at || !cells.some(pc => Math.abs(at[0] - pc[1]) <= 1.05 && Math.abs(at[1] - pc[2]) <= 1.05)) continue;
+          let best = null; for (const f of fronts) { const dd = Math.hypot(f.x - at[0], f.z - at[1]); if (!best || dd < best.dd) best = Object.assign({ dd }, f); }
+          toPlayer(['T', pid, +best.x.toFixed(2), +best.z.toFixed(2), 'The front door is shut; you step outside.']);
         }
       }
     }
@@ -2914,6 +2925,6 @@
     };
   }
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 55, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 56, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
     D => ({ start: (el, opts) => start(D, el, opts) }));
 })(typeof globalThis !== 'undefined' ? globalThis : this);
