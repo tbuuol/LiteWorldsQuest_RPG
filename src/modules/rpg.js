@@ -567,8 +567,8 @@
         if (lv < rc.level) return { ok: false, why: 'it needs ' + PROFS[rc.prof].name + ' level ' + rc.level };
         for (const m in rc.needs) if ((r.mat[m] || 0) < rc.needs[m]) return { ok: false, why: 'not enough ' + ITEMS[m].name };
         const x = bp[2] = bp[2] || { qr: 0 }, qr = x.qr || 0;
-        /* the blueprint's QR goes up with every use, quickly at first, slowly near 100 */
-        x.qr = Math.min(100, Math.round((qr + 0.5 * (1 - qr / 100) + 0.02) * 100) / 100);
+        /* the blueprint's QR: in 42 % of the uses it goes up by 0.05 to 0.2 (tbuuol 2026-11-10: it rose far too fast) */
+        if (rnd() < 0.42) x.qr = Math.min(100, Math.round((qr + 0.05 + rnd() * 0.15) * 100) / 100);
         const sk = Object.assign({}, CRAFT_AT[rc.skill] || {}); sk[rc.skill] = 6 + rc.level * 2;
         /* it can fail: 35 % success with just enough skill and QR 0, up to 95 %; a failure costs half of what was put
            in, and teaches less */
@@ -760,5 +760,5 @@
   /* a bag entry's name as shown (a blueprint with its QR, a made thing with its quality) */
   const entryName = e => { const it = itemOf({ bag: [e] }, e[0]); return it ? it.name : String(e[1]); };
   const rpg = { api: 1, entryName, masterOf, gradeOf, SLOTS, SKILLS, PROFS, ATTRS, RANKS, ITEMS, FISTS, LOOT, GATHER, RECIPES, SALVAGE, STATIONS, stationOf, salvageAt, RUNE_MAX, BAR_SLOTS, matKind, CODEX, ABILITIES, abilities, questState, questProgress, knows, fresh, stats, profs, rank, meets, itemOf, attr, book };
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('rpg', { api: 1, v: 20 }, () => rpg);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('rpg', { api: 1, v: 21 }, () => rpg);
 })(typeof globalThis !== 'undefined' ? globalThis : this);

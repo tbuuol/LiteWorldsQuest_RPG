@@ -45,7 +45,7 @@
     },
     "rpg": {
       "file": "src/modules/rpg.js",
-      "v": 20,
+      "v": 21,
       "api": 1,
       "kind": "js",
       "id": null,
