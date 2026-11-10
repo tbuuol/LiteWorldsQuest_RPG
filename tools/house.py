@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import pathlib
 import shutil
 import sys
@@ -42,6 +43,10 @@ NODE = "http://127.0.0.1:8420"
 CHECK_EVERY, FRESH_EVERY = 30, 6 * 3600
 #: out of the game this long, and the house writes to its keeper (tools/notify.py), once; and once more when it is back
 ALERT_AFTER, ALERT_TO = 15 * 60, "banana"
+#: out of the game this long, the house quits and systemd starts it afresh (2026-11-08 20:16: a join after the arcade's
+#: worker restart hung for 18 h, the process alive and the log silent)
+STUCK_AFTER = 30 * 60
+STARTED = time.time()
 PLAYERS = SECRET / f"{'beta-' if BETA else ''}players.json"          # the house's book of every player, kept here between starts and page versions
 STORE = SECRET / f"{'beta-' if BETA else ''}players.sqlite"          # Etappe 4: the database a house in store mode asks (tools/house_store.py)
 BACKUPS = SECRET / f"backups{_B}"
@@ -431,6 +436,11 @@ async def watchdog() -> None:
     while True:
         await asyncio.sleep(60)
         out_for = time.time() - LAST_GOOD
+        if time.time() - max(LAST_GOOD, STARTED) > STUCK_AFTER:   # each start gets its own half hour
+            log(f"out of the game for {int(out_for // 60)} min; quitting, systemd starts the house again")
+            os._exit(1)
+        if BETA:
+            continue
         if not alerted and out_for > ALERT_AFTER:
             alerted = True
             since = time.strftime("%H:%M", time.localtime(LAST_GOOD))
@@ -458,8 +468,7 @@ async def main() -> None:
     #: the page's own first level. A page that knows no other levels keeps the one house it always had.
     levels = [""] if BETA else json.loads((ROOT / "config.json").read_text()).get("house_levels") or [""]
     log("house starting:", ", ".join(levels) or "the page's own level")
-    if not BETA:
-        asyncio.get_running_loop().create_task(watchdog())
+    asyncio.get_running_loop().create_task(watchdog())
     async with async_playwright() as p:
         await asyncio.gather(*(keep(p, lv) for lv in levels))
 
