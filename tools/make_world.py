@@ -26,7 +26,7 @@ import subprocess
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 LEVELS = ROOT / "src" / "levels"
 OUT = LEVELS / "world.json"
-VERSION = 14
+VERSION = 15
 
 
 def probe(land: dict, points: list) -> list:
@@ -210,6 +210,57 @@ def cave_spots(L, where, n, seed):
     mid = out[len(out) // 2]
     return out, mid, total / 2 + 3
 
+#: THE RAIDERS' CAMP (tbuuol 2026-11-10: "südlich von Blockshire, weil die Wachen auch südlich stehen"): a ring of
+#: stakes on the gentle land between the gate and the cliff; by day its raiders and their chief keep it, by night the
+#: raids on the gate set out from its opening.
+CAMP, CAMP_R, CAMP_Y = (-60.0, 120.0), 17.0, 13.3
+
+
+def make_camp(raider_look):
+    cx, cz = CAMP
+    out = math.atan2(25 - cz, 0 - cx)                 # the way out: towards the gate
+    P = lambda a, r: [round(cx + math.cos(a) * r, 1), round(cz + math.sin(a) * r, 1)]
+    face_in = lambda a: round(math.degrees(math.atan2(math.cos(a), math.sin(a))), 1)   # a thing's front (-z) to the middle
+    tents = [{"pos": P(out + a, 10.5), "rot": face_in(out + a), "color": c} for a, c in
+             ((1.4, "#6a2e24"), (2.2, "#5a4a3a"), (4.0, "#4a3a2e"), (4.8, "#6a2e24"))]
+    back = out + math.pi
+    props = [{"kind": "crate", "pos": P(back + 0.5, 8)}, {"kind": "crate", "pos": P(back + 0.56, 9)}, {"kind": "barrel", "pos": P(back - 0.5, 9)},
+             {"kind": "barrel", "pos": P(back - 0.45, 8.2)}, {"kind": "logpile", "pos": P(out + 0.9, 6), "rot": 30},
+             {"kind": "stump", "pos": P(out - 0.9, 5), "axe": True}, {"kind": "cart", "pos": P(out + 0.35, 12), "rot": face_in(out + 0.35)}]
+    place = {"id": "raidercamp", "lift": CAMP_Y, "fire": {"pos": [cx, cz]},
+             "palisade": {"c": [cx, cz], "r": CAMP_R, "gap": [round(out, 3), 0.75]},
+             "tents": tents, "banner": {"pos": P(out - 0.25, 13), "rot": face_in(out)}, "props": props}
+    rnd = random.Random(41)
+    inside = []
+    while len(inside) < 16:
+        a, r = rnd.random() * 2 * math.pi, 3 + rnd.random() * 9
+        q = P(a, r)
+        if all(math.dist(q, t["pos"]) > 2.5 for t in tents) and all(math.dist(q, pr["pos"]) > 1.6 for pr in props): inside.append(q)
+    look = dict(raider_look or {})
+    species = {
+        "camp_raider": {"name": "Raider", "lvl": 6, "hp": 70, "dmg": 8, "speed": 3.0, "aggressive": True, "sight": 9, "def": 1, "model": "human",
+                        "look": look, "weapon": "axe", "weaponLook": "#8f9aa6",
+                        "loot": [["scrap_iron", 0.4], ["leather_scrap", 0.4], ["torn_cloth", 0.4], ["raider_axe", 0.04], ["lucky_coin", 0.03]],
+                        "codex": ["toughness", "evade", "str"]},
+        "raider_chief": {"name": "Grimwald the Raider Chief", "lvl": 10, "hp": 420, "dmg": 15, "speed": 3.0, "aggressive": True, "sight": 9, "def": 2,
+                         "model": "human", "look": dict(look, scale=1.15, shirt="#3a2a22", hood="#1c1612", gloves="#2a1e14"),
+                         "weapon": "axe", "weaponLook": "#c9ced4",
+                         "boss": {"adds": {"at": [0.5], "species": "camp_raider", "n": 2, "mat": 1, "home": True}},
+                         "loot": [["raider_axe", 0.35], ["lucky_coin", 0.3], ["leather_cap", 0.3], ["iron_ring", 0.2], ["scrap_iron", 1], ["leather_scrap", 1]],
+                         "codex": ["toughness", "evade", "str"]},
+    }
+    areas = [{"name": "Raider Camp", "species": "camp_raider", "center": [cx, cz], "r": CAMP_R, "count": 6, "respawn": 90, "maxMat": 1, "spots": inside},
+             {"name": "Raider Chief", "species": "raider_chief", "center": [cx, cz], "r": CAMP_R, "count": 1, "respawn": 300, "mat": 1, "spots": [P(back, 6)]}]
+    hoard = {"id": "raider_hoard", "pos": P(back, 13.5), "yaw": round(math.atan2(math.cos(back), math.sin(back)), 4), "every": 20,
+             "text": "You break open the raiders' chest.", "empty": "You have emptied it already today.",
+             "loot": [["scrap_iron", 1], ["leather_scrap", 1], ["torn_cloth", 0.8], ["copper_ore", 0.6], ["iron_ore", 0.3],
+                      ["lucky_coin", 0.1], ["copper_ring", 0.12], ["raider_axe", 0.06]]}
+    # the night's raids set out from the camp's opening (combat's spawns)
+    spawns = [P(out + d, CAMP_R + 4) for d in (-0.12, 0, 0.12)]
+    pad = {"at": [cx, cz], "r": CAMP_R + 4, "y": CAMP_Y, "rim": 12, "landOnly": True}
+    return place, species, areas, hoard, spawns, pad
+
+
 def make_cave():
     import importlib.util
     spec = importlib.util.spec_from_file_location("cavelayout", ROOT / "design" / "spidercave" / "layout.py")
@@ -377,7 +428,7 @@ def main() -> None:
     SHAPES = [
         # round Blockshire: boars in the open fields, wolves in the wood to the north, spiders deep in the west
         ["Blockshire Meadows", "boar", "low", [[85, -55], [170, -110], [290, -95], [340, 0], [300, 95], [160, 115], [85, 60]]],
-        ["South Fields", "boar", "low", [[-150, 85], [0, 95], [170, 120], [200, 170], [40, 195], [-170, 175]]],
+        ["South Fields", "boar", "low", [[15, 95], [170, 120], [200, 170], [40, 195], [15, 160]]],   # east of the raiders' camp
         ["Greenwood North", "wolf", "mid", [[-180, -70], [-60, -80], [60, -95], [80, -150], [-60, -165], [-190, -155]]],
         ["Greenwood South-West", "wolf", "mid", [[-420, 110], [-260, 90], [-170, 120], [-200, 190], [-330, 210], [-430, 170]]],
         ["Greenwood Deep", "spider", "high", [[-470, -100], [-330, -160], [-220, -140], [-180, -40], [-240, 60], [-380, 90], [-480, 30]]],
@@ -393,10 +444,11 @@ def main() -> None:
         ["Goblin Camp", "goblin_brute", "high", [[500, -720], [600, -735], [660, -680], [630, -610], [530, -600], [480, -650]]],
         ["Goblin Bridgehead", "goblin", "low", [[380, -500], [470, -470], [520, -430], [470, -390], [380, -420]]],
     ]
+    camp_place, camp_species, camp_areas, camp_hoard, camp_spawns, camp_pad = make_camp(((blk.get("defense") or {}).get("raider") or {}).get("look"))
     land = {"pads": [{"at": [0, 0], "r": 62, "y": LIFT, "rim": 40},
                      {"at": [SW.at[0] + 6, SW.at[1]], "r": 24, "y": 0.25, "rim": 14, "landOnly": True},
                      # Genesis inside its wall, flat for the plots (2026-11-07): an ellipse round the ring
-                     {"at": [GEN[0], GEN[1]], "rx": 270, "rz": 190, "y": GEN_Y, "rim": 45, "landOnly": True}],
+                     {"at": [GEN[0], GEN[1]], "rx": 270, "rz": 190, "y": GEN_Y, "rim": 45, "landOnly": True}, camp_pad],
             "decks": [deck]}
     areas = []
     for name, species, dens, poly in SHAPES:
@@ -416,6 +468,8 @@ def main() -> None:
     for a in shp["wild"]["areas"]:   # the crew, where they stood on their ship
         areas.append(dict(a, center=ship_xz(a["center"]), respawn=shp["wild"].get("respawn", 120)))
     cave, cave_links, cave_revive, cave_areas, cave_hoard = make_cave()
+    sp.update(camp_species)
+    areas.extend(camp_areas)
     sp.update(CAVE_SPECIES)
     areas.extend(cave_areas)
     wild = {"zone": "Greenwood", "from": 28, "respawn": 25, "waterY": bch["wild"].get("waterY", -0.75), "species": sp, "areas": areas}
@@ -560,13 +614,13 @@ def main() -> None:
         "spawn": spawn, "spawnYaw": blk.get("spawnYaw", 0),
         "env": env,
         "land": land,
-        "places": [blockshire, saltwind, berth, wilds, genesis],
+        "places": [blockshire, saltwind, berth, wilds, genesis, camp_place],
         "resources": {k: v for k, v in (blk.get("resources") or {}).items() if k != "nodes"},   # how often, how much: the wilds' too
         # the guards and the priest; the raiders come by night only (tbuuol 2026-11-10)
-        "defense": dict(blk.get("defense") or {}, spawns=dict((blk.get("defense") or {}).get("spawns") or {}, night=True)),
+        "defense": dict(blk.get("defense") or {}, spawns=dict((blk.get("defense") or {}).get("spawns") or {}, night=True, points=camp_spawns)),
         "wild": wild, "quests": quests, "zones": zones,
         "links": cave_links,
-        "hoards": [cave_hoard],
+        "hoards": [cave_hoard, camp_hoard],
         "revives": [
             cave_revive,
             {"at": [0, 0], "spawn": spawn, "yaw": blk.get("spawnYaw", 0)},

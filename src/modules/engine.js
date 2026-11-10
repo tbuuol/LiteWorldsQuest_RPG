@@ -195,6 +195,10 @@
     /* one of each in a zone, several in the world */
     for (const f of many(LV.fire)) { art.campfire(ctx, f); if (sound) sound.fire(f.pos[0], lift || (ctx.height ? ctx.height(f.pos[0], f.pos[1]) : 0), f.pos[1]); }
     for (const f of many(LV.forest)) art.forest(ctx, f);
+    /* the raiders' camp (2026-11-10): its ring of stakes, its tents, its banner */
+    for (const pl of many(LV.palisade)) if (art.palisade) art.palisade(ctx, pl);
+    for (const t of LV.tents || []) if (art.tent) art.tent(ctx, t);
+    for (const b of many(LV.banner)) if (art.banner) art.banner(ctx, b);
     if (LV.forest_trees) {   /* a place's own few trees, placed by hand (they go up with it) */
       art.trees(ctx, LV.forest_trees, () => 0);
       for (const t of LV.forest_trees) ctx.solid([t[0] - 0.35, -1, t[1] - 0.35], [t[0] + 0.35, 3, t[1] + 0.35]);
@@ -2856,6 +2860,6 @@
     };
   }
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 49, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 50, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
     D => ({ start: (el, opts) => start(D, el, opts) }));
 })(typeof globalThis !== 'undefined' ? globalThis : this);

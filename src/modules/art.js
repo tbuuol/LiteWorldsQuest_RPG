@@ -646,6 +646,54 @@
     }
     return { rock, torches, rect: def.rect };
   };
+  /* --- the raiders' camp (tbuuol 2026-11-10: south of Blockshire, where the guards look) ----------------------- */
+  /* A PALISADE: a ring of sharpened logs round def.c (radius def.r), open where def.gap ([angle, width], radians; the
+     angle is the way out, 0 = +x, a quarter turn = +z). Stands on 0 (a place lifts it). */
+  art.palisade = function (ctx, def) {
+    const [cx, cz] = def.c, R = def.r, bark = mat('bark'), rnd = art.rng(19), n = Math.round(2 * Math.PI * R / 0.42);
+    const [ga, gw] = def.gap || [0, 0];
+    const inGap = a => { let d = Math.abs(((a - ga) % (2 * Math.PI) + 3 * Math.PI) % (2 * Math.PI) - Math.PI); return d < gw / 2; };
+    const geo = new T.CylinderGeometry(0.2, 0.22, 1, 7), tip = new T.ConeGeometry(0.2, 0.5, 7);
+    for (let k = 0; k < n; k++) {
+      const a = k / n * Math.PI * 2; if (inGap(a)) continue;
+      const h = 2.6 + rnd() * 0.7, x = cx + Math.cos(a) * R, z = cz + Math.sin(a) * R;
+      const l = mesh(geo, bark); l.scale.y = h; l.position.set(x, h / 2 - 0.2, z); l.rotation.set((rnd() - 0.5) * 0.08, 0, (rnd() - 0.5) * 0.08); ctx.scene.add(l);
+      const t = mesh(tip, bark); t.position.set(x, h - 0.2 + 0.25, z); ctx.scene.add(t);
+    }
+    /* what stops you: a box every two metres along the ring */
+    const m = Math.round(2 * Math.PI * R / 2);
+    for (let k = 0; k < m; k++) {
+      const a = (k + 0.5) / m * Math.PI * 2; if (inGap(a)) continue;
+      const x = cx + Math.cos(a) * R, z = cz + Math.sin(a) * R;
+      ctx.solid([x - 1.05, -1, z - 1.05], [x + 1.05, 2.8, z + 1.05]);
+    }
+  };
+  /* A TENT: two slopes of cloth on a ridge pole, open at its front (faces -z before def.rot, degrees) */
+  art.tent = function (ctx, def) {
+    const [x, z] = def.pos, g = new T.Group(), cloth = plain(def.color || '#6a2e24', { side: T.DoubleSide }), pole = mat('bark');
+    const L = def.len || 3.2, W = def.w || 2.6, H = def.h || 2.0;
+    for (const sd of [-1, 1]) {
+      const sl = mesh(new T.PlaneGeometry(Math.hypot(W / 2, H), L), cloth); sl.rotation.order = 'ZYX';
+      sl.rotation.x = -Math.PI / 2; sl.rotation.y = sd * (Math.PI / 2 - Math.atan2(H, W / 2)); sl.position.set(sd * W / 4, H / 2, 0); g.add(sl);
+    }
+    const back = new T.Shape(); back.moveTo(-W / 2, 0); back.lineTo(W / 2, 0); back.lineTo(0, H); back.lineTo(-W / 2, 0);
+    const b = mesh(new T.ShapeGeometry(back), cloth); b.position.z = L / 2; g.add(b);
+    const rp = mesh(new T.CylinderGeometry(0.05, 0.05, L + 0.4, 6), pole); rp.rotation.x = Math.PI / 2; rp.position.y = H; g.add(rp);
+    for (const zz of [-L / 2 - 0.1, L / 2 + 0.1]) { const p = mesh(new T.CylinderGeometry(0.05, 0.05, H + 0.1, 6), pole); p.position.set(0, H / 2, zz); g.add(p); }
+    const r = (def.rot || 0) * Math.PI / 180;
+    g.position.set(x, 0, z); g.rotation.y = r; ctx.scene.add(g);
+    const ex = Math.abs(Math.cos(r)) * W / 2 + Math.abs(Math.sin(r)) * L / 2, ez = Math.abs(Math.sin(r)) * W / 2 + Math.abs(Math.cos(r)) * L / 2;
+    ctx.solid([x - ex * 0.8, -1, z - ez * 0.8], [x + ex * 0.8, H * 0.8, z + ez * 0.8]);
+  };
+  /* A BANNER: a pole with a ragged red cloth (the raiders' sign) */
+  art.banner = function (ctx, def) {
+    const [x, z] = def.pos, g = new T.Group();
+    const p = mesh(new T.CylinderGeometry(0.06, 0.08, 5, 6), mat('bark')); p.position.y = 2.5; g.add(p);
+    const f = mesh(new T.PlaneGeometry(1.4, 1.0, 4, 2), plain(def.color || '#8a1c1c', { side: T.DoubleSide })); f.position.set(0.72, 4.4, 0); g.add(f);
+    const sk = mesh(new T.SphereGeometry(0.16, 8, 6), plain('#d8d0bc')); sk.position.y = 5.1; g.add(sk);
+    g.position.set(x, 0, z); g.rotation.y = (def.rot || 0) * Math.PI / 180; ctx.scene.add(g);
+    ctx.solid([x - 0.15, -1, z - 0.15], [x + 0.15, 5, z + 0.15]);
+  };
   /* A HOARD: an old iron-bound chest, its lid ajar on a glint of gold (stands on 0, faces -z) */
   art.hoard = function (ctx, def) {
     const g = new T.Group(), wood = plain('#5a3a22'), iron = plain('#3a3a3e', { metalness: 0.6, roughness: 0.5 }), gold = new T.MeshBasicMaterial({ color: new T.Color(2.2, 1.6, 0.5) });
@@ -2726,5 +2774,5 @@
     return { groundAt, polys, segs, half, spawn, inside, stats: { buildings: buildings.length, trees: trees.length } };
   };
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('art', { api: 1, v: 30 }, () => art);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('art', { api: 1, v: 31 }, () => art);
 })(typeof globalThis !== 'undefined' ? globalThis : this);

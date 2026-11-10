@@ -2,7 +2,7 @@
  "lwq": "module",
  "name": "level.world",
  "api": 1,
- "v": 14,
+ "v": 15,
  "data": {
   "id": "world",
   "title": "LiteWorldsQuest",
@@ -70,6 +70,16 @@
      "rz": 190,
      "y": 7.0,
      "rim": 45,
+     "landOnly": true
+    },
+    {
+     "at": [
+      -60.0,
+      120.0
+     ],
+     "r": 21.0,
+     "y": 13.3,
+     "rim": 12,
      "landOnly": true
     }
    ],
@@ -994,85 +1004,85 @@
      "eggs": [
       {
        "p": [
-        57.7,
+        64.5,
         112.2
        ],
        "n": 7
       },
       {
        "p": [
-        64.3,
-        103.2
+        60.9,
+        103.8
        ],
        "n": 7
       },
       {
        "p": [
-        58.6,
-        109.5
+        60.9,
+        103.3
        ],
        "n": 7
       },
       {
        "p": [
-        63.2,
-        109.5
+        57.2,
+        104.4
        ],
        "n": 7
       },
       {
        "p": [
-        82.7,
-        165.9
+        80.9,
+        169.7
        ],
        "n": 7
       },
       {
        "p": [
-        78.2,
-        169.8
+        86.2,
+        167.4
        ],
        "n": 7
       },
       {
        "p": [
-        83.0,
-        163.3
+        88.3,
+        164.2
        ],
        "n": 7
       },
       {
        "p": [
-        79.3,
-        171.0
+        88.3,
+        167.8
        ],
        "n": 7
       },
       {
        "p": [
-        111.3,
-        110.1
+        108.4,
+        112.3
        ],
        "n": 7
       },
       {
        "p": [
-        107.2,
-        103.5
+        104.5,
+        111.3
        ],
        "n": 7
       },
       {
        "p": [
-        106.3,
-        109.1
+        106.8,
+        106.9
        ],
        "n": 7
       },
       {
        "p": [
-        104.4,
-        106.3
+        113.9,
+        108.4
        ],
        "n": 7
       },
@@ -6239,6 +6249,122 @@
       ]
      }
     ]
+   },
+   {
+    "id": "raidercamp",
+    "lift": 13.3,
+    "fire": {
+     "pos": [
+      -60.0,
+      120.0
+     ]
+    },
+    "palisade": {
+     "c": [
+      -60.0,
+      120.0
+     ],
+     "r": 17.0,
+     "gap": [
+      -1.007,
+      0.75
+     ]
+    },
+    "tents": [
+     {
+      "pos": [
+       -50.3,
+       124.0
+      ],
+      "rot": 67.5,
+      "color": "#6a2e24"
+     },
+     {
+      "pos": [
+       -56.1,
+       129.8
+      ],
+      "rot": 21.7,
+      "color": "#5a4a3a"
+     },
+     {
+      "pos": [
+       -70.4,
+       121.6
+      ],
+      "rot": -81.5,
+      "color": "#4a3a2e"
+     },
+     {
+      "pos": [
+       -68.4,
+       113.6
+      ],
+      "rot": -127.3,
+      "color": "#6a2e24"
+     }
+    ],
+    "banner": {
+     "pos": [
+      -56.0,
+      107.6
+     ],
+     "rot": 147.7
+    },
+    "props": [
+     {
+      "kind": "crate",
+      "pos": [
+       -67.0,
+       123.9
+      ]
+     },
+     {
+      "kind": "crate",
+      "pos": [
+       -68.1,
+       123.9
+      ]
+     },
+     {
+      "kind": "barrel",
+      "pos": [
+       -60.6,
+       129.0
+      ]
+     },
+     {
+      "kind": "barrel",
+      "pos": [
+       -60.9,
+       128.1
+      ]
+     },
+     {
+      "kind": "logpile",
+      "pos": [
+       -54.0,
+       119.4
+      ],
+      "rot": 30
+     },
+     {
+      "kind": "stump",
+      "pos": [
+       -61.7,
+       115.3
+      ],
+      "axe": true
+     },
+     {
+      "kind": "cart",
+      "pos": [
+       -50.5,
+       112.7
+      ],
+      "rot": 127.7
+     }
+    ]
    }
   ],
   "resources": {
@@ -6329,16 +6455,16 @@
    "spawns": {
     "points": [
      [
-      -10,
-      40
+      -51.0,
+      101.0
      ],
      [
-      0,
-      43
+      -48.8,
+      102.2
      ],
      [
-      10,
-      40
+      -46.7,
+      103.7
      ]
     ],
     "every": 5,
@@ -6785,6 +6911,121 @@
       "toughness"
      ]
     },
+    "camp_raider": {
+     "name": "Raider",
+     "lvl": 6,
+     "hp": 70,
+     "dmg": 8,
+     "speed": 3.0,
+     "aggressive": true,
+     "sight": 9,
+     "def": 1,
+     "model": "human",
+     "look": {
+      "person": "b",
+      "tint": "#8c7c76",
+      "skin": "#b98a6a",
+      "shirt": "#5b3a2a",
+      "pants": "#2a241e",
+      "hair": "#1c1c1c",
+      "hood": "#2b2622"
+     },
+     "weapon": "axe",
+     "weaponLook": "#8f9aa6",
+     "loot": [
+      [
+       "scrap_iron",
+       0.4
+      ],
+      [
+       "leather_scrap",
+       0.4
+      ],
+      [
+       "torn_cloth",
+       0.4
+      ],
+      [
+       "raider_axe",
+       0.04
+      ],
+      [
+       "lucky_coin",
+       0.03
+      ]
+     ],
+     "codex": [
+      "toughness",
+      "evade",
+      "str"
+     ]
+    },
+    "raider_chief": {
+     "name": "Grimwald the Raider Chief",
+     "lvl": 10,
+     "hp": 420,
+     "dmg": 15,
+     "speed": 3.0,
+     "aggressive": true,
+     "sight": 9,
+     "def": 2,
+     "model": "human",
+     "look": {
+      "person": "b",
+      "tint": "#8c7c76",
+      "skin": "#b98a6a",
+      "shirt": "#3a2a22",
+      "pants": "#2a241e",
+      "hair": "#1c1c1c",
+      "hood": "#1c1612",
+      "scale": 1.15,
+      "gloves": "#2a1e14"
+     },
+     "weapon": "axe",
+     "weaponLook": "#c9ced4",
+     "boss": {
+      "adds": {
+       "at": [
+        0.5
+       ],
+       "species": "camp_raider",
+       "n": 2,
+       "mat": 1,
+       "home": true
+      }
+     },
+     "loot": [
+      [
+       "raider_axe",
+       0.35
+      ],
+      [
+       "lucky_coin",
+       0.3
+      ],
+      [
+       "leather_cap",
+       0.3
+      ],
+      [
+       "iron_ring",
+       0.2
+      ],
+      [
+       "scrap_iron",
+       1
+      ],
+      [
+       "leather_scrap",
+       1
+      ]
+     ],
+     "codex": [
+      "toughness",
+      "evade",
+      "str"
+     ]
+    },
     "cave_spider": {
      "name": "Cave Spider",
      "lvl": 8,
@@ -7000,11 +7241,7 @@
      "density": "low",
      "poly": [
       [
-       -150,
-       85
-      ],
-      [
-       0,
+       15,
        95
       ],
       [
@@ -7020,19 +7257,19 @@
        195
       ],
       [
-       -170,
-       175
+       15,
+       160
       ]
      ],
      "maxMat": 0,
      "center": [
-      7.3,
-      137.7
+      88.2,
+      147.1
      ],
-     "count": 5,
+     "count": 2,
      "respawn": 40,
-     "_dry": 1.0,
-     "_m2": 29324
+     "_dry": 0.99,
+     "_m2": 12494
     },
     {
      "name": "Greenwood North",
@@ -7600,6 +7837,102 @@
      "count": 1,
      "mat": 1,
      "respawn": 120
+    },
+    {
+     "name": "Raider Camp",
+     "species": "camp_raider",
+     "center": [
+      -60.0,
+      120.0
+     ],
+     "r": 17.0,
+     "count": 6,
+     "respawn": 90,
+     "maxMat": 1,
+     "spots": [
+      [
+       -63.7,
+       123.5
+      ],
+      [
+       -66.1,
+       117.9
+      ],
+      [
+       -60.9,
+       111.9
+      ],
+      [
+       -58.3,
+       111.2
+      ],
+      [
+       -56.3,
+       114.1
+      ],
+      [
+       -57.6,
+       123.6
+      ],
+      [
+       -64.8,
+       112.9
+      ],
+      [
+       -57.3,
+       115.8
+      ],
+      [
+       -61.4,
+       110.5
+      ],
+      [
+       -53.6,
+       126.4
+      ],
+      [
+       -52.0,
+       127.9
+      ],
+      [
+       -64.4,
+       109.0
+      ],
+      [
+       -54.5,
+       121.9
+      ],
+      [
+       -56.7,
+       115.3
+      ],
+      [
+       -54.5,
+       127.1
+      ],
+      [
+       -66.5,
+       120.3
+      ]
+     ]
+    },
+    {
+     "name": "Raider Chief",
+     "species": "raider_chief",
+     "center": [
+      -60.0,
+      120.0
+     ],
+     "r": 17.0,
+     "count": 1,
+     "respawn": 300,
+     "mat": 1,
+     "spots": [
+      [
+       -63.2,
+       125.1
+      ]
+     ]
     },
     {
      "name": "Web Tunnel",
@@ -8861,6 +9194,51 @@
      ],
      [
       "carapace_shield",
+      0.06
+     ]
+    ]
+   },
+   {
+    "id": "raider_hoard",
+    "pos": [
+     -67.2,
+     131.4
+    ],
+    "yaw": -0.5633,
+    "every": 20,
+    "text": "You break open the raiders' chest.",
+    "empty": "You have emptied it already today.",
+    "loot": [
+     [
+      "scrap_iron",
+      1
+     ],
+     [
+      "leather_scrap",
+      1
+     ],
+     [
+      "torn_cloth",
+      0.8
+     ],
+     [
+      "copper_ore",
+      0.6
+     ],
+     [
+      "iron_ore",
+      0.3
+     ],
+     [
+      "lucky_coin",
+      0.1
+     ],
+     [
+      "copper_ring",
+      0.12
+     ],
+     [
+      "raider_axe",
       0.06
      ]
     ]
