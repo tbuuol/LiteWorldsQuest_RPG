@@ -209,7 +209,7 @@
             (req.length ? '<div class="' + (unmet.length ? 'bad' : 'good') + '">Needs ' + esc(req.join(', ')) + '</div>' : '<div class="muted">Anybody can use it</div>') +
             (worn ? '<button class="act" data-act="off" data-slot="' + worn + '">Take off</button>'
                   : '<button class="act" data-act="wear" data-uid="' + it.uid + '"' + (unmet.length ? ' disabled' : '') + '>Wear</button>') +
-            (!worn && (rpg.RECIPES[it.id] || (rpg.SALVAGE && rpg.SALVAGE[it.id])) ? '<button class="act" data-act="salvage" data-uid="' + it.uid + '"' + (o.atForge && o.atForge() ? '' : ' disabled title="at the forge"') + '>Take apart' + (o.atForge && o.atForge() ? '' : ' (at the forge)') + '</button>' : '') + '</div>';
+            (!worn && (rpg.RECIPES[it.id] || (rpg.SALVAGE && rpg.SALVAGE[it.id])) ? '<button class="act" data-act="salvage" data-uid="' + it.uid + '"' + ((o.canSalvage ? o.canSalvage(it.id) : o.atForge && o.atForge()) ? '' : ' disabled title="at its workbench"') + '>Take apart' + (o.atForge && o.atForge() ? '' : ' (at the forge)') + '</button>' : '') + '</div>';
         }
         body.innerHTML = '<div class="cols"><div class="col" style="flex:2"><h4>Things</h4>' + (grid ? '<div class="grid">' + grid + '</div>' : '<p class="muted">Nothing yet.</p>') + detail + '</div>' +
           '<div class="col"><h4>Materials</h4>' + (mats || '<p class="muted">None yet. Raiders drop some; the forest will give more.</p>') + '</div></div>';
@@ -224,5 +224,5 @@
   }
 
   const menu = { api: 1, create };
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('menu', { api: 1, v: 8 }, () => menu);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('menu', { api: 1, v: 9 }, () => menu);
 })(typeof globalThis !== 'undefined' ? globalThis : this);

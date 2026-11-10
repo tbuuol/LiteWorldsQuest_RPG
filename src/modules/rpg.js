@@ -183,6 +183,17 @@
   const STATIONS = { forge: { skill: 'smithing', name: 'a forge' }, bench: { skill: 'woodworking', name: "a carpenter's bench" },
                      loom: { skill: 'tailoring', name: 'a loom' }, jewel: { skill: 'jewelcrafting', name: "a jeweler's bench" } };
   const stationOf = rc => Object.keys(STATIONS).find(k => STATIONS[k].skill === (rc && rc.skill)) || 'forge';
+  /* where a thing is taken apart (tbuuol 2026-11-10: "Zerlegen geht nur an der passenden Bank"): its recipe's bench, or
+     for a found thing by what it is -- rings, amulets and charms the jeweler's, shields the carpenter's, weapons the
+     forge, everything worn of cloth or leather the loom */
+  function salvageAt(id) {
+    if (RECIPES[id]) return stationOf(RECIPES[id]);
+    const it = ITEMS[id] || {};
+    if (it.slot === 'ring' || it.slot === 'amulet' || it.slot === 'trinket') return 'jewel';
+    if (it.model === 'shield') return 'bench';
+    if (it.slot === 'main') return 'forge';
+    return 'loom';
+  }
   const RECIPE_DROP = 0.04;   /* very low: that a blueprint drops at all, from a successful craft */
   /* WHICH BLUEPRINT (tbuuol 2026-11-10): not the crafter's level but what is being made decides it -- a pool round the
      recipe's own level, the higher above it the rarer, lower ones too (so a better one stays hard to get); 75 % from
@@ -591,6 +602,6 @@
 
   /* a bag entry's name as shown (a blueprint with its QR, a made thing with its quality) */
   const entryName = e => { const it = itemOf({ bag: [e] }, e[0]); return it ? it.name : String(e[1]); };
-  const rpg = { api: 1, entryName, masterOf, gradeOf, SLOTS, SKILLS, PROFS, ATTRS, RANKS, ITEMS, FISTS, LOOT, GATHER, RECIPES, SALVAGE, STATIONS, stationOf, CODEX, ABILITIES, abilities, questState, questProgress, knows, fresh, stats, profs, rank, meets, itemOf, attr, book };
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('rpg', { api: 1, v: 14 }, () => rpg);
+  const rpg = { api: 1, entryName, masterOf, gradeOf, SLOTS, SKILLS, PROFS, ATTRS, RANKS, ITEMS, FISTS, LOOT, GATHER, RECIPES, SALVAGE, STATIONS, stationOf, salvageAt, CODEX, ABILITIES, abilities, questState, questProgress, knows, fresh, stats, profs, rank, meets, itemOf, attr, book };
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('rpg', { api: 1, v: 15 }, () => rpg);
 })(typeof globalThis !== 'undefined' ? globalThis : this);

@@ -149,6 +149,9 @@
     /* WORKBENCHES (tbuuol 2026-11-10): each craft at its own -- Blockshire's forge, or one built on a workshop plot in
        Genesis (anybody may work at one). Blockshire's forge is the village's (tbuuol: "eine Schmiede der eigenen Art"):
        there a smith's first recipes (level 0) can be made, nothing else. stationsNear: the kinds within reach */
+    /* taking apart: at the bench the thing belongs to (rpg.salvageAt); the village forge for a smith's first things */
+    const canSalvageAt = (near, id) => { if (!rpg || !rpg.salvageAt) return near.size > 0; const st = rpg.salvageAt(id), rc = rpg.RECIPES[id];
+      return near.has(st) || (st === 'forge' && near.has('village') && !!rc && !rc.level); };
     const canMakeAt = (near, rc) => !!rc && (near.has(rpg && rpg.stationOf ? rpg.stationOf(rc) : 'forge') || (near.has('village') && !rc.level && rc.skill === 'smithing'));
     function stationsNear(x, z) {
       const out = new Set(); if (nearForge(x, z)) out.add('village');   /* Blockshire's forge: the village's, for first recipes only */
@@ -1178,7 +1181,7 @@
        the house, which keeps the record; I or Tab, or the ☰ button on a phone. */
     let menu = null;
     if (D.menu && D.rpg && (LV.defense || LV.wild)) {
-      menu = D.menu.create({ el, rpg: D.rpg, touch: TOUCH, wild: LV.wild || null, quests: LV.quests || [], atForge: () => stationsNear(me.x, me.z).size > 0, canMake: rc => canMakeAt(stationsNear(me.x, me.z), rc),
+      menu = D.menu.create({ el, rpg: D.rpg, touch: TOUCH, wild: LV.wild || null, quests: LV.quests || [], atForge: () => stationsNear(me.x, me.z).size > 0, canMake: rc => canMakeAt(stationsNear(me.x, me.z), rc), canSalvage: id => canSalvageAt(stationsNear(me.x, me.z), id),
         ask(q) {
           if (!live()) return;
           sendIntent(Object.assign({ Q: q.op }, q.op === 'equip' || q.op === 'salvage' ? { u: q.uid } : q.op === 'craft' ? { r: q.recipe } : q.op === 'codex' ? { sp: q.species, k: q.skill } : { s: q.slot }));
@@ -1984,6 +1987,9 @@
         if (it[0] === 'N') heardNotice(String(it[2]));
         else if (it[0] === 'D') hurt(+it[2] || 0, String(it[3] || 'raider').slice(0, 30));
         else if (it[0] === 'W') caught(+it[2] || 0, String(it[3] || '').slice(0, 40));
+        else if (it[0] === 'T' && isFinite(+it[2]) && isFinite(+it[3])) {   /* set down outside a shut building */
+          me.x = prev.x = +it[2]; me.z = prev.z = +it[3]; me.y = prev.y = groundAt(me.x, me.z) + 0.05; me.vy = 0; log(String(it[4] || '').slice(0, 80));
+        }
         else if (it[0] === 'M' && fight) fight.missed(String(it[2]));
       }
     }
@@ -2193,6 +2199,30 @@
       posSaved = now;
       for (const r of remotes.values()) if (!r.house) savePos(r);
     }
+    /* NOBODY LOCKED IN (tbuuol 2026-11-10): when every door of a building is shut -- its owner closed it, or the house
+       started again with all doors shut -- whoever is inside and is not its owner is set down outside the nearest door */
+    let guardT = 0;
+    function doorGuard(now) {
+      if (!iAmHouse || now - guardT < 1000) return;
+      guardT = now;
+      for (const [id, lk] of builtLook) {
+        const dids = (lk.doorIds || []).filter(did => doors[did]);
+        if (!dids.length || dids.some(did => W.open[did])) continue;
+        const list = built[id] || [], own = ownerOfPlot(id);
+        if (!list.length) continue;
+        let x0 = 1e9, z0 = 1e9, x1 = -1e9, z1 = -1e9;
+        for (const pc of list) { x0 = Math.min(x0, pc[1]); x1 = Math.max(x1, pc[1]); z0 = Math.min(z0, pc[2]); z1 = Math.max(z1, pc[2]); }
+        const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
+        for (const [pid, r] of remotes) {
+          if (r.house || !r.from || r.from.address === own) continue;
+          const at = whereIs(r); if (!at || at[0] < x0 - 0.2 || at[0] > x1 + 0.2 || at[1] < z0 - 0.2 || at[1] > z1 + 0.2) continue;
+          let best = null;
+          for (const did of dids) { const q = doors[did].mesh.getWorldPosition(new THREE.Vector3()), dd = Math.hypot(q.x - at[0], q.z - at[1]); if (!best || dd < best.dd) best = { dd, q }; }
+          const ox = best.q.x - cx, oz = best.q.z - cz, ol = Math.hypot(ox, oz) || 1;
+          toPlayer(['T', pid, +(best.q.x + ox / ol * 1.6).toFixed(2), +(best.q.z + oz / ol * 1.6).toFixed(2), 'The door is shut; you step outside.']);
+        }
+      }
+    }
     function dropRemote(id) {
       const r = remotes.get(id); if (!r) return;
       savePos(r);   /* where they were as they went */
@@ -2321,7 +2351,8 @@
         }
         else if (d.Q === 'salvage') {   /* taking a made thing apart, at the forge (the only workbench there is yet) */
           const r = remotes.get(from.id);
-          if (r && !stationsNear(whereIs(r)[0], whereIs(r)[1]).size) notice(from.id, 'Things are taken apart at a forge or a workbench.');
+          const ent = book.of(a).bag.find(e => e[0] === +d.u), iid = ent && ent[1];
+          if (r && iid && !canSalvageAt(stationsNear(whereIs(r)[0], whereIs(r)[1]), iid)) notice(from.id, 'That is taken apart at ' + ((rpg.STATIONS || {})[rpg.salvageAt(iid)] || { name: 'its workbench' }).name + '.');
           else { const res = book.salvage(a, +d.u); notice(from.id, res.ok ? 'You took apart the ' + res.of + ': ' + res.got.join(', ') + '.' : 'Cannot take that apart: ' + res.why + '.'); }
         }
         else if (d.Q === 'sell' || d.Q === 'unsell' || d.Q === 'levy') houseSell(from, a, d);
@@ -2634,7 +2665,7 @@
         left.rotation.set(-kl * 0.25, 0, -kl * 1.25);
       } else { left.position.set(-sx, -0.32, -0.52); left.rotation.set(0, 0, 0); }
       hands.visible = !P.dead && !(cinema && cinema.noHands);
-      sendRecords(now); flushOut(now);
+      sendRecords(now); doorGuard(now); flushOut(now);
     }
     let askedRec = -1e9;
     let last = performance.now(), worldT = 0, netT = 0, fps = 0, fpsN = 0, fpsT = performance.now(), showFps = false, promptNow = '';
@@ -2883,6 +2914,6 @@
     };
   }
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 54, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 55, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
     D => ({ start: (el, opts) => start(D, el, opts) }));
 })(typeof globalThis !== 'undefined' ? globalThis : this);
