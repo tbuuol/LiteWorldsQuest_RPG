@@ -782,6 +782,21 @@
     g.position.set(x, 0, z); g.rotation.y = (def.rot || 0) * Math.PI / 180; ctx.scene.add(g);
     ctx.solid([x - 0.15, -1, z - 0.15], [x + 0.15, 5, z + 0.15]);
   };
+  /* THE WAY UP (2026-11-10: "aus der Spinnenhöhle sollte man auch wieder rausgehen können"): a rope ladder in a shaft of
+     daylight, from the cave's floor to its roof, and a sign that says so -- where a link takes you back up */
+  art.caveLadder = function (ctx, TR, def) {
+    const [x, z] = def.at, k = TR.caveAt ? TR.caveAt(x, z) : null, y = TR.walk(x, z), top = k && k.top ? k.top + 0.5 : y + 8, h = top - y;
+    const rope = plain('#8a7048'), g = new T.Group();
+    for (const sx of [-0.28, 0.28]) { const r = mesh(new T.CylinderGeometry(0.03, 0.03, h, 5), rope, false); r.position.set(sx, h / 2, 0); g.add(r); }
+    for (let yy = 0.3; yy < h; yy += 0.38) { const rung = mesh(new T.CylinderGeometry(0.035, 0.035, 0.6, 5), rope, false); rung.rotation.z = Math.PI / 2; rung.position.set(0, yy, 0); g.add(rung); }
+    const beam = new T.Mesh(new T.CylinderGeometry(1.1, 1.6, h, 16, 1, true), new T.MeshBasicMaterial({ color: new T.Color(1.4, 1.35, 1.1), transparent: true, opacity: 0.16, side: T.DoubleSide, depthWrite: false, blending: T.AdditiveBlending }));
+    beam.position.y = h / 2; g.add(beam);
+    const [c, cx2] = canvas(256); cx2.fillStyle = 'rgba(30,20,10,.75)'; cx2.fillRect(8, 80, 240, 96); cx2.fillStyle = '#ffe9a8'; cx2.font = 'bold 40px Georgia'; cx2.textAlign = 'center'; cx2.textBaseline = 'middle';
+    cx2.fillText(def.label || 'Climb up', 128, 128);
+    const sign = new T.Sprite(new T.SpriteMaterial({ map: new T.CanvasTexture(c), transparent: true, depthWrite: false })); sign.scale.set(1.8, 1.8, 1); sign.position.set(0, 2.6, 0); g.add(sign);
+    g.position.set(x, y, z); g.userData.keep = true; ctx.scene.add(g);
+    return g;
+  };
   /* A HOARD: an old iron-bound chest, its lid ajar on a glint of gold (stands on 0, faces -z) */
   art.hoard = function (ctx, def) {
     const g = new T.Group(), wood = plain('#5a3a22'), iron = plain('#3a3a3e', { metalness: 0.6, roughness: 0.5 }), gold = new T.MeshBasicMaterial({ color: new T.Color(2.2, 1.6, 0.5) });
@@ -2888,5 +2903,5 @@
     return { groundAt, polys, segs, half, spawn, inside, stats: { buildings: buildings.length, trees: trees.length } };
   };
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('art', { api: 1, v: 34 }, () => art);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('art', { api: 1, v: 35 }, () => art);
 })(typeof globalThis !== 'undefined' ? globalThis : this);

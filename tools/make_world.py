@@ -26,7 +26,7 @@ import subprocess
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 LEVELS = ROOT / "src" / "levels"
 OUT = LEVELS / "world.json"
-VERSION = 20
+VERSION = 21
 
 
 def probe(land: dict, points: list) -> list:
@@ -547,8 +547,8 @@ def make_cave():
     links = [
         {"at": [mx, mz], "r": 1.3, "to": [ax + L.ARRIVE[0], az + L.ARRIVE[1]], "yaw": math.pi,
          "text": "You climb down into the dark. Webs brush your face.", "mouth": {"pos": [mx, mz], "face": [fx, fz]}},
-        {"at": [ax + L.BACK[0], az + L.BACK[1]], "r": 1.6, "to": out, "yaw": yaw_out, "text": "You climb back up into the daylight of Greenwood."},
-        {"at": [ax + L.EXIT[0], az + L.EXIT[1]], "r": 2.0, "to": out, "yaw": yaw_out, "text": "A long climb, and you are out in Greenwood again."},
+        {"at": [ax + L.BACK[0], az + L.BACK[1]], "r": 1.6, "to": out, "yaw": yaw_out, "text": "You climb back up into the daylight of Greenwood.", "ladder": "Climb up"},
+        {"at": [ax + L.EXIT[0], az + L.EXIT[1]], "r": 2.0, "to": out, "yaw": yaw_out, "text": "A long climb, and you are out in Greenwood again.", "ladder": "Way out"},
     ]
     revive = {"at": [ax + 120, az + 90], "spawn": [ax + L.ARRIVE[0], CAVE_Y + 0.1, az + L.ARRIVE[1]], "yaw": math.pi,
               "text": "You wake in the cave's first grotto. Something skitters away in the dark."}

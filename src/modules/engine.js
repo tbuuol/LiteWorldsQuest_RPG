@@ -1070,6 +1070,7 @@
     /* THE CAVES (the Spider Cave, 2026-11-10): rock round the hollow the terrain describes, and their mouths up here */
     const caves = TR && art.cave ? ((LV.land && LV.land.caves) || []).map(c => art.cave(ctx, TR, c)) : [];
     if (TR && art.caveMouth) for (const L of LV.links || []) if (L.mouth) art.caveMouth(ctx, TR, L.mouth);
+    if (TR && art.caveLadder) for (const L of LV.links || []) if (L.ladder) art.caveLadder(ctx, TR, { at: L.at, label: L.ladder });
     for (const H of LV.hoards || []) if (TR && art.hoard) {   /* treasure chests, each player's once a day */
       const y = TR.walk(H.pos[0], H.pos[1]), g = art.hoard(ctx, H);
       g.position.set(H.pos[0], y, H.pos[1]); g.rotation.y = H.yaw || 0; scene.add(g);
@@ -1091,6 +1092,7 @@
       '<div class="lwq-hurt"></div>' +
       '<div class="lwq-tl"></div><div class="lwq-tr"></div><div class="lwq-x">+</div><div class="lwq-prompt"></div>' +
       '<button class="lwq-mute" type="button" title="Sound on / off">🔊</button>' +
+      '<button class="lwq-unstuck" type="button" title="Stuck in a building? Out to the street in front of this plot (once in 5 minutes)">⇱ Stuck?</button>' +
       (TR ? '<div class="lwq-pos"></div><div class="lwq-compass"><div class="lwq-compass-in"></div><i></i></div><div class="lwq-map"><canvas></canvas><div class="lwq-map-t"></div></div>' : '') +
       '<div class="lwq-inv"></div><div class="lwq-log"></div><div class="lwq-talk"></div>' +
       (fight ? '<div class="lwq-abil"></div><div class="lwq-stats"><span class="lwq-lv"></span><div class="lwq-bar lwq-hp"><i></i><span></span></div>' +
@@ -1119,6 +1121,7 @@
       '.lwq-tl,.lwq-tr,.lwq-inv,.lwq-log,.lwq-prompt{position:absolute;font:13px/1.4 system-ui,sans-serif;color:#fff;' +
       'text-shadow:0 1px 2px #000;pointer-events:none}' +
       '.lwq-tl{left:12px;top:10px}.lwq-tr{right:12px;top:10px;text-align:right}.lwq-inv{left:12px;bottom:10px}' +
+      '.lwq-unstuck{position:absolute;right:12px;top:94px;z-index:6;display:none;height:28px;padding:0 9px;border-radius:7px;border:1px solid rgba(255,255,255,.35);background:rgba(0,0,0,.45);color:#fff;font:13px Georgia,serif;cursor:pointer}' +
       '.lwq-mute{position:absolute;right:12px;top:58px;z-index:6;width:34px;height:30px;border-radius:7px;border:1px solid rgba(255,255,255,.35);background:rgba(0,0,0,.35);color:#fff;font-size:16px;cursor:pointer;padding:0}' +
       '.lwq-compass{position:absolute;left:50%;top:8px;transform:translateX(-50%);width:300px;height:26px;overflow:hidden;pointer-events:none;' +
       'background:linear-gradient(90deg,rgba(0,0,0,0),rgba(20,14,6,.55) 20%,rgba(20,14,6,.55) 80%,rgba(0,0,0,0));border-radius:4px}' +
@@ -1267,9 +1270,40 @@
     const whereText = () => { const p = plotAt(me.x, me.z);
       return square(me.x, me.z) + ' · ' + Math.round(me.x) + ' / ' + Math.round(me.z) + (p ? ' · plot ' + p.id + ' (' + (PLOT_KIND[p.size] || PLOT_KIND[p.kind] || p.kind) + ') · ' + plotOwnerText(p.id) : ''); };
     let posKey = '';
+    /* STUCK? (tbuuol 2026-11-10): on a plot, a button sets you down on the street in front of it -- once in 5 minutes;
+       the safety net for whatever a building does (walled in, a shut door, wedged between furniture) */
+    const UNSTUCK_MS = 5 * 60 * 1000;
+    let unstuckAt = 0;
+    try { unstuckAt = +localStorage.getItem('lwq.unstuck') || 0; } catch (e) { /* no storage: this page's own */ }
+    function streetOut(p) {
+      const gen = (LV.places || []).find(q => q.id === 'genesis'), strips = (gen && gen.paths && gen.paths.strips) || [];
+      const dSeg = (x, z) => strips.reduce((b, [a0, b0, a1, b1]) => { const vx = a1 - a0, vz = b1 - b0, L = vx * vx + vz * vz || 1, t = Math.max(0, Math.min(1, ((x - a0) * vx + (z - b0) * vz) / L)); return Math.min(b, Math.hypot(x - a0 - vx * t, z - b0 - vz * t)); }, 1e9);
+      const [x0, z0, x1, z1] = p.rect, mx = (x0 + x1) / 2, mz = (z0 + z1) / 2;
+      let best = null;
+      for (const out of [2.5, 8]) {
+        for (const [x, z] of [[mx, z0 - out], [mx, z1 + out], [x0 - out, mz], [x1 + out, mz]]) {
+          if (plotAt(x, z)) continue;
+          const sc = dSeg(x, z); if (!best || sc < best.sc) best = { x, z, sc };
+        }
+        if (best) break;
+      }
+      return best;
+    }
+    function unstuck() {
+      const p = plotAt(me.x, me.z);
+      if (!p) { log('That works only on a plot.'); return; }
+      const wait = unstuckAt + UNSTUCK_MS - Date.now();
+      if (wait > 0) { log('Not yet: in ' + Math.ceil(wait / 60000) + ' min again.'); return; }
+      const t = streetOut(p); if (!t) { log('No way out found.'); return; }
+      unstuckAt = Date.now(); try { localStorage.setItem('lwq.unstuck', String(unstuckAt)); } catch (e) { /* not kept */ }
+      me.x = prev.x = t.x; me.z = prev.z = t.z; me.y = prev.y = groundAt(t.x, t.z) + 0.05; me.vy = 0;
+      log('You find your way out to the street.');
+    }
+    on($('.lwq-unstuck'), 'click', e => { e.stopPropagation(); unstuck(); });
     function posTick() {
       if (!TR) return;
       const k = whereText(); if (k === posKey) return; posKey = k;
+      $('.lwq-unstuck').style.display = plotAt(me.x, me.z) ? 'block' : 'none';
       $('.lwq-pos').textContent = k;
     }
     /* THE MAP (M): the world drawn from the same terrain as the ground, once, the first time it is opened; you are
@@ -1987,9 +2021,6 @@
         if (it[0] === 'N') heardNotice(String(it[2]));
         else if (it[0] === 'D') hurt(+it[2] || 0, String(it[3] || 'raider').slice(0, 30));
         else if (it[0] === 'W') caught(+it[2] || 0, String(it[3] || '').slice(0, 40));
-        else if (it[0] === 'T' && isFinite(+it[2]) && isFinite(+it[3])) {   /* set down outside a shut building */
-          me.x = prev.x = +it[2]; me.z = prev.z = +it[3]; me.y = prev.y = groundAt(me.x, me.z) + 0.05; me.vy = 0; log(String(it[4] || '').slice(0, 80));
-        }
         else if (it[0] === 'M' && fight) fight.missed(String(it[2]));
       }
     }
@@ -2198,41 +2229,6 @@
       if (!iAmHouse || now - posSaved < 5000) return;
       posSaved = now;
       for (const r of remotes.values()) if (!r.house) savePos(r);
-    }
-    /* NOBODY LOCKED IN (tbuuol 2026-11-10): when every FRONT door of a building is shut -- its owner closed it, or the
-       house started again with all doors shut -- whoever stands on its floor and is not its owner is set down outside a
-       front door ("vor die Haustür, nicht vor eine Innentür"). A front door has the building's floor on one side and
-       none on the other (on its storey); the person goes to that other side. Inner doors do not count. */
-    let guardT = 0;
-    function frontDoors(list) {
-      const floor = new Set(); for (const pc of list) if (pc[0] === 0) floor.add(pc[1] + ',' + pc[2] + ',' + pc[3]);
-      const out = [];
-      for (const pc of list) {
-        if (pc[0] !== 3) continue;
-        const [, cx, cz, L, r] = pc, alongX = (r | 0) % 2 === 0, ox = alongX ? cx : cx - 2, oz = alongX ? cz - 2 : cz;
-        const here = floor.has(cx + ',' + cz + ',' + L), there = floor.has(ox + ',' + oz + ',' + L);
-        if (here === there) continue;   /* floor on both sides: an inner door; on neither: a door into nothing */
-        const ex = alongX ? cx : cx - 1, ez = alongX ? cz - 1 : cz, [fx, fz] = here ? [ox, oz] : [cx, cz];   /* the side without floor */
-        const did = Object.keys(doors).find(k => { const q = doors[k].mesh.getWorldPosition(new THREE.Vector3()); return Math.hypot(q.x - ex, q.z - ez) < 1.2 && doors[k].def.plot; });
-        if (did) out.push({ did, x: ex + (fx - ex) * 0.8, z: ez + (fz - ez) * 0.8 });
-      }
-      return out;
-    }
-    function doorGuard(now) {
-      if (!iAmHouse || now - guardT < 1000) return;
-      guardT = now;
-      for (const [id] of builtLook) {
-        const list = built[id] || []; if (!list.length) continue;
-        const fronts = frontDoors(list);
-        if (!fronts.length || fronts.some(f => W.open[f.did])) continue;
-        const own = ownerOfPlot(id), cells = list.filter(pc => pc[0] === 0);
-        for (const [pid, r] of remotes) {
-          if (r.house || !r.from || r.from.address === own) continue;
-          const at = whereIs(r); if (!at || !cells.some(pc => Math.abs(at[0] - pc[1]) <= 1.05 && Math.abs(at[1] - pc[2]) <= 1.05)) continue;
-          let best = null; for (const f of fronts) { const dd = Math.hypot(f.x - at[0], f.z - at[1]); if (!best || dd < best.dd) best = Object.assign({ dd }, f); }
-          toPlayer(['T', pid, +best.x.toFixed(2), +best.z.toFixed(2), 'The front door is shut; you step outside.']);
-        }
-      }
     }
     function dropRemote(id) {
       const r = remotes.get(id); if (!r) return;
@@ -2676,7 +2672,7 @@
         left.rotation.set(-kl * 0.25, 0, -kl * 1.25);
       } else { left.position.set(-sx, -0.32, -0.52); left.rotation.set(0, 0, 0); }
       hands.visible = !P.dead && !(cinema && cinema.noHands);
-      sendRecords(now); doorGuard(now); flushOut(now);
+      sendRecords(now); flushOut(now);
     }
     let askedRec = -1e9;
     let last = performance.now(), worldT = 0, netT = 0, fps = 0, fpsN = 0, fpsT = performance.now(), showFps = false, promptNow = '';
@@ -2925,6 +2921,6 @@
     };
   }
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 56, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 57, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
     D => ({ start: (el, opts) => start(D, el, opts) }));
 })(typeof globalThis !== 'undefined' ? globalThis : this);
