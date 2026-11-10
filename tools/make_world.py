@@ -26,7 +26,7 @@ import subprocess
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 LEVELS = ROOT / "src" / "levels"
 OUT = LEVELS / "world.json"
-VERSION = 11
+VERSION = 12
 
 
 def probe(land: dict, points: list) -> list:
@@ -168,6 +168,40 @@ CAVE_AT, CAVE_Y = (2000, -1480), 40.0
 CAVE_MOUTH, CAVE_FACE = (-290.0, -20.0), (-270.0, -20.0)
 
 
+#: the cave's spiders (stage 2): its own kinds, drawn as the forest's spider (model), small or big (size)
+CAVE_SPECIES = {
+    "cave_spider": {"name": "Cave Spider", "lvl": 8, "hp": 95, "dmg": 11, "speed": 3.3, "aggressive": True, "sight": 8, "def": 1,
+                    "model": "spider", "color": "#2a2228", "loot": [["spider_silk", 0.6], ["venom_sac", 0.25]], "codex": ["evade", "toughness", "herbalism"]},
+    "spiderling": {"name": "Spiderling", "lvl": 4, "hp": 30, "dmg": 4, "speed": 4.2, "aggressive": True, "sight": 9, "def": 0,
+                   "model": "spider", "color": "#5a4636", "size": 0.55, "loot": [["spider_silk", 0.3]], "codex": ["evade", "toughness"]},
+    "brood_guard": {"name": "Brood Guardian", "lvl": 11, "hp": 190, "dmg": 15, "speed": 3.0, "aggressive": True, "sight": 7, "def": 2,
+                    "model": "spider", "color": "#3a1e2e", "size": 1.45, "loot": [["spider_silk", 0.8], ["venom_sac", 0.45]], "codex": ["evade", "toughness", "herbalism"]},
+}
+
+
+def cave_spots(L, where, n, seed):
+    """n places to stand in a chamber (its id) or along a tunnel (its index), in the cave's metres, well inside the rock."""
+    rnd = random.Random(seed)
+    if isinstance(where, str):
+        cid, _, (cx, cz), (rx, rz), *_ = next(c for c in L.CHAMBERS if c[0] == where)
+        out = []
+        while len(out) < n:
+            a, d = rnd.random() * 2 * math.pi, math.sqrt(rnd.random()) * 0.65
+            out.append([round(cx + math.cos(a) * rx * d, 1), round(cz + math.sin(a) * rz * d, 1)])
+        return out, [cx, cz], max(rx, rz) + 2
+    pts = L.TUNNELS[where][0]
+    segs = list(zip(pts, pts[1:])); total = sum(math.dist(a[:2], b[:2]) for a, b in segs)
+    out = []
+    for k in range(n):
+        t, acc = (k + 0.5) / n * total, 0
+        for a, b in segs:
+            ln = math.dist(a[:2], b[:2])
+            if acc + ln >= t:
+                f = (t - acc) / ln; out.append([round(a[0] + (b[0] - a[0]) * f, 1), round(a[1] + (b[1] - a[1]) * f, 1)]); break
+            acc += ln
+    mid = out[len(out) // 2]
+    return out, mid, total / 2 + 3
+
 def make_cave():
     import importlib.util
     spec = importlib.util.spec_from_file_location("cavelayout", ROOT / "design" / "spidercave" / "layout.py")
@@ -228,7 +262,32 @@ def make_cave():
     ]
     revive = {"at": [ax + 120, az + 90], "spawn": [ax + L.ARRIVE[0], CAVE_Y + 0.1, az + L.ARRIVE[1]], "yaw": math.pi,
               "text": "You wake in the cave's first grotto. Something skitters away in the dark."}
-    return cave, links, revive
+    # who lives where: [area name, species, chamber id or tunnel index, how many, spots, fixed maturity, eggs that hatch]
+    # the entrance grotto stays empty: you come down there and wake there, so nothing may wait for you in it
+    plan = [("Web Tunnel", "cave_spider", 0, 4, None, None),
+            ("Web Tangle", "spiderling", "B", 10, 1, None), ("Web Tangle Hunters", "cave_spider", "B", 3, None, None),
+            ("Cocoon Chamber", "cave_spider", "B2", 3, None, None), ("Down to the Cavern", "cave_spider", 2, 2, None, None),
+            ("Mushroom Cavern", "cave_spider", "C", 8, None, None), ("Brood Corridor", "cave_spider", 3, 3, None, None),
+            ("Egg Chamber", "spiderling", "D1", 6, 0, 13), ("Egg Chamber", "spiderling", "D2", 6, 0, 13), ("Egg Chamber", "spiderling", "D3", 6, 0, 13),
+            ("Egg Chamber Guard", "brood_guard", "D2", 1, 1, None), ("Egg Chamber Guard", "brood_guard", "D3", 1, 1, None),
+            ("Chasm Watch", "brood_guard", 7, 2, 1, None)]
+    areas = []
+    for k, (name, species, where, n, mat, hatch) in enumerate(plan):
+        spots, c, r = cave_spots(L, where, max(n * 2, 8), 900 + k)
+        a = {"name": name, "species": species, "center": [ax + c[0], az + c[1]], "r": round(r, 1), "count": n,
+             "respawn": 90 if hatch else 60, "spots": [[ax + q[0], az + q[1]] for q in spots]}
+        if mat is not None: a["mat"] = mat
+        if hatch: a["hatch"] = hatch
+        areas.append(a)
+    # eggs: clusters in the egg chambers and round the Broodmother's hall
+    eggs = []
+    for cid in ("D1", "D2", "D3"):
+        spots, *_ = cave_spots(L, cid, 4, hash(cid) % 1000)
+        eggs += [{"p": q, "n": 7} for q in spots]
+    spots, *_ = cave_spots(L, "F", 6, 77)
+    eggs += [{"p": q, "n": 9} for q in spots]
+    cave["eggs"] = eggs
+    return cave, links, revive, areas
 
 
 def main() -> None:
@@ -340,6 +399,9 @@ def main() -> None:
                       "count": n, "respawn": RESPAWN[dens], "_dry": round(len(ok) / max(1, len(pts)), 2), "_m2": round(len(ok) * cell)})
     for a in shp["wild"]["areas"]:   # the crew, where they stood on their ship
         areas.append(dict(a, center=ship_xz(a["center"]), respawn=shp["wild"].get("respawn", 120)))
+    cave, cave_links, cave_revive, cave_areas = make_cave()
+    sp.update(CAVE_SPECIES)
+    areas.extend(cave_areas)
     wild = {"zone": "Greenwood", "from": 28, "respawn": 25, "waterY": bch["wild"].get("waterY", -0.75), "species": sp, "areas": areas}
 
     # ---- things to gather out in the land (tbuuol 2026-10-31: "mehr sammelbare Rohstoffe verteilen"): oaks in the
@@ -400,7 +462,6 @@ def main() -> None:
                 moved = True
         if not moved:
             break
-    cave, cave_links, cave_revive = make_cave()
     land["caves"] = [cave]
     land["walls"] = [{"name": "Genesis", "pts": [[round(x, 1), round(z, 1)] for x, z in ring], "h": 7, "th": 2.4, "gate": 9}]
     genesis = make_genesis(land["walls"][0]["pts"])

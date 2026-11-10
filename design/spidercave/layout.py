@@ -8,7 +8,7 @@ from PIL import Image, ImageDraw, ImageFont
 HERE = pathlib.Path(__file__).resolve().parent
 # chambers: id, name, centre, radii (rx, rz), floor y, what lives there, dome (how much higher the roof is in the middle)
 CHAMBERS = [
-    ("A", "Eingangsgrotte", (0, 0), (15, 12), 0, "4 Höhlenspinnen", 5),
+    ("A", "Eingangsgrotte", (0, 0), (15, 12), 0, "sicher: hier kommt man an und wacht auf", 5),
     ("B", "Netzgewirr", (-25, 92), (16, 13), -3, "Jungspinnen-Schwärme, Kokons", 4),
     ("B2", "Kokonkammer", (38, 100), (10, 9), -2, "eingesponnene Opfer: Beute", 3),
     ("C", "Pilzkaverne", (-55, 160), (38, 26), -8, "leuchtende Pilze, See, Erz + Kräuter", 12),

@@ -563,6 +563,12 @@
       const fl = new T.Mesh(new T.ConeGeometry(0.13, 0.36, 7), flame); fl.position.set(L.x, base + 1.55, L.z); ctx.scene.add(fl);
       torches.push(fl);
     }
+    /* eggs: pale, leathery clusters on the floor (def.eggs: [{p, n}], the cave's metres) */
+    const egg = plain('#c9bd98', { roughness: 0.6 }), eggGeo = new T.SphereGeometry(0.3, 10, 8), er = art.rng(31);
+    for (const E of def.eggs || []) for (let k = 0; k < E.n; k++) {
+      const a = er() * Math.PI * 2, d = er() * 0.9, x = at[0] + E.p[0] + Math.cos(a) * d, z = at[1] + E.p[1] + Math.sin(a) * d, s = 0.8 + er() * 0.5;
+      const e = mesh(eggGeo, egg, false); e.scale.set(s, s * 1.45, s); e.position.set(x, TR.walk(x, z) + 0.36 * s, z); e.rotation.z = (er() - 0.5) * 0.5; ctx.scene.add(e);
+    }
     /* the web bridge over the chasm: a pale band of silk, sagging between its ends, with a strand on each side */
     if (def.bridge) {
       const B = [], pts = def.bridge.pts, hw = def.bridge.w / 2, silk = new T.MeshBasicMaterial({ color: '#6e675e', side: T.DoubleSide, transparent: true, opacity: 0.85 });
@@ -2654,5 +2660,5 @@
     return { groundAt, polys, segs, half, spawn, inside, stats: { buildings: buildings.length, trees: trees.length } };
   };
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('art', { api: 1, v: 28 }, () => art);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('art', { api: 1, v: 29 }, () => art);
 })(typeof globalThis !== 'undefined' ? globalThis : this);

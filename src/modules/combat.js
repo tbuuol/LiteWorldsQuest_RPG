@@ -152,7 +152,7 @@
       if (bs && bs.spec.model === 'human') {   /* people of a dungeon (pirates): our own figure, a weapon in hand */
         u.c = art.character(ctx, Object.assign({}, bs.spec.look || {}, { scale: ((bs.spec.look && bs.spec.look.scale) || 0.9) * bs.scale }));
         if (bs.spec.weapon && art.held) u.c.holdItem(art.held(bs.spec.weapon, bs.spec.weaponLook));
-      } else u.c = bs ? art.creature(ctx, { kind: bs.spec.model || bs.sp, color: bs.spec.color, scale: bs.scale }) : art.character(ctx, look(kind, id));
+      } else u.c = bs ? art.creature(ctx, { kind: bs.spec.model || bs.sp, color: bs.spec.color, scale: bs.scale * (bs.spec.size || 1) }) : art.character(ctx, look(kind, id));
       u.c.setName(u.name, kind === 'raider' ? '#ff9a8a' : kind === 'priest' ? '#c9f5c0' : kind === 'beast' ? ['#c8d0c0', '#ffe9a8', '#ffb46a', '#ff7a5a'][bs.m] : '#cfe1ff');
       u.bar = bar(u);
       u.c.group.position.set(x, 0, z);
@@ -203,6 +203,8 @@
       /* a beast that does not swim stops at deep water (2026-10-31: the pirates walked off their ship over the sea and
          onto the dock); it is still on its way, so it does not strike from where it stands */
       if (u.beast && !u.beast.spec.swim) { const wet = (wild && wild.waterY != null ? wild.waterY : -0.75) - 0.4, h = height(nx, nz); if (h < wet && h < height(u.x, u.z)) return true; }
+      /* nor up a wall or over an edge (a cave's rock, its chasm): a creature walks, it does not climb or leap */
+      if (u.beast) { const h0 = height(u.x, u.z), h1 = height(nx, nz); if (h1 - h0 > 1.2 || h0 - h1 > 2.5) return true; }
       u.x = nx; u.z = nz;
       return true;
     }
@@ -339,6 +341,8 @@
     }
     function spotIn(a) {   /* a place in the area, on dry land unless it swims */
       const sp = wild.species[a.species] || {}, wet = wild.waterY != null ? wild.waterY : -0.75;
+      /* a cave's area (the Spider Cave): its own places to stand, where the rock is open */
+      if (a.spots && a.spots.length) { const q = a.spots[Math.floor(Math.random() * a.spots.length)]; return [q[0] + (Math.random() - 0.5), q[1] + (Math.random() - 0.5)]; }
       if (!a.poly) { const ang = Math.random() * Math.PI * 2, d = Math.sqrt(Math.random()) * a.r; return [a.center[0] + Math.cos(ang) * d, a.center[1] + Math.sin(ang) * d]; }
       if (!a.box) { a.box = [1e9, 1e9, -1e9, -1e9]; for (const [x, z] of a.poly) { a.box[0] = Math.min(a.box[0], x); a.box[1] = Math.min(a.box[1], z); a.box[2] = Math.max(a.box[2], x); a.box[3] = Math.max(a.box[3], z); } }
       for (let k = 0; k < 40; k++) {
@@ -363,6 +367,8 @@
       for (const u of units.values()) if (u.kind === 'beast' && u.area != null && !u.extra) count[u.area]++;
       wild.areas.forEach((a, i) => {
         const st = areaState[i];
+        /* EGGS (the Spider Cave's egg chambers): nothing hatches until someone comes within a.hatch metres */
+        if (a.hatch && !livePlayers.some(p => Math.hypot(p.x - a.center[0], p.z - a.center[1]) < a.hatch)) return;
         while (count[i] + st.due.length < (a.count || 3)) st.due.push(st.started ? now + (a.respawn || wild.respawn || 25) * 1000 : now);   /* an area may have its own (the world: each zone's) */
         st.started = true;
         st.due = st.due.filter(t => { if (t <= now) { spawnBeast(i); return false; } return true; });
@@ -681,5 +687,5 @@
     return snap;
   }
   const combat = { api: 1, player, gain, nextXp, create, encode, decode };
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('combat', { api: 1, v: 20, needs: { three: 160, art: 1 } }, () => combat);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('combat', { api: 1, v: 21, needs: { three: 160, art: 1 } }, () => combat);
 })(typeof globalThis !== 'undefined' ? globalThis : this);

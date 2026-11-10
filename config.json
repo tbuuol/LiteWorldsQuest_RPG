@@ -29,7 +29,7 @@
     },
     "art": {
       "file": "src/modules/art.js",
-      "v": 28,
+      "v": 29,
       "api": 1,
       "kind": "js",
       "id": null,
@@ -37,7 +37,7 @@
     },
     "combat": {
       "file": "src/modules/combat.js",
-      "v": 20,
+      "v": 21,
       "api": 1,
       "kind": "js",
       "id": null,
@@ -117,7 +117,7 @@
     },
     "world": {
       "file": "src/levels/world.json",
-      "v": 11,
+      "v": 12,
       "api": 1,
       "kind": "json",
       "id": null,
