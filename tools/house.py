@@ -45,12 +45,13 @@ CHECK_EVERY, FRESH_EVERY = 30, 6 * 3600
 ALERT_AFTER, ALERT_TO = 15 * 60, "banana"
 #: out of the game this long, the house quits and systemd starts it afresh (2026-11-08 20:16: a join after the arcade's
 #: worker restart hung for 18 h, the process alive and the log silent)
-STUCK_AFTER = 30 * 60
+STUCK_AFTER = 20 * 60
 STARTED = time.time()
 PLAYERS = SECRET / f"{'beta-' if BETA else ''}players.json"          # the house's book of every player, kept here between starts and page versions
 STORE = SECRET / f"{'beta-' if BETA else ''}players.sqlite"          # Etappe 4: the database a house in store mode asks (tools/house_store.py)
 BACKUPS = SECRET / f"backups{_B}"
-GOOD_FILE = SECRET / f"house{_B}.last_good"   # kept on disk, so a house that keeps crashing still gets reported
+GOOD_FILE = SECRET / f"house{_B}.last_good"
+DRILL = SECRET / f"house{_B}.drill"   # touched by hand: the house drops its page once (a test of getting back in)   # kept on disk, so a house that keeps crashing still gets reported
 try:
     LAST_GOOD = float(GOOD_FILE.read_text())   # the last time the house was in the game, keeping it
 except (OSError, ValueError):
@@ -234,72 +235,81 @@ async def _session(p, level: str = "") -> None:
         # to the game off (2026-10-23, "interrupted by another navigation to /apps")
         apps, pg = pg, await ctx.new_page()
         await apps.close()
-        # straight to the game, not /play: since 2026-10-29 /play first measures the affiliated arcades and then moves
-        # itself on to /full, and the house's look at the page in between died ("Execution context was destroyed").
-        # The zone is reached by LWQGAME.travel below.
-        await pg.goto(f"{NODE}/inscriptions/{game}/full", timeout=120_000)
-        # JOINING SIGNS WHO YOU ARE, once a day, and only this tab remembers it: the viewer asks for the password
-        # ("Join this game as you?") -- for another node too -- and the game gives up asking after 20 s (2026-10-23
-        # evening). So every ask is answered while the game joins, and a game left alone after one is loaded again:
-        # the signatures are kept in the tab by then.
-        for load in range(4):
-            answered = False
-            for _ in range(60):
-                await asyncio.sleep(1)
-                asked = await pg.evaluate("() => { const i = [...document.querySelectorAll('input[type=password]')].find(x => x.offsetParent && !x.dataset.lwqAnswered); return i ? (i.closest('form,dialog,div') || document.body).innerText.slice(0, 120) : ''; }")
-                if asked and await answer_password(pg, password):
-                    answered = True
-                    log("answered the viewer's ask:", " ".join(asked.split())[:100])
-                frame = await find_game(pg)
+        async def join_game():
+            """The game page, joined and (as far as the room lets it) online: the frame, or None. Called again in the
+            same browser when the game drops out (2026-11-10, hardening: a fresh browser and wallet access each time
+            took minutes and had more steps that could fail)."""
+            frame = None
+            # straight to the game, not /play: since 2026-10-29 /play first measures the affiliated arcades and then moves
+            # itself on to /full, and the house's look at the page in between died ("Execution context was destroyed").
+            # The zone is reached by LWQGAME.travel below.
+            await pg.goto(f"{NODE}/inscriptions/{game}/full", timeout=120_000)
+            # JOINING SIGNS WHO YOU ARE, once a day, and only this tab remembers it: the viewer asks for the password
+            # ("Join this game as you?") -- for another node too -- and the game gives up asking after 20 s (2026-10-23
+            # evening). So every ask is answered while the game joins, and a game left alone after one is loaded again:
+            # the signatures are kept in the tab by then.
+            for load in range(4):
+                answered = False
+                for _ in range(60):
+                    await asyncio.sleep(1)
+                    asked = await pg.evaluate("() => { const i = [...document.querySelectorAll('input[type=password]')].find(x => x.offsetParent && !x.dataset.lwqAnswered); return i ? (i.closest('form,dialog,div') || document.body).innerText.slice(0, 120) : ''; }")
+                    if asked and await answer_password(pg, password):
+                        answered = True
+                        log("answered the viewer's ask:", " ".join(asked.split())[:100])
+                    frame = await find_game(pg)
+                    if frame and await frame.evaluate("window.LWQGAME.state.online"):
+                        break
+                    if frame and not asked and any("Playing alone" in x for x in await frame.evaluate("window.LWQGAME.log()")):
+                        break
                 if frame and await frame.evaluate("window.LWQGAME.state.online"):
                     break
-                if frame and not asked and any("Playing alone" in x for x in await frame.evaluate("window.LWQGAME.log()")):
+                if not answered and load:
                     break
-            if frame and await frame.evaluate("window.LWQGAME.state.online"):
-                break
-            if not answered and load:
-                break
-            log("the game is alone; loading it again (" + str(load + 1) + ")")
-            await pg.reload(timeout=120_000)
-        frame = None
-        for _ in range(600):
-            frame = await find_game(pg)
-            if frame:
-                break
-            await asyncio.sleep(1)
-        if not frame:
-            log("the game did not start; trying again")
-            return
-        # A ZONE'S HOUSE: the play page may not hand ?level= on to the game, so the house sends its game there itself,
-        # as a portal does (the frame's own address, its viewer ticket kept)
-        if level and await frame.evaluate("lv => !!(window.LWQGAME && window.LWQGAME.travel) && window.LWQGAME.level !== lv", level):
-            # IN PLACE (engine 22, 2026-10-28): the game leaves its first room and plays the zone in the same page
-            if not await frame.evaluate("lv => window.LWQGAME.travel(lv)", level):
-                log("the game did not go to", level, "; trying again")
-                return
-        elif level and f"level={level}" not in frame.url:
-            # LEAVE THE FIRST ROOM FIRST (2026-10-28, live): the room is held by the viewer, not the game, so a frame
-            # that only moves on stays in it -- three houses sat in Blockshire as one member, all three answering a
-            # player's fast lane, which flapped between 'direct' and 'room'. A portal leaves too (engine travel()).
-            here = await frame.evaluate("(() => { try { return new URLSearchParams(location.search).get('level') || ''; } catch (e) { return ''; } })()")
-            await frame.evaluate("room => window.parent.postMessage({ arcade: 'realtime', op: 'leave', room: room, seq: 900000001 }, '*')",
-                                 "lwq." + (here or "blockshire"))
-            await asyncio.sleep(2)
-            await frame.evaluate("lv => { const q = new URLSearchParams(location.search); q.set('level', lv); location.search = '?' + q.toString(); }", level)
+                log("the game is alone; loading it again (" + str(load + 1) + ")")
+                await pg.reload(timeout=120_000)
             frame = None
-            for _ in range(300):
-                await asyncio.sleep(1)
+            for _ in range(600):
                 frame = await find_game(pg)
-                if frame and f"level={level}" in frame.url:
+                if frame:
                     break
-            if not frame or f"level={level}" not in frame.url:
-                log("the game did not go to", level, "; trying again")
-                return
+                await asyncio.sleep(1)
+            if not frame:
+                log("the game did not start; trying again")
+                return None
+            # A ZONE'S HOUSE: the play page may not hand ?level= on to the game, so the house sends its game there itself,
+            # as a portal does (the frame's own address, its viewer ticket kept)
+            if level and await frame.evaluate("lv => !!(window.LWQGAME && window.LWQGAME.travel) && window.LWQGAME.level !== lv", level):
+                # IN PLACE (engine 22, 2026-10-28): the game leaves its first room and plays the zone in the same page
+                if not await frame.evaluate("lv => window.LWQGAME.travel(lv)", level):
+                    log("the game did not go to", level, "; trying again")
+                    return None
+            elif level and f"level={level}" not in frame.url:
+                # LEAVE THE FIRST ROOM FIRST (2026-10-28, live): the room is held by the viewer, not the game, so a frame
+                # that only moves on stays in it -- three houses sat in Blockshire as one member, all three answering a
+                # player's fast lane, which flapped between 'direct' and 'room'. A portal leaves too (engine travel()).
+                here = await frame.evaluate("(() => { try { return new URLSearchParams(location.search).get('level') || ''; } catch (e) { return ''; } })()")
+                await frame.evaluate("room => window.parent.postMessage({ arcade: 'realtime', op: 'leave', room: room, seq: 900000001 }, '*')",
+                                     "lwq." + (here or "blockshire"))
+                await asyncio.sleep(2)
+                await frame.evaluate("lv => { const q = new URLSearchParams(location.search); q.set('level', lv); location.search = '?' + q.toString(); }", level)
+                frame = None
+                for _ in range(300):
+                    await asyncio.sleep(1)
+                    frame = await find_game(pg)
+                    if frame and f"level={level}" in frame.url:
+                        break
+                if not frame or f"level={level}" not in frame.url:
+                    log("the game did not go to", level, "; trying again")
+                    return None
+            for _ in range(18):   # joining the room can take a while on a busy node: up to 90 s before judging
+                await asyncio.sleep(5)
+                if await frame.evaluate("window.LWQGAME.state.online"):
+                    break
+            return frame
+        frame = await join_game()
+        if not frame:
+            return
         started = time.time()
-        for _ in range(18):   # joining the room can take a while on a busy node: up to 90 s before judging
-            await asyncio.sleep(5)
-            if await frame.evaluate("window.LWQGAME.state.online"):
-                break
         # A game that can ask for records one player at a time (Etappe 4) gets them from the database as players come;
         # an older one still gets every record at the start, from players.json.
         store = pay = None
@@ -317,24 +327,65 @@ async def _session(p, level: str = "") -> None:
             log("players' records loaded:", n)
         let_in_next(level)   # in its zone: the next house may come through the door
         log("started:", await frame.evaluate("(() => { const s = window.LWQGAME.state; return {online: s.online, house: s.house, players: s.players, seq: s.world.seq, gate: s.gate, log: window.LWQGAME.log().slice(-3), engine: (window.LWQ.get('$report').find(r => r[0] === 'engine') || [])[1]}; })()"))
-        worker = node_pid()
         build = beta_build()
+        # THE BUILD IT PLAYS (2026-11-10): a house that started while a new beta was being pushed loaded the old one
+        # and thought it current; it must play what the registry names
+        if BETA and build and await frame.evaluate("(() => { try { return (window.LWQ.get('$registry') || {}).bundle || ''; } catch (e) { return ''; } })()") not in (build, ""):
+            log("the page has an older build than", build, "; starting again")
+            return
+
+        async def rejoin(why):
+            """Back into the game in this same browser (2026-11-10, hardening): the page again, the house's work handed
+            to the new frame. Two tries; the frame, or None (then the whole session starts again)."""
+            nonlocal frame
+            for attempt in (1, 2):
+                log(why, "; joining again in this browser (" + str(attempt) + ")")
+                try:
+                    f = await join_game()
+                    if f and await f.evaluate("(() => { const s = window.LWQGAME.state; return s.online && s.house === 'me'; })()"):
+                        if store is not None:
+                            await f.evaluate("window.LWQGAME.houseStore(true)")
+                            if pay is not None:
+                                await f.evaluate("window.LWQGAME.housePay(true)")
+                        elif PLAYERS.exists():
+                            await f.evaluate("json => window.LWQGAME.houseLoad ? window.LWQGAME.houseLoad(json) : 0", PLAYERS.read_text())
+                        frame = f
+                        log("back in:", await f.evaluate("(() => { const s = window.LWQGAME.state; return {online: s.online, house: s.house, players: s.players, gate: s.gate}; })()"))
+                        return f
+                    if f:
+                        log("not in yet:", await f.evaluate("(() => { const s = window.LWQGAME.state; return {online: s.online, house: s.house, gate: s.gate, log: window.LWQGAME.log().slice(-3)}; })()"))
+                except Exception as e:   # noqa: BLE001 -- the next try, or a fresh session
+                    log("rejoin error:", repr(e)[:200])
+            return None
+        worker = node_pid()
         while time.time() - started < FRESH_EVERY:
             if worker and node_pid() not in (None, worker):
-                log("the arcade's web worker restarted; joining again")
-                return
+                worker = node_pid()
+                if not await rejoin("the arcade's web worker restarted"):
+                    return
+                continue
             if BETA and beta_build() != build:
                 log("a new beta build:", beta_build(), "; starting again")
                 return
+            # A DRILL (2026-11-10): touch .publisher/house[-beta].drill and the house throws its own page away once, to
+            # show that it gets back in by itself
+            if DRILL.exists():
+                DRILL.unlink()
+                log("drill: the page goes")
+                await pg.goto("about:blank")
             frame = await find_game(pg)
             if not frame:
-                log("the game frame is gone; starting again")
-                return
+                if not await rejoin("the game frame is gone"):
+                    return
+                continue
             s = await frame.evaluate("(() => { const s = window.LWQGAME.state; return {online: s.online, house: s.house, players: s.players, seq: s.world.seq, gate: s.gate}; })()")
             s["zone"] = level or "main"
             if not s["online"] or s["house"] != "me":
-                log("not the house any more:", s, "; starting again")
-                return
+                log("not the house any more:", s)
+                if not await rejoin("not the house"):
+                    log("starting again")
+                    return
+                continue
             global LAST_GOOD
             LAST_GOOD = time.time()
             if store is None:
@@ -352,6 +403,8 @@ async def _session(p, level: str = "") -> None:
                 log("keeping the world:", s)
             # between the checks: the database every second (records asked for, records changed)
             for tick in range(CHECK_EVERY):
+                if frame.is_detached():   # the page went (a reload, a lock): to the check above at once, not in 30 s
+                    break
                 if pay is not None:
                     try:
                         await ltc_pay.sync(frame, pay, tick)
