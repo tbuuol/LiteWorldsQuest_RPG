@@ -1055,7 +1055,8 @@
     /* --- the fight at the gate (combat module): guards, a priest, raiders out of the forest ------------------ */
     const combat = D.combat || null;
     const fight = (LV.defense || LV.wild) && combat ? combat.create({ THREE, art, ctx, def: LV.defense || {}, wild: LV.wild || null,
-      height: ctx.height, eye: () => camera.position, far: PHONE ? 90 : 140 }) : null;   /* creatures beyond far are not drawn */
+      height: ctx.height, eye: () => camera.position, far: PHONE ? 90 : 140,   /* creatures beyond far are not drawn */
+      number: (text, colour) => hudNumber(text, colour), engaged: id => performance.now() - (struck[id] || -1e9) < 20000 }) : null;
 
     /* everything that never moves, merged by material: hundreds of parts become a few dozen draw calls */
     for (const id in doors) if (!doors[id].pivots) doors[id].mesh.userData.keep = true;
@@ -1808,6 +1809,17 @@
       }
       return Math.max(1, 2 + Math.floor(Math.random() * 3) - raiderDef);
     }
+    /* MY NUMBERS, in the middle of my view, just over the crosshair: they rise and fade */
+    const struck = {};   /* a foe's id -> when I last struck it: its bar shows while we fight */
+    function hudNumber(text, colour) {
+      const n = document.createElement('div');
+      n.textContent = text;
+      n.style.cssText = 'position:absolute;left:calc(50% + ' + Math.round((Math.random() - 0.5) * 70) + 'px);top:44%;transform:translate(-50%,0);pointer-events:none;z-index:7;' +
+        'font:800 26px system-ui,sans-serif;color:' + colour + ';text-shadow:0 2px 0 #000,0 0 6px rgba(0,0,0,.8);transition:transform 1.1s ease-out,opacity 1.1s ease-in;opacity:1';
+      el.appendChild(n);
+      requestAnimationFrame(() => { n.style.transform = 'translate(-50%,-70px)'; n.style.opacity = '0'; });
+      setTimeout(() => n.remove(), 1200);
+    }
     function attack() {
       if (!fight || !P || P.dead || !playing() || (menu && menu.isOpen())) return;
       const now = performance.now();
@@ -1816,6 +1828,7 @@
       const id = fight.pick(me.x, me.z, me.yaw, P.range, me.y);
       if (sound) sound.blip(id ? 'hit' : 'swing');
       if (!id) return;
+      struck[id] = performance.now();
       if (amHost()) { route(fight.damage(id, blowFor(room ? room.me : null, id), myId())); return; }
       /* a blow for the house: over the direct link when there is one, and through the room as well; the house counts
          each once by its number, rolls it, and the number shows when it answers (a spark at once, here) */
@@ -1853,7 +1866,7 @@
         msg.p = best || myId();
       }
       abilCd[ab.key] = now + ab.cd * 1000;
-      if (ab.mul) { swing(); act('attack-melee-right'); if (sound) sound.blip('hit'); for (const id of msg.u) { fight.predict(id, 0); if (ab.stun) fight.say(id, 'stun'); } }
+      if (ab.mul) { swing(); act('attack-melee-right'); if (sound) sound.blip('hit'); for (const id of msg.u) { struck[id] = performance.now(); fight.predict(id, 0); if (ab.stun) fight.say(id, 'stun'); } }
       else if (sound) sound.blip('pickup');
       sendIntent(msg);
       drawAbilities(true);
@@ -1880,7 +1893,7 @@
         for (const id of (Array.isArray(d.u) ? d.u : []).slice(0, ab.most || 1).map(String)) {
           if (!near(id)) continue;
           const dealt = blowFor(from, id, ab.mul);
-          route(fight.damage(id, dealt, from.id));
+          struckBy(from, id, dealt);
           if (ab.stun) fight.stun(id, ab.stun);
           if (ab.dot && dealt > 0) dots.push({ id, from, d: Math.max(1, Math.round(dealt * ab.dot.d)), n: ab.dot.n, next: performance.now() + 1000 });
         }
@@ -1904,13 +1917,19 @@
       if (ranked) notice(from.id, ranked + '!');
       dirty.add(a);
     }
+    /* A BLOW DEALT, and its number to the one who struck it (2026-11-10: each sees only their own, in their own view) */
+    function struckBy(from, id, d) {
+      const ev = fight.damage(id, d, from.id);
+      if (d > 0 && from.id !== myId()) toPlayer(['H', from.id, id, d]);
+      route(ev);
+    }
     /* POISON (Venom Strike): what is left of it, a tick a second; and BATTLE CRY's harder blows, by wallet address */
     const dots = [], buffs = new Map();
     function dotTick(now) {
       if (!iAmHouse || !dots.length || !fight) return;
       for (let i = dots.length - 1; i >= 0; i--) {
         const t = dots[i]; if (now < t.next) continue;
-        route(fight.damage(t.id, t.d, t.from.id)); t.n--; t.next += 1000;
+        struckBy(t.from, t.id, t.d); t.n--; t.next += 1000;
         if (t.n <= 0) dots.splice(i, 1);
       }
     }
@@ -2045,6 +2064,7 @@
         else if (it[0] === 'D') hurt(+it[2] || 0, String(it[3] || 'raider').slice(0, 30));
         else if (it[0] === 'W') caught(+it[2] || 0, String(it[3] || '').slice(0, 40));
         else if (it[0] === 'M' && fight) fight.missed(String(it[2]));
+        else if (it[0] === 'H') { hudNumber('-' + (+it[3] || 0), '#ff6b5a'); struck[String(it[2])] = performance.now(); }
       }
     }
     /* the house sends each player its record when it changed (at most every 1.5 s), over the direct link */
@@ -2359,7 +2379,7 @@
       if (fight) {
         const fromHost = from.id === hostId();
         if (d.C && fromHost && !amHost()) fight.apply(d.C);
-        if (d.X != null && amHost() && freshBlow(from.id, d.n) && blowNear(from.id, String(d.X))) route(fight.damage(String(d.X), blowFor(from, String(d.X)), from.id));
+        if (d.X != null && amHost() && freshBlow(from.id, d.n) && blowNear(from.id, String(d.X))) struckBy(from, String(d.X), blowFor(from, String(d.X)));
         if (d.D != null && String(d.D) === myId() && fromHost) hurt(+d.d || 0, String(d.f || 'raider').slice(0, 30));
         if (Array.isArray(d.M) && String(d.M[0]) === myId() && fromHost) fight.missed(String(d.M[1]));
       }
@@ -2957,6 +2977,6 @@
     };
   }
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 60, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 61, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
     D => ({ start: (el, opts) => start(D, el, opts) }));
 })(typeof globalThis !== 'undefined' ? globalThis : this);

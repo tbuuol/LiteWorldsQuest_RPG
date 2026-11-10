@@ -83,6 +83,8 @@
        Blockshire's ground is 14 m up), big enough to read in the middle of a fight */
     const floaters = [];
     function floater(u, text, colour, lift) {
+      /* MY NUMBERS IN MY VIEW (tbuuol 2026-11-10): the engine shows them in the middle of the screen, wherever I look */
+      if (o.number) { o.number(text, colour); return; }
       const c = document.createElement('canvas'); c.width = 256; c.height = 96;
       const x2 = c.getContext('2d'); x2.font = 'bold 72px system-ui,sans-serif'; x2.textAlign = 'center';
       x2.lineWidth = 12; x2.lineJoin = 'round'; x2.strokeStyle = 'rgba(0,0,0,.8)'; x2.strokeText(text, 128, 74);
@@ -509,13 +511,14 @@
             u.predicted = (u.predicted || []).filter(q => q.until > now);
             const mine = diff < 0 ? u.predicted.findIndex(q => q.d === -diff) : -1;
             if (mine >= 0) u.predicted.splice(mine, 1);   /* my own blow, already shown when I struck */
-            else if (diff < 0) floater(u, String(diff), '#ff6b5a');
-            else if (diff > 0) floater(u, '+' + diff, '#7dff8a');
+            /* nobody else's numbers (2026-11-10): mine come from the house, one by one, and show in my view */
           }
           u.bar.draw(u.hp, u.max, u.kind === 'raider' ? '#e0483a' : '#4cc35a');
           u.shown.hp = u.hp;
         }
-        u.bar.s.visible = u.state !== 'dead';
+        /* A BAR ONLY FOR WHOM I FIGHT (2026-11-10): struck by me lately, or at me right now from close by */
+        const eye = eyeOf ? eyeOf() : null;
+        u.bar.s.visible = u.state !== 'dead' && (!o.engaged || o.engaged(u.id) || (u.state === 'attack' && !!eye && Math.hypot(u.x - eye.x, u.z - eye.z) < 4.5));
         u.shown.atk = u.atk;
       }
       for (let i = rings.length - 1; i >= 0; i--) {
@@ -717,5 +720,5 @@
     return snap;
   }
   const combat = { api: 1, player, gain, nextXp, create, encode, decode };
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('combat', { api: 1, v: 24, needs: { three: 160, art: 1 } }, () => combat);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('combat', { api: 1, v: 25, needs: { three: 160, art: 1 } }, () => combat);
 })(typeof globalThis !== 'undefined' ? globalThis : this);
