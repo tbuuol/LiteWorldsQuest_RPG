@@ -41,8 +41,6 @@ PROFILE = SECRET / f"house-browser{_B}"
 LOG = SECRET / "log" / f"house{_B}.log"
 NODE = "http://127.0.0.1:8420"
 CHECK_EVERY, FRESH_EVERY = 30, 6 * 3600
-#: out of the game this long, and the house writes to its keeper (tools/notify.py), once; and once more when it is back
-ALERT_AFTER, ALERT_TO = 15 * 60, "banana"
 #: out of the game this long, the house quits and systemd starts it afresh (2026-11-08 20:16: a join after the arcade's
 #: worker restart hung for 18 h, the process alive and the log silent)
 STUCK_AFTER = 20 * 60
@@ -56,16 +54,12 @@ try:
     LAST_GOOD = float(GOOD_FILE.read_text())   # the last time the house was in the game, keeping it
 except (OSError, ValueError):
     LAST_GOOD = time.time()
-LAST_TROUBLE = ""
 DEED_JOB = None   # a deed's step running in a thread (tools/deeds.py)
 SALE_JOB = None   # a round of the sales' jobs (tools/resale.py)
 SHOP_JOB = None   # a round of the shops' sales (tools/shops.py)
 
 
 def log(*parts) -> None:
-    global LAST_TROUBLE
-    if parts and any(w in str(parts[0]) for w in ("error", "not ", "could not", "restarted", "gone", "did not")):
-        LAST_TROUBLE = " ".join(str(p) for p in parts)[:200]
     LOG.parent.mkdir(parents=True, exist_ok=True)
     if LOG.exists() and LOG.stat().st_size > 2_000_000:   # keep it small: the last ~2 MB
         LOG.replace(LOG.with_suffix(".log.1"))
@@ -483,32 +477,15 @@ def beta_build() -> str:
         return ""
 
 
-async def tell_keeper(text: str) -> None:
-    proc = await asyncio.create_subprocess_exec(sys.executable, "-I", str(ROOT / "tools" / "notify.py"), ALERT_TO, text,
-                                                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT)
-    out, _ = await proc.communicate()
-    log("to @" + ALERT_TO + ":", text[:80], "->", out.decode(errors="replace").strip()[-120:])
-
-
 async def watchdog() -> None:
-    """Out of the game for ALERT_AFTER: a message to the keeper, once; back in: one more."""
-    alerted = False
+    """Out of the game too long (STUCK_AFTER, each start counted from itself): the house quits, systemd starts it again.
+    (Messages to a keeper are gone: tbuuol 2026-11-10, "das bekomme ich eh nicht mit".)"""
     while True:
         await asyncio.sleep(60)
         out_for = time.time() - LAST_GOOD
-        if time.time() - max(LAST_GOOD, STARTED) > STUCK_AFTER:   # each start gets its own half hour
+        if time.time() - max(LAST_GOOD, STARTED) > STUCK_AFTER:
             log(f"out of the game for {int(out_for // 60)} min; quitting, systemd starts the house again")
             os._exit(1)
-        if BETA:
-            continue
-        if not alerted and out_for > ALERT_AFTER:
-            alerted = True
-            since = time.strftime("%H:%M", time.localtime(LAST_GOOD))
-            await tell_keeper(f"LiteWorldsQuest house: out of the game since {since} ({int(out_for // 60)} min), "
-                              f"trying again by itself. Last trouble: {LAST_TROUBLE or 'none logged'}")
-        elif alerted and out_for < CHECK_EVERY * 3:
-            alerted = False
-            await tell_keeper("LiteWorldsQuest house: back in the game, keeping the world again.")
 
 
 async def keep(p, level: str) -> None:
