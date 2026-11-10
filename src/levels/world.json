@@ -2,7 +2,7 @@
  "lwq": "module",
  "name": "level.world",
  "api": 1,
- "v": 13,
+ "v": 14,
  "data": {
   "id": "world",
   "title": "LiteWorldsQuest",
@@ -994,85 +994,85 @@
      "eggs": [
       {
        "p": [
-        60.9,
-        105.7
+        57.7,
+        112.2
        ],
        "n": 7
       },
       {
        "p": [
-        55.8,
-        106.8
+        64.3,
+        103.2
        ],
        "n": 7
       },
       {
        "p": [
-        63.5,
-        112.5
+        58.6,
+        109.5
        ],
        "n": 7
       },
       {
        "p": [
-        58.8,
-        106.0
+        63.2,
+        109.5
        ],
        "n": 7
       },
       {
        "p": [
-        81.5,
-        163.3
-       ],
-       "n": 7
-      },
-      {
-       "p": [
-        88.8,
+        82.7,
         165.9
        ],
        "n": 7
       },
       {
        "p": [
-        87.3,
-        164.8
+        78.2,
+        169.8
        ],
        "n": 7
       },
       {
        "p": [
-        84.7,
-        166.7
+        83.0,
+        163.3
        ],
        "n": 7
       },
       {
        "p": [
-        112.1,
-        107.9
+        79.3,
+        171.0
        ],
        "n": 7
       },
       {
        "p": [
-        102.4,
-        107.1
+        111.3,
+        110.1
        ],
        "n": 7
       },
       {
        "p": [
-        109.3,
-        107.3
+        107.2,
+        103.5
        ],
        "n": 7
       },
       {
        "p": [
-        109.0,
-        111.7
+        106.3,
+        109.1
+       ],
+       "n": 7
+      },
+      {
+       "p": [
+        104.4,
+        106.3
        ],
        "n": 7
       },
@@ -8813,6 +8813,57 @@
     ],
     "yaw": -1.5707963267948966,
     "text": "A long climb, and you are out in Greenwood again."
+   }
+  ],
+  "hoards": [
+   {
+    "id": "brood_hoard",
+    "pos": [
+     2238,
+     -1340
+    ],
+    "yaw": 1.5708,
+    "every": 20,
+    "text": "You lift the lid of the Broodmother's hoard.",
+    "empty": "The hoard has nothing more for you today. Come back tomorrow.",
+    "loot": [
+     [
+      "brood_carapace",
+      1
+     ],
+     [
+      "spider_silk",
+      1
+     ],
+     [
+      "spider_silk",
+      0.7
+     ],
+     [
+      "venom_sac",
+      1
+     ],
+     [
+      "pearl",
+      0.6
+     ],
+     [
+      "broodfang",
+      0.08
+     ],
+     [
+      "venom_ring",
+      0.12
+     ],
+     [
+      "silkweave_mantle",
+      0.08
+     ],
+     [
+      "carapace_shield",
+      0.06
+     ]
+    ]
    }
   ],
   "revives": [

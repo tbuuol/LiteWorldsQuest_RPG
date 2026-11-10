@@ -26,7 +26,7 @@ import subprocess
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 LEVELS = ROOT / "src" / "levels"
 OUT = LEVELS / "world.json"
-VERSION = 13
+VERSION = 14
 
 
 def probe(land: dict, points: list) -> list:
@@ -297,7 +297,13 @@ def make_cave():
     spots, *_ = cave_spots(L, "F", 6, 77)
     eggs += [{"p": q, "n": 9} for q in spots]
     cave["eggs"] = eggs
-    return cave, links, revive, areas
+    # the hoard behind the Broodmother's hall: each player's once in 20 hours
+    gx, gz = next(c[2] for c in L.CHAMBERS if c[0] == "G")
+    hoard = {"id": "brood_hoard", "pos": [ax + gx + 2, az + gz], "yaw": round(math.pi / 2, 4), "every": 20,
+             "text": "You lift the lid of the Broodmother's hoard.", "empty": "The hoard has nothing more for you today. Come back tomorrow.",
+             "loot": [["brood_carapace", 1], ["spider_silk", 1], ["spider_silk", 0.7], ["venom_sac", 1], ["pearl", 0.6],
+                      ["broodfang", 0.08], ["venom_ring", 0.12], ["silkweave_mantle", 0.08], ["carapace_shield", 0.06]]}
+    return cave, links, revive, areas, hoard
 
 
 def main() -> None:
@@ -409,7 +415,7 @@ def main() -> None:
                       "count": n, "respawn": RESPAWN[dens], "_dry": round(len(ok) / max(1, len(pts)), 2), "_m2": round(len(ok) * cell)})
     for a in shp["wild"]["areas"]:   # the crew, where they stood on their ship
         areas.append(dict(a, center=ship_xz(a["center"]), respawn=shp["wild"].get("respawn", 120)))
-    cave, cave_links, cave_revive, cave_areas = make_cave()
+    cave, cave_links, cave_revive, cave_areas, cave_hoard = make_cave()
     sp.update(CAVE_SPECIES)
     areas.extend(cave_areas)
     wild = {"zone": "Greenwood", "from": 28, "respawn": 25, "waterY": bch["wild"].get("waterY", -0.75), "species": sp, "areas": areas}
@@ -560,6 +566,7 @@ def main() -> None:
         "defense": dict(blk.get("defense") or {}, spawns=dict((blk.get("defense") or {}).get("spawns") or {}, night=True)),
         "wild": wild, "quests": quests, "zones": zones,
         "links": cave_links,
+        "hoards": [cave_hoard],
         "revives": [
             cave_revive,
             {"at": [0, 0], "spawn": spawn, "yaw": blk.get("spawnYaw", 0)},

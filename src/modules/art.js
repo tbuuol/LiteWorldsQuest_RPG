@@ -498,6 +498,18 @@
       }
       return out.multiply(albedo);
     }
+    /* a corner as every cell round it sees it: itself where it is open, else the mean of the open cells round it on the
+       same level -- the same for all of them, so their floors, roofs and walls meet without a crack */
+    function cornerOf(ci, cj, k) {
+      const v = corner[cj * (nx + 1) + ci];
+      if (open(v) && Math.abs(low(v) - low(k)) < 2) return v;
+      let n = 0, y = 0, t = 0;
+      for (const [di, dj] of [[-1, -1], [0, -1], [-1, 0], [0, 0]]) {
+        const c = cell(ci + di, cj + dj);
+        if (open(c) && Math.abs(low(c) - low(k)) < 2) { n++; y += low(c); t += c.top; }
+      }
+      return n ? { kind: 'floor', y: y / n, top: t / n } : k;
+    }
     const P = [], COL = [], ALB = [];
     const ROCK = new T.Color(def.rock || '#6a5c50'), FLOOR = new T.Color(def.floor || '#5e5145'), ROOF = new T.Color(def.roof || '#43392f');
     const al = new T.Color();
@@ -507,11 +519,12 @@
       P.push(x + wx, y, z + wz); ALB.push(al.r, al.g, al.b); lit(x, y, z, al, tmp); COL.push(tmp.r, tmp.g, tmp.b);
     }
     const quad = (a, b, c, d, base, sh) => { for (const v of [a, b, c, a, c, d]) vert(v[0], v[1], v[2], base, sh); };
+    const edges = [];   /* [x, z, out x, out z, floor, roof] where a wall begins: for webs, rocks and cocoons */
     for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) {
       const k = cell(i, j); if (!open(k)) continue;
       const X = x0 + i, Z = z0 + j;
       /* each corner: its own floor and roof where it is open, else this cell's */
-      const cs = [[0, 0], [1, 0], [1, 1], [0, 1]].map(([a, b]) => { const v = corner[(j + b) * (nx + 1) + i + a]; return open(v) && Math.abs(low(v) - low(k)) < 2 ? v : k; });
+      const cs = [[0, 0], [1, 0], [1, 1], [0, 1]].map(([a, b]) => cornerOf(i + a, j + b, k));
       const f = cs.map((v, n) => [X + [0, 1, 1, 0][n], low(v), Z + [0, 0, 1, 1][n]]);
       const r = cs.map((v, n) => { const cx = X + [0, 1, 1, 0][n], cz = Z + [0, 0, 1, 1][n]; return [cx, v.top + 0.3 * Math.sin(cx * 0.7) * Math.cos(cz * 0.5), cz]; });
       quad(f[0], f[1], f[2], f[3], FLOOR, k.kind === 'floor' ? 1 : 0.6);
@@ -521,6 +534,7 @@
       for (const [di, dj, a, b] of side) {
         const n = cell(i + di, j + dj);
         if (!open(n)) {
+          if (k.kind === 'floor') edges.push([(f[a][0] + f[b][0]) / 2, (f[a][2] + f[b][2]) / 2, di, dj, low(k), k.top]);
           /* the middle of the wall bulges by a wobble of its own place, so two walls that share a corner share it */
           const mid = (x, z) => [x + 0.45 * Math.sin(x * 0.83 + z * 1.31), z + 0.45 * Math.cos(z * 0.77 - x * 1.13)];
           const A = [f[a][0], f[a][2]], B = [f[b][0], f[b][2]], Am = mid(A[0], A[1]), Bm = mid(B[0], B[1]);
@@ -563,6 +577,47 @@
       const fl = new T.Mesh(new T.ConeGeometry(0.13, 0.36, 7), flame); fl.position.set(L.x, base + 1.55, L.z); ctx.scene.add(fl);
       torches.push(fl);
     }
+    /* THE DRESSING (stage 4): webs in the corners, rocks along the walls, stalactites and stalagmites, cocoons
+       hanging where the spiders keep their prey. All seeded, so every player sees the same cave. */
+    const dr = art.rng(53), deco = new T.Group();
+    const [wc, wx] = canvas(128);
+    wx.strokeStyle = 'rgba(235,235,230,.9)'; wx.lineWidth = 1.4;
+    for (let n = 0; n < 9; n++) { const a = n / 9 * Math.PI / 2; wx.beginPath(); wx.moveTo(0, 0); wx.lineTo(Math.cos(a) * 128, Math.sin(a) * 128); wx.stroke(); }
+    for (let rr = 16; rr < 128; rr += 14) { wx.beginPath(); for (let n = 0; n <= 9; n++) { const a = n / 9 * Math.PI / 2, q = rr * (0.92 + 0.08 * Math.sin(n * 2.1)); n ? wx.lineTo(Math.cos(a) * q, Math.sin(a) * q) : wx.moveTo(Math.cos(a) * q, Math.sin(a) * q); } wx.stroke(); }
+    const webM = new T.MeshBasicMaterial({ map: new T.CanvasTexture(wc), transparent: true, alphaTest: 0.25, side: T.DoubleSide, depthWrite: false, color: '#9a968e' });
+    const webG = new T.PlaneGeometry(1, 1); webG.translate(0.5, 0.5, 0);
+    const rockM = plain('#4e443a'), boneM = plain('#bdb39a'), silkM = plain('#a8a296', { roughness: 0.95 }), drip = plain('#5a4e42');
+    for (const [x, z, ox, oz, fy, top] of edges) {
+      const r = dr();
+      if (r < 0.07) {   /* a web, in the angle of wall and roof, facing in */
+        const w = new T.Mesh(webG, webM), s = 1.6 + dr() * 2.2;
+        w.scale.set(s, s, 1); w.position.set(x + ox * 0.35, top - 0.2, z + oz * 0.35);
+        w.rotation.set(0, Math.atan2(-oz, -ox) + Math.PI / 2, Math.PI); deco.add(w);
+      } else if (r < 0.17) {   /* a rock fallen by the wall */
+        const s = 0.25 + dr() * 0.7, b = mesh(new T.DodecahedronGeometry(s, 0), rockM);
+        b.position.set(x - ox * (s + 0.2), fy + s * 0.45, z - oz * (s + 0.2)); b.rotation.set(dr() * 3, dr() * 3, dr() * 3); b.scale.y = 0.7; deco.add(b);
+      } else if (r < 0.2) {   /* a stalactite, and maybe the stalagmite it drips on */
+        const h = 0.8 + dr() * 2.2, c = mesh(new T.ConeGeometry(0.18 + dr() * 0.25, h, 6), drip);
+        c.position.set(x - ox * 1.2, top - h / 2 + 0.2, z - oz * 1.2); c.rotation.x = Math.PI; deco.add(c);
+        if (dr() < 0.5) { const g = mesh(new T.ConeGeometry(0.25, h * 0.6, 6), drip); g.position.set(x - ox * 1.2, fy + h * 0.3, z - oz * 1.2); deco.add(g); }
+      }
+    }
+    /* in the chambers: cocoons hanging from the roof (and lying about where the prey is kept), bones by the hall */
+    const inChamber = (id, n, f) => { const h = (def.chambers || []).find(c => c.id === id); if (!h) return; for (let q = 0; q < n; q++) { const a = dr() * Math.PI * 2, d = Math.sqrt(dr()) * 0.75, x = at[0] + h.c[0] + Math.cos(a) * h.r[0] * d, z = at[1] + h.c[1] + Math.sin(a) * h.r[1] * d, k = TR.caveAt(x, z); if (k && k.kind === 'floor') f(x, z, k); } };
+    const cocoon = (x, z, k, hang) => {
+      const s = 0.8 + dr() * 0.5, c = mesh(new T.SphereGeometry(0.32, 9, 7), silkM);
+      c.scale.set(s, s * 2.6, s);
+      if (hang) {
+        const y = k.top - 1.2 - dr() * 1.5; c.position.set(x, y, z); deco.add(c);
+        const t = mesh(new T.CylinderGeometry(0.015, 0.015, k.top - y, 3), silkM); t.position.set(x, (k.top + y) / 2 + 0.4, z); deco.add(t);
+      } else { c.position.set(x, k.y + 0.3 * s, z); c.rotation.z = Math.PI / 2; c.rotation.y = dr() * 3; deco.add(c); }
+    };
+    inChamber('B2', 9, (x, z, k) => cocoon(x, z, k, dr() < 0.6));
+    inChamber('B', 6, (x, z, k) => cocoon(x, z, k, true));
+    inChamber('F', 10, (x, z, k) => cocoon(x, z, k, true));
+    inChamber('C', 14, (x, z, k) => { const g = mesh(new T.ConeGeometry(0.3 + dr() * 0.3, 1 + dr() * 2, 6), drip); g.position.set(x, k.y + 0.6, z); deco.add(g); });
+    inChamber('F', 16, (x, z, k) => { const b = mesh(new T.CylinderGeometry(0.04, 0.05, 0.6 + dr() * 0.4, 5), boneM); b.position.set(x, k.y + 0.05, z); b.rotation.set(Math.PI / 2, dr() * 3, 0); deco.add(b); });
+    ctx.scene.add(deco);
     /* eggs: pale, leathery clusters on the floor (def.eggs: [{p, n}], the cave's metres) */
     const egg = plain('#c9bd98', { roughness: 0.6 }), eggGeo = new T.SphereGeometry(0.3, 10, 8), er = art.rng(31);
     for (const E of def.eggs || []) for (let k = 0; k < E.n; k++) {
@@ -590,6 +645,17 @@
       const br = new T.Mesh(bg, silk); br.userData.keep = true; ctx.scene.add(br);
     }
     return { rock, torches, rect: def.rect };
+  };
+  /* A HOARD: an old iron-bound chest, its lid ajar on a glint of gold (stands on 0, faces -z) */
+  art.hoard = function (ctx, def) {
+    const g = new T.Group(), wood = plain('#5a3a22'), iron = plain('#3a3a3e', { metalness: 0.6, roughness: 0.5 }), gold = new T.MeshBasicMaterial({ color: new T.Color(2.2, 1.6, 0.5) });
+    const box = mesh(new T.BoxGeometry(1.2, 0.6, 0.8), wood); box.position.y = 0.3; g.add(box);
+    for (const x of [-0.45, 0.45]) { const b = mesh(new T.BoxGeometry(0.08, 0.62, 0.82), iron); b.position.set(x, 0.3, 0); g.add(b); }
+    const lid = mesh(new T.CylinderGeometry(0.4, 0.4, 1.2, 10, 1, false, 0, Math.PI), wood); lid.rotation.z = Math.PI / 2; lid.position.set(0, 0.6, 0.05); lid.rotation.x = -0.35; g.add(lid);
+    const glint = new T.Mesh(new T.BoxGeometry(1.0, 0.06, 0.6), gold); glint.position.set(0, 0.6, 0); g.add(glint);
+    for (let n = 0; n < 7; n++) { const c = new T.Mesh(new T.CylinderGeometry(0.06, 0.06, 0.02, 8), gold); c.position.set(-0.8 + n * 0.25, 0.01, 0.6 + (n % 2) * 0.15); g.add(c); }
+    g.userData.keep = true;
+    return g;
   };
   /* THE WAY DOWN: a mound of boulders round a black mouth in the ground, facing def.face ([x, z]) */
   art.caveMouth = function (ctx, TR, def) {
@@ -2660,5 +2726,5 @@
     return { groundAt, polys, segs, half, spawn, inside, stats: { buildings: buildings.length, trees: trees.length } };
   };
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('art', { api: 1, v: 29 }, () => art);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('art', { api: 1, v: 30 }, () => art);
 })(typeof globalThis !== 'undefined' ? globalThis : this);

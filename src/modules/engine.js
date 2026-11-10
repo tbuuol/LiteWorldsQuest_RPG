@@ -702,6 +702,20 @@
       builtDirty.add(home.id); applyBuilt(home.id); sendBuilt(home.id);
     }
     /* a bed: you wake there; a chest: what you keep, the same in every chest of yours. Only your own, and only close */
+    /* A HOARD (the Spider Cave's treasure, 2026-11-10): a chest out in the world that each player may open once in
+       every so many hours (LV.hoards: {id, pos, loot, every, text, empty}); the house keeps when, in the record */
+    function houseHoard(from, a, d) {
+      const H = (LV.hoards || []).find(h => h.id === String(d.h)), r = remotes.get(from.id), at = r ? whereIs(r) : null;
+      if (!H) return;
+      if (at && Math.hypot(at[0] - H.pos[0], at[1] - H.pos[1]) > 4) { notice(from.id, 'You are too far away.'); return; }
+      const rr = book.of(a), period = Math.floor(Date.now() / ((H.every || 20) * 3600e3));
+      rr.hoards = rr.hoards || {};
+      if (rr.hoards[H.id] === period) { notice(from.id, H.empty || 'It is empty. Come back another day.'); return; }
+      rr.hoards[H.id] = period;
+      const got = book.loot(a, null, H.loot || []);
+      notice(from.id, (H.text || 'You open the chest.') + (got.length ? ' Into your bag: ' + got.join(', ') + '.' : ' Nothing worth taking.'));
+      dirty.add(a);
+    }
     function houseFurniture(from, a, d) {
       const f = furniture[String(d.f)], r = remotes.get(from.id), at = r ? whereIs(r) : null;
       if (!f || ownerOfPlot(f.plot) !== a) return;
@@ -1030,6 +1044,13 @@
     /* THE CAVES (the Spider Cave, 2026-11-10): rock round the hollow the terrain describes, and their mouths up here */
     const caves = TR && art.cave ? ((LV.land && LV.land.caves) || []).map(c => art.cave(ctx, TR, c)) : [];
     if (TR && art.caveMouth) for (const L of LV.links || []) if (L.mouth) art.caveMouth(ctx, TR, L.mouth);
+    for (const H of LV.hoards || []) if (TR && art.hoard) {   /* treasure chests, each player's once a day */
+      const y = TR.walk(H.pos[0], H.pos[1]), g = art.hoard(ctx, H);
+      g.position.set(H.pos[0], y, H.pos[1]); g.rotation.y = H.yaw || 0; scene.add(g);
+      const hit = new THREE.Mesh(new THREE.BoxGeometry(1.4, 1.2, 1.0), new THREE.MeshBasicMaterial({ visible: false }));
+      hit.position.set(H.pos[0], y + 0.5, H.pos[1]); hit.userData = { kind: 'hoard', id: H.id }; scene.add(hit); usable.push(hit);
+      ctx.solid([H.pos[0] - 0.7, y - 1, H.pos[1] - 0.7], [H.pos[0] + 0.7, y + 0.9, H.pos[1] + 0.7]);
+    }
 
     /* --- the shared world --------------------------------------------------------------------------- */
     let W = { seq: 0, open: {}, taken: {}, dep: {} };
@@ -1545,6 +1566,7 @@
       }
       if (u.kind === 'switch') return 'E: pull the ' + switches[u.id].def.label.toLowerCase();
       if (u.kind === 'pickup') return 'E: take the ' + pickups[u.id].def.label.toLowerCase();
+      if (u.kind === 'hoard') return 'E: open the chest';
       if (u.kind === 'shrine') return paying ? 'The wallet is asking you…' : 'E: ' + (shrines[u.id].def.action || 'make an offering') + ' (1 coin, to yourself)';
       return '';
     }
@@ -1554,6 +1576,7 @@
       if (u.kind === 'shrine') { offer(shrines[u.id].def); return; }
       if (u.kind === 'npc') { speak(u.id); return; }
       if (u.kind === 'res') { gather(u.id); return; }
+      if (u.kind === 'hoard') { askHouse({ Q: 'hoard', h: u.id }); act('interact-right'); return; }
       if (u.kind === 'chest') { if (isMineFurn(u.id)) openChest(u.id); else log('It is not your chest.'); return; }
       if (u.kind === 'counter') { if (furniture[u.id]) openShop(furniture[u.id].plot); return; }
       if (u.kind === 'bed') { if (isMineFurn(u.id)) { askHouse({ Q: 'home', f: u.id }); act('interact-right'); } else log('It is not your bed.'); return; }
@@ -2277,6 +2300,7 @@
         }
         else if (d.Q === 'sell' || d.Q === 'unsell' || d.Q === 'levy') houseSell(from, a, d);
         else if (d.Q === 'home' || d.Q === 'chest') houseFurniture(from, a, d);
+        else if (d.Q === 'hoard') houseHoard(from, a, d);
         else if (d.Q === 'shop') houseShop(from, a, d);
         else if (d.Q === 'quest') {
           const q = (LV.quests || []).find(x => x.id === String(d.q)), r = remotes.get(from.id), N = q && npcs[q.npc];
@@ -2832,6 +2856,6 @@
     };
   }
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 48, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 49, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
     D => ({ start: (el, opts) => start(D, el, opts) }));
 })(typeof globalThis !== 'undefined' ? globalThis : this);
