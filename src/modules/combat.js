@@ -25,6 +25,7 @@
   const MAT = [['Young', 0.7, 0.75, 0.85, -1], ['Mature', 1, 1, 1, 0], ['Old', 1.35, 1.2, 1.12, 1], ['Elder', 1.8, 1.45, 1.25, 2]];
   const MAT_ODDS = [0.4, 0.35, 0.18, 0.07];
   const STATE = ['idle', 'walk', 'attack', 'down', 'dead'];
+  const SLEEP = 150;   /* metres: beyond this from every player a creature rests (the house's work, 2026-11-10) */
   /* what each kind can do: hit points, damage, reach, seconds between blows, speed (m/s) */
   const BASE = {
     guard: { max: 140, dmg: 15, range: 1.7, cd: 1.0, speed: 3.2, guard: 8 },   /* 15-18 a blow (tbuuol: more damage) */
@@ -378,6 +379,9 @@
       for (const u of Array.from(units.values())) {
         if (u.kind !== 'beast') continue;
         if (u.state === 'dead') { u.gone -= dt; if (u.gone <= 0) drop(u); continue; }
+        /* ASLEEP (2026-11-10): a creature more than SLEEP metres from every player stands still -- nobody sees it, and
+           the house need not think for it; whoever comes near wakes it */
+        if (!livePlayers.some(p => Math.abs(p.x - u.x) < SLEEP && Math.abs(p.z - u.z) < SLEEP)) { if (u.state === 'walk') u.state = 'idle'; continue; }
         if (u.stun > 0) { u.stun -= dt; u.state = 'idle'; continue; }
         const a = wild.areas[u.area] || { center: [u.x, u.z], r: 10 }, b = u.beast, home = outside(a, u.x, u.z);
         /* THE SHY ONES (deer, hares, 2026-11-10): they never fight -- whoever comes within spec.shy metres, or struck
@@ -713,5 +717,5 @@
     return snap;
   }
   const combat = { api: 1, player, gain, nextXp, create, encode, decode };
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('combat', { api: 1, v: 23, needs: { three: 160, art: 1 } }, () => combat);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('combat', { api: 1, v: 24, needs: { three: 160, art: 1 } }, () => combat);
 })(typeof globalThis !== 'undefined' ? globalThis : this);

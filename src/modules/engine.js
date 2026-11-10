@@ -2751,7 +2751,9 @@
       frameMs += (performance.now() - t0 - frameMs) * 0.05;
       /* THE HOUSE'S TICK: 20 a second on a clock of its own, not the screen's (a headless browser's frames come
          unevenly, and a house that draws nothing has no use for 60) */
-      if (iAmHouse) setTimeout(() => frame(performance.now()), 50); else G.requestAnimationFrame(frame);
+      /* the house's beat: 20 a second with players in the world, 5 when nobody is there (2026-11-10: less work) */
+      if (iAmHouse) { let anyone = false; for (const r of remotes.values()) if (!r.house) { anyone = true; break; } setTimeout(() => frame(performance.now()), anyone ? 50 : 200); }
+      else G.requestAnimationFrame(frame);
     }
     resize(); drawInv(); drawNet(); drawWho(); drawStats();
     try { renderer.compile(scene, camera); } catch (e) { /* only a head start */ }
@@ -2952,6 +2954,6 @@
     };
   }
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 58, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 59, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
     D => ({ start: (el, opts) => start(D, el, opts) }));
 })(typeof globalThis !== 'undefined' ? globalThis : this);
