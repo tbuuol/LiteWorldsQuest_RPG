@@ -121,6 +121,28 @@
     tricorn_hat: { name: 'Tricorn Hat', slot: 'head', def: 4, at: { dex: 1 } },
     captains_coat: { name: "Captain's Coat", slot: 'chest', def: 7, at: { sta: 2 }, req: { defender: 2 } },
     sea_boots: { name: 'Sea Boots', slot: 'feet', def: 3, at: { dex: 1 } },
+    /* REFINING AND PARTS (tbuuol 2026-11-10: "Häute zu Leder, Erz zu Barren, Holz zu Teilen, Fasern zu Stoffen, und
+       Komponenten"): the first step between what is gathered and what is worn -- all materials, made at the benches */
+    copper_bar: { name: 'Copper Bar', material: true }, iron_bar: { name: 'Iron Bar', material: true },
+    copper_blade: { name: 'Copper Blade', material: true }, sword_hilt: { name: 'Sword Hilt', material: true },
+    rivets: { name: 'Copper Rivets', material: true }, buckle: { name: 'Buckle', material: true },
+    oak_plank: { name: 'Oak Plank', material: true }, wooden_handle: { name: 'Wooden Handle', material: true },
+    shield_boards: { name: 'Shield Boards', material: true }, antler_buttons: { name: 'Antler Buttons', material: true },
+    deer_leather: { name: 'Deer Leather', material: true }, boar_leather: { name: 'Boar Leather', material: true },
+    leather_strap: { name: 'Leather Strap', material: true }, linen_thread: { name: 'Linen Thread', material: true },
+    linen_cloth: { name: 'Linen Cloth', material: true }, fur_lining: { name: 'Fur Lining', material: true },
+    copper_wire: { name: 'Copper Wire', material: true }, ring_setting: { name: 'Ring Setting', material: true },
+    clasp: { name: 'Clasp', material: true }, ring_mold: { name: 'Ring Mould', material: true },
+    antler_beads: { name: 'Antler Beads', material: true }, polished_tusk: { name: 'Polished Tusk', material: true },
+    /* made from the parts (level 0): the first things a crafter makes from their own refined work */
+    copper_longknife: { name: 'Copper Longknife', slot: 'main', skill: 'sword', model: 'sword', dmg: [5, 10], look: '#c87533' },
+    hunters_jerkin: { name: "Hunter's Jerkin", slot: 'chest', def: 3, at: { dex: 1 } },
+    furlined_gloves: { name: 'Fur-lined Gloves', slot: 'hands', def: 1, at: { dex: 1, sta: 1 } },
+    linen_trousers: { name: 'Linen Trousers', slot: 'legs', def: 2 },
+    buckler_board: { name: 'Board Buckler', slot: 'off', model: 'shield', def: 3, look: '#a07a4e' },
+    antler_pendant: { name: 'Antler Pendant', slot: 'amulet', at: { dex: 1, int: 1 } },
+    hares_foot_charm: { name: "Hare's Foot Charm", slot: 'trinket', at: { dex: 2 } },
+    copper_band: { name: 'Copper Band', slot: 'ring', at: { sta: 1 } },
     /* the Spider Cave's Broodmother (2026-11-10) */
     /* the shy ones of Greenwood and the fields (2026-11-10) */
     deer_hide: { name: 'Deer Hide', material: true }, antler: { name: 'Antler', material: true },
@@ -143,6 +165,39 @@
   /* RECIPES: the craft's skill, its profession and the level of it they need; known: everybody knows it from the
      start, the others turn up now and then while crafting (tbuuol 2026-10-23) */
   const RECIPES = {
+    /* REFINING (level 0, 2026-11-10): ore to bars, logs to planks, hides to leather, fibre to thread and cloth */
+    copper_bar: { skill: 'smithing', prof: 'smith', level: 0, needs: { copper_ore: 2 }, yields: 1 },
+    iron_bar: { skill: 'smithing', prof: 'smith', level: 1, needs: { iron_ore: 2 }, yields: 1 },
+    oak_plank: { skill: 'woodworking', prof: 'carpenter', level: 0, needs: { oak_log: 1 }, yields: 2 },
+    deer_leather: { skill: 'tailoring', prof: 'tailor', level: 0, needs: { deer_hide: 1 }, yields: 1 },
+    boar_leather: { skill: 'tailoring', prof: 'tailor', level: 0, needs: { boar_hide: 1 }, yields: 1 },
+    linen_thread: { skill: 'tailoring', prof: 'tailor', level: 0, needs: { flax: 1 }, yields: 2 },
+    linen_cloth: { skill: 'tailoring', prof: 'tailor', level: 0, needs: { linen_thread: 3 }, yields: 1 },
+    copper_wire: { skill: 'jewelcrafting', prof: 'jeweler', level: 0, needs: { copper_bar: 1 }, yields: 3 },
+    /* PARTS (level 0): what the things are put together from */
+    copper_blade: { skill: 'smithing', prof: 'smith', level: 0, needs: { copper_bar: 2 }, yields: 1 },
+    sword_hilt: { skill: 'smithing', prof: 'smith', level: 0, needs: { copper_bar: 1, leather_strap: 1 }, yields: 1 },
+    rivets: { skill: 'smithing', prof: 'smith', level: 0, needs: { copper_bar: 1 }, yields: 6 },
+    buckle: { skill: 'smithing', prof: 'smith', level: 0, needs: { copper_bar: 1 }, yields: 2 },
+    wooden_handle: { skill: 'woodworking', prof: 'carpenter', level: 0, needs: { oak_plank: 1 }, yields: 2 },
+    shield_boards: { skill: 'woodworking', prof: 'carpenter', level: 0, needs: { oak_plank: 3 }, yields: 1 },
+    antler_buttons: { skill: 'woodworking', prof: 'carpenter', level: 0, needs: { antler: 1 }, yields: 4 },
+    leather_strap: { skill: 'tailoring', prof: 'tailor', level: 0, needs: { deer_leather: 1 }, yields: 3 },
+    fur_lining: { skill: 'tailoring', prof: 'tailor', level: 0, needs: { hare_pelt: 2, linen_thread: 1 }, yields: 1 },
+    ring_setting: { skill: 'jewelcrafting', prof: 'jeweler', level: 0, needs: { copper_wire: 2 }, yields: 1 },
+    clasp: { skill: 'jewelcrafting', prof: 'jeweler', level: 0, needs: { copper_wire: 1 }, yields: 2 },
+    ring_mold: { skill: 'jewelcrafting', prof: 'jeweler', level: 0, needs: { stone_block: 1, copper_bar: 1 }, yields: 1 },
+    antler_beads: { skill: 'jewelcrafting', prof: 'jeweler', level: 0, needs: { antler: 1 }, yields: 4 },
+    polished_tusk: { skill: 'jewelcrafting', prof: 'jeweler', level: 0, needs: { boar_tusk: 1 }, yields: 1 },
+    /* FROM THE PARTS (level 0) */
+    copper_longknife: { skill: 'smithing', prof: 'smith', level: 0, needs: { copper_blade: 1, sword_hilt: 1, rivets: 2 } },
+    hunters_jerkin: { skill: 'tailoring', prof: 'tailor', level: 0, needs: { deer_leather: 2, leather_strap: 1, antler_buttons: 4 } },
+    furlined_gloves: { skill: 'tailoring', prof: 'tailor', level: 0, needs: { fur_lining: 1, deer_leather: 1, linen_thread: 1 } },
+    linen_trousers: { skill: 'tailoring', prof: 'tailor', level: 0, needs: { linen_cloth: 2, buckle: 1, linen_thread: 1 } },
+    buckler_board: { skill: 'woodworking', prof: 'carpenter', level: 0, needs: { shield_boards: 1, leather_strap: 1, rivets: 2 } },
+    antler_pendant: { skill: 'jewelcrafting', prof: 'jeweler', level: 0, needs: { antler_beads: 4, clasp: 1, leather_strap: 1 } },
+    hares_foot_charm: { skill: 'jewelcrafting', prof: 'jeweler', level: 0, needs: { hare_foot: 1, ring_setting: 1, leather_strap: 1 } },
+    copper_band: { skill: 'jewelcrafting', prof: 'jeweler', level: 0, needs: { copper_bar: 1, ring_mold: 1 } },
     copper_sword: { skill: 'smithing', prof: 'smith', level: 0, needs: { copper_ore: 3, oak_log: 1 }, known: true },
     copper_axe: { skill: 'smithing', prof: 'smith', level: 0, needs: { copper_ore: 3, oak_log: 2 }, known: true },
     copper_bracers: { skill: 'smithing', prof: 'smith', level: 0, needs: { copper_ore: 2, leather_scrap: 1 }, known: true },
@@ -462,8 +517,9 @@
           return { ok: true, failed: true, lost, qr: x.qr, up: ups(r, before) };
         }
         for (const m in rc.needs) { r.mat[m] -= rc.needs[m]; if (!r.mat[m]) delete r.mat[m]; }
-        const item = ITEMS[rid], q = item.slot ? qualityRoll(grade, rnd) : null;
-        r.bag.push(q ? [r.n++, rid, { q }] : [r.n++, rid]);
+        const item = ITEMS[rid], q = item.slot ? qualityRoll(grade, rnd) : null, many = item.material ? (rc.yields || 1) : 0;
+        if (many) r.mat[rid] = (r.mat[rid] || 0) + many;   /* a refined material or a part: into the materials, rc.yields of it */
+        else r.bag.push(q ? [r.n++, rid, { q }] : [r.n++, rid]);
         learn(r, sk, effortOf(rc.level, lv));
         const after = profs(r)[rc.prof];
         let learnt = null;
@@ -471,7 +527,7 @@
           learnt = dropBlueprint(rc, rnd);
           if (learnt) giveBp(r, learnt);
         }
-        return { ok: true, made: item.name + (q ? ' (' + q.toFixed(1) + ' %)' : ''), qr: x.qr, up: ups(r, before), learnt: learnt && 'Blueprint: ' + ITEMS[learnt].name };
+        return { ok: true, made: item.name + (many > 1 ? ' ×' + many : '') + (q ? ' (' + q.toFixed(1) + ' %)' : ''), qr: x.qr, up: ups(r, before), learnt: learnt && 'Blueprint: ' + ITEMS[learnt].name };
       },
       /* THE ADVENTURERS' GUILD (tbuuol 2026-11-08): three tasks a day for each player from Guildmaster Rowan -- a hunt,
          a delivery and a gathering -- the same all day, new at midnight (UTC). r.gd = {day, t: [[type, what, n, got, done]]} */
@@ -606,5 +662,5 @@
   /* a bag entry's name as shown (a blueprint with its QR, a made thing with its quality) */
   const entryName = e => { const it = itemOf({ bag: [e] }, e[0]); return it ? it.name : String(e[1]); };
   const rpg = { api: 1, entryName, masterOf, gradeOf, SLOTS, SKILLS, PROFS, ATTRS, RANKS, ITEMS, FISTS, LOOT, GATHER, RECIPES, SALVAGE, STATIONS, stationOf, salvageAt, CODEX, ABILITIES, abilities, questState, questProgress, knows, fresh, stats, profs, rank, meets, itemOf, attr, book };
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('rpg', { api: 1, v: 16 }, () => rpg);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('rpg', { api: 1, v: 17 }, () => rpg);
 })(typeof globalThis !== 'undefined' ? globalThis : this);

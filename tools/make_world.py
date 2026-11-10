@@ -26,7 +26,7 @@ import subprocess
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 LEVELS = ROOT / "src" / "levels"
 OUT = LEVELS / "world.json"
-VERSION = 22
+VERSION = 23
 
 
 def probe(land: dict, points: list) -> list:
@@ -440,6 +440,27 @@ GREENWOOD_QUESTS = [
      "offer": "Spider silk sells well on the coast. Bring me six, and I'll give you the plans for silk gloves.",
      "done": "Beautiful, strong silk. The plans, as promised -- a tailor's work.",
      "need": {"bring": {"spider_silk": 6}}, "reward": {"bp": ["silk_gloves"], "sk": {"tailoring": 10}}},
+    # THE FIRST REFINING BLUEPRINTS (2026-11-10): one quest for each craft, from the people who work with the stuff
+    {"id": "rf_smith", "npc": "odo", "giver": "Odo the Smith", "title": "Bars and Blades", "after": "smith1",
+     "offer": "Ore is only the start. Bring me four lumps of copper ore, and I'll show you how to pour bars -- and what to make of them.",
+     "done": "Good ore. Bars, blades, hilts, rivets, buckles: here are the plans. A longknife is the first thing a smith makes from his own parts.",
+     "need": {"bring": {"copper_ore": 4}}, "reward": {"bp": ["copper_bar", "copper_blade", "sword_hilt", "rivets", "buckle", "copper_longknife"], "sk": {"smithing": 10}}},
+    {"id": "rf_carpenter", "npc": "foreman_tamsin", "giver": "Foreman Tamsin", "title": "Planks and Handles",
+     "offer": "A log is no use to a carpenter until it's sawn. Bring me four oak logs and I'll teach you planks, handles and shield boards.",
+     "done": "There you are. Saw, plane, and mind the grain -- the plans are yours. Antler makes good buttons, too.",
+     "need": {"bring": {"oak_log": 4}}, "reward": {"bp": ["oak_plank", "wooden_handle", "shield_boards", "antler_buttons", "buckler_board"], "sk": {"woodworking": 10}}},
+    {"id": "rf_tanner", "npc": "hunter_wynn", "giver": "Wynn the Hunter", "title": "Hides into Leather",
+     "offer": "The deer in the glades give the best hides around. Bring me two, and I'll show you how to tan them and cut straps.",
+     "done": "Nice and clean. Tanning, straps, and the jerkin I wear myself -- the plans are yours.",
+     "need": {"bring": {"deer_hide": 2}}, "reward": {"bp": ["deer_leather", "boar_leather", "leather_strap", "hunters_jerkin"], "sk": {"tailoring": 10}}},
+    {"id": "rf_weaver", "npc": "farmer_hal", "giver": "Farmer Hal", "title": "Thread and Cloth",
+     "offer": "My wife spins the flax, but she's only two hands. Three bundles of flax and two hare pelts, and you'll have her plans.",
+     "done": "She says you'll learn quick. Thread, cloth, fur lining -- and trousers and gloves to make from them.",
+     "need": {"bring": {"flax": 3, "hare_pelt": 2}}, "reward": {"bp": ["linen_thread", "linen_cloth", "fur_lining", "furlined_gloves", "linen_trousers"], "sk": {"tailoring": 10}}},
+    {"id": "rf_jeweler", "npc": "merchant_ysolde", "giver": "Ysolde the Merchant", "title": "Wire and Settings",
+     "offer": "Fine work sells best on the road. Bring me three lumps of copper ore and an antler, and I'll give you a jeweler's first plans.",
+     "done": "Wire, settings, clasps, a mould for rings, beads of antler -- and three things to make with them. Copper bars you'll need from a smith.",
+     "need": {"bring": {"copper_ore": 3, "antler": 1}}, "reward": {"bp": ["copper_wire", "ring_setting", "clasp", "ring_mold", "antler_beads", "polished_tusk", "antler_pendant", "hares_foot_charm", "copper_band"], "sk": {"jewelcrafting": 10}}},
     {"id": "gw_lists", "npc": "aldric", "giver": "Sir Aldric", "title": "Prove Yourself",
      "offer": "Words are cheap in the lists. Show me what you can do: two goblins from the Goblin Bridgehead in the north.",
      "done": "Not bad at all. The city will have need of fighters like you. Take this shield.",
