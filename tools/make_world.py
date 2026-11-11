@@ -26,7 +26,7 @@ import subprocess
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 LEVELS = ROOT / "src" / "levels"
 OUT = LEVELS / "world.json"
-VERSION = 25
+VERSION = 26
 
 
 def probe(land: dict, points: list) -> list:
@@ -385,7 +385,8 @@ def make_outskirts():
     places[-1]["mineMouth"] = {"pos": [mx, mz], "face": [mx, mz + 20]}
     for k in range(8):
         a = math.pi * (0.15 + k / 8 * 0.7)
-        nodes.append({"id": f"mine.rock.{k + 1}", "kind": "rock", "pos": [round(mx + math.cos(a) * 10, 1), round(mz + math.sin(a) * 9, 1)], "ground": True})
+        # round Genesis: plain stone only (2026-11-11)
+        nodes.append({"id": f"mine.stone.{k + 1}", "kind": "stone", "pos": [round(mx + math.cos(a) * 10, 1), round(mz + math.sin(a) * 9, 1)], "ground": True})
     # the tourney ground before the east gate
     tx, tz = 1100, -40
     place("tourney", (tx, tz), 10.0, 22,
@@ -767,12 +768,12 @@ def main() -> None:
     rnd = random.Random(31)
     REGIONS = [   # [shape, {kind: how many}]
         [[[-500, -120], [-200, -200], [60, -215], [120, -260], [300, -300], [340, -120], [360, 120], [200, 190], [-150, 200], [-480, 150]],
-         {"tree": 30, "rock": 16, "herb": 30}],
-        [[[110, -270], [250, -330], [250, -420], [200, -420], [140, -340]], {"rock": 4, "herb": 4}],
-        [[[-300, -215], [100, -275], [110, -240], [-300, -170]], {"rock": 4, "herb": 4}],
-        [[[-260, -700], [0, -660], [200, -560], [215, -500], [100, -590], [-260, -660]], {"rock": 6, "herb": 6}],
+         {"tree": 30, "copper": 24, "tin": 8, "herb": 30}],   # ores by where (2026-11-11): Greenwood more copper than tin
+        [[[110, -270], [250, -330], [250, -420], [200, -420], [140, -340]], {"copper": 4, "tin": 4, "herb": 4}],   # the beach: half and half
+        [[[-300, -215], [100, -275], [110, -240], [-300, -170]], {"copper": 6, "tin": 2, "herb": 4}],
+        [[[-260, -700], [0, -660], [200, -560], [215, -500], [100, -590], [-260, -660]], {"copper": 5, "tin": 5, "herb": 6}],
         [[[500, -790], [380, -735], [350, -630], [420, -560], [600, -525], [700, -545], [760, -605], [775, -700], [735, -780], [650, -805]],
-         {"tree": 10, "rock": 10, "herb": 8}],
+         {"tree": 10, "iron": 14, "herb": 8}],   # the Goblin Village: iron
         # for building Genesis (2026-11-07): a quarry by the road west of the gate, and oaks south of the road
         [[[430, -150], [545, -150], [545, -70], [430, -70]], {"stone": 14}],
         [[[420, 40], [545, 40], [545, 140], [420, 140]], {"tree": 12}],
@@ -792,14 +793,18 @@ def main() -> None:
             for q, (h, coast, river, road, slope) in zip(cand, res):
                 if got >= n:
                     break
-                if h < 0.5 or road > 0.02 or river < 6 or coast < (2 if kind in ("rock", "stone") else 6):
+                if h < 0.5 or road > 0.02 or river < 6 or coast < (2 if kind in ("rock", "stone", "copper", "tin", "iron") else 6):
                     continue
-                if slope > (0.8 if kind in ("rock", "stone") else 0.45) or (kind == "tree" and coast < 25):
+                if slope > (0.8 if kind in ("rock", "stone", "copper", "tin", "iron") else 0.45) or (kind == "tree" and coast < 25):
                     continue
                 if any(math.hypot(q[0] - m["pos"][0], q[1] - m["pos"][1]) < 12 for m in nodes):
                     continue
                 got += 1
                 nodes.append({"id": f"w.{kind}.{len(nodes) + 1}", "kind": kind, "pos": q, "ground": True})
+    for _pl in (blockshire, saltwind):   # the levels' own old ore boulders: copper in Blockshire, tin on Saltwind's coast
+        for _n in (_pl.get("resources") or {}).get("nodes", []):
+            if _n.get("kind") == "rock":
+                _n["kind"] = "tin" if _pl is saltwind else "copper"
     wilds = {"lift": 0, "resources": {"nodes": nodes + gw_nodes}}
 
     # ---- Genesis: a city wall round the ground players will build on (tbuuol 2026-10-31), so its place and size can

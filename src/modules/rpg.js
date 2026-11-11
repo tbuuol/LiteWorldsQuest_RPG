@@ -100,7 +100,7 @@
     leather_belt: { name: 'Leather Belt', slot: 'belt', def: 1, at: { sta: 1 } },
     herb_amulet: { name: 'Herb Amulet', slot: 'amulet', at: { int: 2, sta: 1 }, req: { int: 11 } },
     oak_log: { name: 'Oak Log', material: true }, stone_block: { name: 'Rough Stone', material: true }, copper_ore: { name: 'Copper Ore', material: true },
-    iron_ore: { name: 'Iron Ore', material: true }, wild_herb: { name: 'Wild Herb', material: true }, flax: { name: 'Flax', material: true },
+    iron_ore: { name: 'Iron Ore', material: true }, tin_ore: { name: 'Tin Ore', material: true }, wild_herb: { name: 'Wild Herb', material: true }, flax: { name: 'Flax', material: true },
     /* from the beasts of the Greenwood (Etappe 3) */
     boar_hide: { name: 'Boar Hide', material: true }, boar_tusk: { name: 'Boar Tusk', material: true },
     wolf_pelt: { name: 'Wolf Pelt', material: true }, wolf_fang: { name: 'Wolf Fang', material: true },
@@ -125,6 +125,7 @@
     /* REFINING AND PARTS (tbuuol 2026-11-10: "Häute zu Leder, Erz zu Barren, Holz zu Teilen, Fasern zu Stoffen, und
        Komponenten"): the first step between what is gathered and what is worn -- all materials, made at the benches */
     copper_bar: { name: 'Copper Bar', material: true }, iron_bar: { name: 'Iron Bar', material: true },
+    tin_bar: { name: 'Tin Bar', material: true }, bronze_bar: { name: 'Bronze Bar', material: true },
     copper_blade: { name: 'Copper Blade', material: true }, sword_hilt: { name: 'Sword Hilt', material: true },
     rivets: { name: 'Copper Rivets', material: true }, buckle: { name: 'Buckle', material: true },
     oak_plank: { name: 'Oak Plank', material: true }, wooden_handle: { name: 'Wooden Handle', material: true },
@@ -171,6 +172,10 @@
   const GATHER = {
     tree: { skill: 'woodcutting', prof: 'woodcutter', lvl: 0, verb: 'chop', yields: [['oak_log', 1, 0.15]], at: { str: 0.3, sta: 0.2 } },
     rock: { skill: 'mining', prof: 'miner', lvl: 1, verb: 'mine', yields: [['copper_ore', 0.8, 0.05], ['iron_ore', 0.12, 0.1], ['stone_block', 0.5, 0.05]], at: { str: 0.4, sta: 0.2 } },
+    /* ORES BY WHERE (tbuuol 2026-11-11): copper and tin in Greenwood and on the beach, iron at the Goblin Village */
+    copper: { skill: 'mining', prof: 'miner', lvl: 0, verb: 'mine', yields: [['copper_ore', 1, 0.1], ['stone_block', 0.3, 0.05]], at: { str: 0.4, sta: 0.2 } },
+    tin: { skill: 'mining', prof: 'miner', lvl: 0, verb: 'mine', yields: [['tin_ore', 1, 0.1], ['stone_block', 0.3, 0.05]], at: { str: 0.4, sta: 0.2 } },
+    iron: { skill: 'mining', prof: 'miner', lvl: 1, verb: 'mine', yields: [['iron_ore', 1, 0.08], ['stone_block', 0.3, 0.05]], at: { str: 0.5, sta: 0.2 } },
     /* the quarry's stone (2026-11-07): what building in Genesis takes, besides oak */
     stone: { skill: 'mining', prof: 'miner', lvl: 0, verb: 'quarry', yields: [['stone_block', 1, 0.2]], at: { str: 0.4, sta: 0.2 } },
     herb: { skill: 'herbalism', prof: 'herbalist', lvl: 0, verb: 'gather', yields: [['wild_herb', 1, 0.15], ['flax', 0.35, 0.05]], at: { dex: 0.3, int: 0.2 } }
@@ -182,6 +187,8 @@
     /* REFINING (level 0, 2026-11-10): ore to bars, logs to planks, hides to leather, fibre to thread and cloth */
     copper_bar: { skill: 'smithing', prof: 'smith', level: 0, needs: { copper_ore: 2 }, yields: 1 },
     iron_bar: { skill: 'smithing', prof: 'smith', level: 1, needs: { iron_ore: 2 }, yields: 1 },
+    tin_bar: { skill: 'smithing', prof: 'smith', level: 0, needs: { tin_ore: 2 }, yields: 1 },
+    bronze_bar: { skill: 'smithing', prof: 'smith', level: 1, needs: { copper_bar: 2, tin_bar: 1 }, yields: 2 },   /* copper and tin: bronze */
     oak_plank: { skill: 'woodworking', prof: 'carpenter', level: 0, needs: { oak_log: 1 }, yields: 2 },
     deer_leather: { skill: 'tailoring', prof: 'tailor', level: 0, needs: { deer_hide: 1 }, yields: 1 },
     boar_leather: { skill: 'tailoring', prof: 'tailor', level: 0, needs: { boar_hide: 1 }, yields: 1 },
@@ -273,7 +280,7 @@
      them; a runecrafter takes them apart into essences and glyphs, and makes runes of them again. */
   const RUNE_MAX = 10, BAR_SLOTS = 6;
   /* WHAT KIND OF MATERIAL (the bag's Materials tab, 2026-11-10): raw (gathered, dropped), refined, or a part */
-  const REFINED = new Set(['copper_bar', 'iron_bar', 'oak_plank', 'deer_leather', 'boar_leather', 'linen_thread', 'linen_cloth', 'copper_wire']);
+  const REFINED = new Set(['copper_bar', 'iron_bar', 'tin_bar', 'bronze_bar', 'oak_plank', 'deer_leather', 'boar_leather', 'linen_thread', 'linen_cloth', 'copper_wire']);
   const PARTS = new Set(['copper_blade', 'sword_hilt', 'rivets', 'buckle', 'wooden_handle', 'shield_boards', 'antler_buttons', 'leather_strap',
     'fur_lining', 'ring_setting', 'clasp', 'ring_mold', 'antler_beads', 'polished_tusk', 'rune_blank',
     'essence_might', 'essence_guard', 'essence_life', 'essence_venom', 'glyph_strike', 'glyph_sweep', 'glyph_bind', 'glyph_call', 'glyph_mend']);
@@ -604,7 +611,7 @@
         const more = n => n + Math.floor(n * Math.min(1, lvl * 0.15));
         const hunt = pick([['boar', 5], ['wolf', 4], ['spider', 3], ['crab', 5], ['goblin', 4], ['drowned', 3]]);
         const bring = pick([['stone_block', 10], ['oak_log', 8], ['copper_ore', 6], ['wild_herb', 6], ['flax', 4], ['boar_hide', 3]]);
-        const gather = pick([['tree', 5], ['rock', 4], ['herb', 6], ['stone', 6]]);
+        const gather = pick([['tree', 5], ['copper', 4], ['herb', 6], ['stone', 6]]);
         r.gd = { day, t: [['kill', hunt[0], more(hunt[1]), 0, 0], ['bring', bring[0], more(bring[1]), 0, 0], ['gather', gather[0], more(gather[1]), 0, 0]] };
         return r.gd;
       },
@@ -760,5 +767,5 @@
   /* a bag entry's name as shown (a blueprint with its QR, a made thing with its quality) */
   const entryName = e => { const it = itemOf({ bag: [e] }, e[0]); return it ? it.name : String(e[1]); };
   const rpg = { api: 1, entryName, masterOf, gradeOf, SLOTS, SKILLS, PROFS, ATTRS, RANKS, ITEMS, FISTS, LOOT, GATHER, RECIPES, SALVAGE, STATIONS, stationOf, salvageAt, RUNE_MAX, BAR_SLOTS, matKind, CODEX, ABILITIES, abilities, questState, questProgress, knows, fresh, stats, profs, rank, meets, itemOf, attr, book };
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('rpg', { api: 1, v: 21 }, () => rpg);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('rpg', { api: 1, v: 22 }, () => rpg);
 })(typeof globalThis !== 'undefined' ? globalThis : this);

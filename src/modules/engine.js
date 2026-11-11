@@ -140,7 +140,7 @@
     const aabb = (def, on) => ({ min: def.pos.map((p, i) => p - def.size[i] / 2), max: def.pos.map((p, i) => p + def.size[i] / 2), on: on || (() => true) });
     /* the level's things, built by the art module; the engine keeps what can be used and what blocks the way */
     const doors = {}, switches = {}, pickups = {}, shrines = {}, npcs = {}, resources = {}, portals = [];
-    const RES_NAME = { tree: 'oak', rock: 'ore boulder', herb: 'herbs', stone: 'quarry stone' };
+    const RES_NAME = { tree: 'oak', rock: 'ore boulder', copper: 'copper boulder', tin: 'tin boulder', iron: 'iron boulder', herb: 'herbs', stone: 'quarry stone' };
     const yawTo = (dx, dz) => Math.atan2(-dx, -dz);
     let forge = null, forgeDef = null;
     const plots = [];   /* Genesis' plots, for "where am I" */
@@ -3024,6 +3024,6 @@
     };
   }
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 63, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 64, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
     D => ({ start: (el, opts) => start(D, el, opts) }));
 })(typeof globalThis !== 'undefined' ? globalThis : this);

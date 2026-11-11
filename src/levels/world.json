@@ -2,7 +2,7 @@
  "lwq": "module",
  "name": "level.world",
  "api": 1,
- "v": 25,
+ "v": 26,
  "data": {
   "id": "world",
   "title": "LiteWorldsQuest",
@@ -1104,85 +1104,85 @@
      "eggs": [
       {
        "p": [
-        57.8,
-        112.1
+        56.1,
+        107.8
        ],
        "n": 7
       },
       {
        "p": [
-        59.0,
-        104.6
+        67.1,
+        110.7
        ],
        "n": 7
       },
       {
        "p": [
-        65.4,
-        112.5
+        64.2,
+        102.8
        ],
        "n": 7
       },
       {
        "p": [
-        59.7,
-        109.1
-       ],
-       "n": 7
-      },
-      {
-       "p": [
-        81.9,
-        169.6
-       ],
-       "n": 7
-      },
-      {
-       "p": [
-        86.7,
-        166.0
-       ],
-       "n": 7
-      },
-      {
-       "p": [
-        87.3,
-        163.6
-       ],
-       "n": 7
-      },
-      {
-       "p": [
-        82.8,
-        163.0
-       ],
-       "n": 7
-      },
-      {
-       "p": [
-        110.5,
-        106.4
-       ],
-       "n": 7
-      },
-      {
-       "p": [
-        109.3,
-        105.0
-       ],
-       "n": 7
-      },
-      {
-       "p": [
-        107.7,
+        57.6,
         104.5
        ],
        "n": 7
       },
       {
        "p": [
-        104.0,
-        105.1
+        84.5,
+        167.7
+       ],
+       "n": 7
+      },
+      {
+       "p": [
+        82.8,
+        171.1
+       ],
+       "n": 7
+      },
+      {
+       "p": [
+        88.5,
+        164.8
+       ],
+       "n": 7
+      },
+      {
+       "p": [
+        82.2,
+        168.4
+       ],
+       "n": 7
+      },
+      {
+       "p": [
+        108.2,
+        110.3
+       ],
+       "n": 7
+      },
+      {
+       "p": [
+        108.4,
+        105.2
+       ],
+       "n": 7
+      },
+      {
+       "p": [
+        104.8,
+        108.2
+       ],
+       "n": 7
+      },
+      {
+       "p": [
+        114.4,
+        108.6
        ],
        "n": 7
       },
@@ -1815,7 +1815,7 @@
       },
       {
        "id": "ore1",
-       "kind": "rock",
+       "kind": "copper",
        "pos": [
         26,
         -10
@@ -1823,7 +1823,7 @@
       },
       {
        "id": "ore2",
-       "kind": "rock",
+       "kind": "copper",
        "pos": [
         28,
         2
@@ -1831,7 +1831,7 @@
       },
       {
        "id": "ore3",
-       "kind": "rock",
+       "kind": "copper",
        "pos": [
         24,
         -21
@@ -1839,7 +1839,7 @@
       },
       {
        "id": "ore4",
-       "kind": "rock",
+       "kind": "copper",
        "pos": [
         16,
         -27
@@ -2682,8 +2682,8 @@
        "ground": true
       },
       {
-       "id": "w.rock.31",
-       "kind": "rock",
+       "id": "w.copper.31",
+       "kind": "copper",
        "pos": [
         -473.9,
         67.5
@@ -2691,8 +2691,8 @@
        "ground": true
       },
       {
-       "id": "w.rock.32",
-       "kind": "rock",
+       "id": "w.copper.32",
+       "kind": "copper",
        "pos": [
         -341.9,
         -72.6
@@ -2700,8 +2700,8 @@
        "ground": true
       },
       {
-       "id": "w.rock.33",
-       "kind": "rock",
+       "id": "w.copper.33",
+       "kind": "copper",
        "pos": [
         97.6,
         -37.8
@@ -2709,8 +2709,8 @@
        "ground": true
       },
       {
-       "id": "w.rock.34",
-       "kind": "rock",
+       "id": "w.copper.34",
+       "kind": "copper",
        "pos": [
         239.4,
         -99.3
@@ -2718,8 +2718,8 @@
        "ground": true
       },
       {
-       "id": "w.rock.35",
-       "kind": "rock",
+       "id": "w.copper.35",
+       "kind": "copper",
        "pos": [
         -103.1,
         58.5
@@ -2727,8 +2727,8 @@
        "ground": true
       },
       {
-       "id": "w.rock.36",
-       "kind": "rock",
+       "id": "w.copper.36",
+       "kind": "copper",
        "pos": [
         -393.8,
         91.6
@@ -2736,8 +2736,8 @@
        "ground": true
       },
       {
-       "id": "w.rock.37",
-       "kind": "rock",
+       "id": "w.copper.37",
+       "kind": "copper",
        "pos": [
         140.6,
         171.4
@@ -2745,8 +2745,8 @@
        "ground": true
       },
       {
-       "id": "w.rock.38",
-       "kind": "rock",
+       "id": "w.copper.38",
+       "kind": "copper",
        "pos": [
         93.5,
         -10.1
@@ -2754,8 +2754,8 @@
        "ground": true
       },
       {
-       "id": "w.rock.39",
-       "kind": "rock",
+       "id": "w.copper.39",
+       "kind": "copper",
        "pos": [
         -357.1,
         126.6
@@ -2763,8 +2763,8 @@
        "ground": true
       },
       {
-       "id": "w.rock.40",
-       "kind": "rock",
+       "id": "w.copper.40",
+       "kind": "copper",
        "pos": [
         -397.8,
         -87.6
@@ -2772,8 +2772,8 @@
        "ground": true
       },
       {
-       "id": "w.rock.41",
-       "kind": "rock",
+       "id": "w.copper.41",
+       "kind": "copper",
        "pos": [
         -379.1,
         -109.6
@@ -2781,8 +2781,8 @@
        "ground": true
       },
       {
-       "id": "w.rock.42",
-       "kind": "rock",
+       "id": "w.copper.42",
+       "kind": "copper",
        "pos": [
         -235.8,
         -87.2
@@ -2790,8 +2790,8 @@
        "ground": true
       },
       {
-       "id": "w.rock.43",
-       "kind": "rock",
+       "id": "w.copper.43",
+       "kind": "copper",
        "pos": [
         111.5,
         -29.2
@@ -2799,8 +2799,8 @@
        "ground": true
       },
       {
-       "id": "w.rock.44",
-       "kind": "rock",
+       "id": "w.copper.44",
+       "kind": "copper",
        "pos": [
         -291.2,
         89.4
@@ -2808,8 +2808,8 @@
        "ground": true
       },
       {
-       "id": "w.rock.45",
-       "kind": "rock",
+       "id": "w.copper.45",
+       "kind": "copper",
        "pos": [
         132.2,
         113.6
@@ -2817,8 +2817,8 @@
        "ground": true
       },
       {
-       "id": "w.rock.46",
-       "kind": "rock",
+       "id": "w.copper.46",
+       "kind": "copper",
        "pos": [
         -471.6,
         7.4
@@ -2826,8 +2826,8 @@
        "ground": true
       },
       {
-       "id": "w.herb.47",
-       "kind": "herb",
+       "id": "w.copper.47",
+       "kind": "copper",
        "pos": [
         270.0,
         -170.6
@@ -2835,8 +2835,8 @@
        "ground": true
       },
       {
-       "id": "w.herb.48",
-       "kind": "herb",
+       "id": "w.copper.48",
+       "kind": "copper",
        "pos": [
         -326.1,
         106.9
@@ -2844,8 +2844,8 @@
        "ground": true
       },
       {
-       "id": "w.herb.49",
-       "kind": "herb",
+       "id": "w.copper.49",
+       "kind": "copper",
        "pos": [
         -187.1,
         -99.4
@@ -2853,8 +2853,8 @@
        "ground": true
       },
       {
-       "id": "w.herb.50",
-       "kind": "herb",
+       "id": "w.copper.50",
+       "kind": "copper",
        "pos": [
         203.2,
         -107.9
@@ -2862,8 +2862,8 @@
        "ground": true
       },
       {
-       "id": "w.herb.51",
-       "kind": "herb",
+       "id": "w.copper.51",
+       "kind": "copper",
        "pos": [
         -183.3,
         85.5
@@ -2871,8 +2871,8 @@
        "ground": true
       },
       {
-       "id": "w.herb.52",
-       "kind": "herb",
+       "id": "w.copper.52",
+       "kind": "copper",
        "pos": [
         -70.1,
         167.7
@@ -2880,8 +2880,8 @@
        "ground": true
       },
       {
-       "id": "w.herb.53",
-       "kind": "herb",
+       "id": "w.copper.53",
+       "kind": "copper",
        "pos": [
         -471.0,
         -58.8
@@ -2889,8 +2889,8 @@
        "ground": true
       },
       {
-       "id": "w.herb.54",
-       "kind": "herb",
+       "id": "w.copper.54",
+       "kind": "copper",
        "pos": [
         -244.5,
         -63.1
@@ -2898,8 +2898,8 @@
        "ground": true
       },
       {
-       "id": "w.herb.55",
-       "kind": "herb",
+       "id": "w.tin.55",
+       "kind": "tin",
        "pos": [
         -241.6,
         156.3
@@ -2907,8 +2907,8 @@
        "ground": true
       },
       {
-       "id": "w.herb.56",
-       "kind": "herb",
+       "id": "w.tin.56",
+       "kind": "tin",
        "pos": [
         -1.7,
         -98.3
@@ -2916,8 +2916,8 @@
        "ground": true
       },
       {
-       "id": "w.herb.57",
-       "kind": "herb",
+       "id": "w.tin.57",
+       "kind": "tin",
        "pos": [
         20.5,
         123.3
@@ -2925,8 +2925,8 @@
        "ground": true
       },
       {
-       "id": "w.herb.58",
-       "kind": "herb",
+       "id": "w.tin.58",
+       "kind": "tin",
        "pos": [
         -34.8,
         -140.1
@@ -2934,8 +2934,8 @@
        "ground": true
       },
       {
-       "id": "w.herb.59",
-       "kind": "herb",
+       "id": "w.tin.59",
+       "kind": "tin",
        "pos": [
         -417.4,
         -12.9
@@ -2943,8 +2943,8 @@
        "ground": true
       },
       {
-       "id": "w.herb.60",
-       "kind": "herb",
+       "id": "w.tin.60",
+       "kind": "tin",
        "pos": [
         -338.7,
         -113.4
@@ -2952,8 +2952,8 @@
        "ground": true
       },
       {
-       "id": "w.herb.61",
-       "kind": "herb",
+       "id": "w.tin.61",
+       "kind": "tin",
        "pos": [
         -33.5,
         170.6
@@ -2961,8 +2961,8 @@
        "ground": true
       },
       {
-       "id": "w.herb.62",
-       "kind": "herb",
+       "id": "w.tin.62",
+       "kind": "tin",
        "pos": [
         79.1,
         -40.3
@@ -3096,38 +3096,38 @@
        "ground": true
       },
       {
-       "id": "w.rock.77",
-       "kind": "rock",
+       "id": "w.herb.77",
+       "kind": "herb",
        "pos": [
-        242.4,
-        -358.8
+        202.3,
+        67.7
        ],
        "ground": true
       },
       {
-       "id": "w.rock.78",
-       "kind": "rock",
+       "id": "w.herb.78",
+       "kind": "herb",
        "pos": [
-        227.8,
-        -407.4
+        283.0,
+        69.3
        ],
        "ground": true
       },
       {
-       "id": "w.rock.79",
-       "kind": "rock",
+       "id": "w.herb.79",
+       "kind": "herb",
        "pos": [
-        214.2,
-        -330.5
+        282.6,
+        -85.9
        ],
        "ground": true
       },
       {
-       "id": "w.rock.80",
-       "kind": "rock",
+       "id": "w.herb.80",
+       "kind": "herb",
        "pos": [
-        247.2,
-        -385.4
+        -21.8,
+        92.4
        ],
        "ground": true
       },
@@ -3135,8 +3135,8 @@
        "id": "w.herb.81",
        "kind": "herb",
        "pos": [
-        218.7,
-        -318.8
+        3.5,
+        135.6
        ],
        "ground": true
       },
@@ -3144,8 +3144,8 @@
        "id": "w.herb.82",
        "kind": "herb",
        "pos": [
-        229.8,
-        -346.2
+        -172.3,
+        -185.7
        ],
        "ground": true
       },
@@ -3153,8 +3153,8 @@
        "id": "w.herb.83",
        "kind": "herb",
        "pos": [
-        204.6,
-        -321.8
+        -206.7,
+        179.7
        ],
        "ground": true
       },
@@ -3162,44 +3162,44 @@
        "id": "w.herb.84",
        "kind": "herb",
        "pos": [
-        246.6,
-        -401.5
+        -137.9,
+        -143.4
        ],
        "ground": true
       },
       {
-       "id": "w.rock.85",
-       "kind": "rock",
+       "id": "w.herb.85",
+       "kind": "herb",
        "pos": [
-        -222.3,
-        -186.1
+        -265.6,
+        -79.8
        ],
        "ground": true
       },
       {
-       "id": "w.rock.86",
-       "kind": "rock",
+       "id": "w.herb.86",
+       "kind": "herb",
        "pos": [
-        -279.2,
-        -183.6
+        75.9,
+        -128.7
        ],
        "ground": true
       },
       {
-       "id": "w.rock.87",
-       "kind": "rock",
+       "id": "w.herb.87",
+       "kind": "herb",
        "pos": [
-        -204.9,
-        -196.4
+        -276.5,
+        153.1
        ],
        "ground": true
       },
       {
-       "id": "w.rock.88",
-       "kind": "rock",
+       "id": "w.herb.88",
+       "kind": "herb",
        "pos": [
-        -181.2,
-        -196.8
+        -354.3,
+        77.0
        ],
        "ground": true
       },
@@ -3207,8 +3207,8 @@
        "id": "w.herb.89",
        "kind": "herb",
        "pos": [
-        -265.1,
-        -183.1
+        -407.0,
+        93.0
        ],
        "ground": true
       },
@@ -3216,8 +3216,8 @@
        "id": "w.herb.90",
        "kind": "herb",
        "pos": [
-        89.4,
-        -239.5
+        -271.3,
+        89.8
        ],
        "ground": true
       },
@@ -3225,8 +3225,8 @@
        "id": "w.herb.91",
        "kind": "herb",
        "pos": [
-        -251.1,
-        -179.2
+        -418.7,
+        99.9
        ],
        "ground": true
       },
@@ -3234,80 +3234,80 @@
        "id": "w.herb.92",
        "kind": "herb",
        "pos": [
-        -255.7,
-        -191.3
+        -197.1,
+        45.7
        ],
        "ground": true
       },
       {
-       "id": "w.rock.93",
-       "kind": "rock",
+       "id": "w.copper.93",
+       "kind": "copper",
        "pos": [
-        -218.6,
-        -689.6
+        242.4,
+        -358.8
        ],
        "ground": true
       },
       {
-       "id": "w.rock.94",
-       "kind": "rock",
+       "id": "w.copper.94",
+       "kind": "copper",
        "pos": [
-        175.1,
-        -550.8
+        227.8,
+        -407.4
        ],
        "ground": true
       },
       {
-       "id": "w.rock.95",
-       "kind": "rock",
+       "id": "w.copper.95",
+       "kind": "copper",
        "pos": [
-        206.4,
-        -533.3
+        214.2,
+        -330.5
        ],
        "ground": true
       },
       {
-       "id": "w.rock.96",
-       "kind": "rock",
+       "id": "w.copper.96",
+       "kind": "copper",
        "pos": [
-        141.8,
-        -565.7
+        247.2,
+        -385.4
        ],
        "ground": true
       },
       {
-       "id": "w.rock.97",
-       "kind": "rock",
+       "id": "w.tin.97",
+       "kind": "tin",
        "pos": [
-        158.5,
-        -567.4
+        218.7,
+        -318.8
        ],
        "ground": true
       },
       {
-       "id": "w.rock.98",
-       "kind": "rock",
+       "id": "w.tin.98",
+       "kind": "tin",
        "pos": [
-        -113.1,
-        -671.5
+        229.8,
+        -346.2
        ],
        "ground": true
       },
       {
-       "id": "w.herb.99",
-       "kind": "herb",
+       "id": "w.tin.99",
+       "kind": "tin",
        "pos": [
-        6.4,
-        -655.1
+        204.6,
+        -321.8
        ],
        "ground": true
       },
       {
-       "id": "w.herb.100",
-       "kind": "herb",
+       "id": "w.tin.100",
+       "kind": "tin",
        "pos": [
-        -37.2,
-        -659.8
+        246.6,
+        -401.5
        ],
        "ground": true
       },
@@ -3315,8 +3315,8 @@
        "id": "w.herb.101",
        "kind": "herb",
        "pos": [
-        171.5,
-        -536.1
+        226.4,
+        -334.3
        ],
        "ground": true
       },
@@ -3324,13 +3324,229 @@
        "id": "w.herb.102",
        "kind": "herb",
        "pos": [
+        235.0,
+        -388.3
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.herb.103",
+       "kind": "herb",
+       "pos": [
+        241.7,
+        -374.3
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.herb.104",
+       "kind": "herb",
+       "pos": [
+        195.2,
+        -307.3
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.copper.105",
+       "kind": "copper",
+       "pos": [
+        -222.3,
+        -186.1
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.copper.106",
+       "kind": "copper",
+       "pos": [
+        -279.2,
+        -183.6
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.copper.107",
+       "kind": "copper",
+       "pos": [
+        -204.9,
+        -196.4
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.copper.108",
+       "kind": "copper",
+       "pos": [
+        -181.2,
+        -196.8
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.copper.109",
+       "kind": "copper",
+       "pos": [
+        -265.1,
+        -183.1
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.copper.110",
+       "kind": "copper",
+       "pos": [
+        89.4,
+        -239.5
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.tin.111",
+       "kind": "tin",
+       "pos": [
+        -251.1,
+        -179.2
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.tin.112",
+       "kind": "tin",
+       "pos": [
+        -255.7,
+        -191.3
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.herb.113",
+       "kind": "herb",
+       "pos": [
+        -109.7,
+        -203.0
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.herb.114",
+       "kind": "herb",
+       "pos": [
+        -19.7,
+        -219.8
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.herb.115",
+       "kind": "herb",
+       "pos": [
+        -296.8,
+        -171.8
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.herb.116",
+       "kind": "herb",
+       "pos": [
+        -0.2,
+        -223.5
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.copper.117",
+       "kind": "copper",
+       "pos": [
+        -218.6,
+        -689.6
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.copper.118",
+       "kind": "copper",
+       "pos": [
+        175.1,
+        -550.8
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.copper.119",
+       "kind": "copper",
+       "pos": [
+        206.4,
+        -533.3
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.copper.120",
+       "kind": "copper",
+       "pos": [
+        141.8,
+        -565.7
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.copper.121",
+       "kind": "copper",
+       "pos": [
+        158.5,
+        -567.4
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.tin.122",
+       "kind": "tin",
+       "pos": [
+        -113.1,
+        -671.5
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.tin.123",
+       "kind": "tin",
+       "pos": [
+        6.4,
+        -655.1
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.tin.124",
+       "kind": "tin",
+       "pos": [
+        -37.2,
+        -659.8
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.tin.125",
+       "kind": "tin",
+       "pos": [
+        171.5,
+        -536.1
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.tin.126",
+       "kind": "tin",
+       "pos": [
         133.1,
         -589.1
        ],
        "ground": true
       },
       {
-       "id": "w.herb.103",
+       "id": "w.herb.127",
        "kind": "herb",
        "pos": [
         -204.2,
@@ -3339,7 +3555,7 @@
        "ground": true
       },
       {
-       "id": "w.herb.104",
+       "id": "w.herb.128",
        "kind": "herb",
        "pos": [
         -9.2,
@@ -3348,7 +3564,43 @@
        "ground": true
       },
       {
-       "id": "w.tree.105",
+       "id": "w.herb.129",
+       "kind": "herb",
+       "pos": [
+        -22.6,
+        -653.7
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.herb.130",
+       "kind": "herb",
+       "pos": [
+        208.1,
+        -507.0
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.herb.131",
+       "kind": "herb",
+       "pos": [
+        100.1,
+        -607.1
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.herb.132",
+       "kind": "herb",
+       "pos": [
+        162.1,
+        -551.3
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.tree.133",
        "kind": "tree",
        "pos": [
         568.6,
@@ -3357,7 +3609,7 @@
        "ground": true
       },
       {
-       "id": "w.tree.106",
+       "id": "w.tree.134",
        "kind": "tree",
        "pos": [
         512.8,
@@ -3366,7 +3618,7 @@
        "ground": true
       },
       {
-       "id": "w.tree.107",
+       "id": "w.tree.135",
        "kind": "tree",
        "pos": [
         581.5,
@@ -3375,7 +3627,7 @@
        "ground": true
       },
       {
-       "id": "w.tree.108",
+       "id": "w.tree.136",
        "kind": "tree",
        "pos": [
         460.3,
@@ -3384,7 +3636,7 @@
        "ground": true
       },
       {
-       "id": "w.tree.109",
+       "id": "w.tree.137",
        "kind": "tree",
        "pos": [
         661.2,
@@ -3393,7 +3645,7 @@
        "ground": true
       },
       {
-       "id": "w.tree.110",
+       "id": "w.tree.138",
        "kind": "tree",
        "pos": [
         422.4,
@@ -3402,7 +3654,7 @@
        "ground": true
       },
       {
-       "id": "w.tree.111",
+       "id": "w.tree.139",
        "kind": "tree",
        "pos": [
         429.3,
@@ -3411,7 +3663,7 @@
        "ground": true
       },
       {
-       "id": "w.tree.112",
+       "id": "w.tree.140",
        "kind": "tree",
        "pos": [
         600.0,
@@ -3420,7 +3672,7 @@
        "ground": true
       },
       {
-       "id": "w.tree.113",
+       "id": "w.tree.141",
        "kind": "tree",
        "pos": [
         705.1,
@@ -3429,7 +3681,7 @@
        "ground": true
       },
       {
-       "id": "w.tree.114",
+       "id": "w.tree.142",
        "kind": "tree",
        "pos": [
         602.1,
@@ -3438,8 +3690,8 @@
        "ground": true
       },
       {
-       "id": "w.rock.115",
-       "kind": "rock",
+       "id": "w.iron.143",
+       "kind": "iron",
        "pos": [
         446.0,
         -721.1
@@ -3447,8 +3699,8 @@
        "ground": true
       },
       {
-       "id": "w.rock.116",
-       "kind": "rock",
+       "id": "w.iron.144",
+       "kind": "iron",
        "pos": [
         736.7,
         -649.9
@@ -3456,8 +3708,8 @@
        "ground": true
       },
       {
-       "id": "w.rock.117",
-       "kind": "rock",
+       "id": "w.iron.145",
+       "kind": "iron",
        "pos": [
         662.6,
         -624.4
@@ -3465,8 +3717,8 @@
        "ground": true
       },
       {
-       "id": "w.rock.118",
-       "kind": "rock",
+       "id": "w.iron.146",
+       "kind": "iron",
        "pos": [
         455.6,
         -730.3
@@ -3474,8 +3726,8 @@
        "ground": true
       },
       {
-       "id": "w.rock.119",
-       "kind": "rock",
+       "id": "w.iron.147",
+       "kind": "iron",
        "pos": [
         718.1,
         -568.1
@@ -3483,8 +3735,8 @@
        "ground": true
       },
       {
-       "id": "w.rock.120",
-       "kind": "rock",
+       "id": "w.iron.148",
+       "kind": "iron",
        "pos": [
         375.9,
         -696.8
@@ -3492,8 +3744,8 @@
        "ground": true
       },
       {
-       "id": "w.rock.121",
-       "kind": "rock",
+       "id": "w.iron.149",
+       "kind": "iron",
        "pos": [
         488.1,
         -684.4
@@ -3501,8 +3753,8 @@
        "ground": true
       },
       {
-       "id": "w.rock.122",
-       "kind": "rock",
+       "id": "w.iron.150",
+       "kind": "iron",
        "pos": [
         560.1,
         -743.5
@@ -3510,8 +3762,8 @@
        "ground": true
       },
       {
-       "id": "w.rock.123",
-       "kind": "rock",
+       "id": "w.iron.151",
+       "kind": "iron",
        "pos": [
         579.5,
         -584.8
@@ -3519,8 +3771,8 @@
        "ground": true
       },
       {
-       "id": "w.rock.124",
-       "kind": "rock",
+       "id": "w.iron.152",
+       "kind": "iron",
        "pos": [
         375.8,
         -623.8
@@ -3528,8 +3780,8 @@
        "ground": true
       },
       {
-       "id": "w.herb.125",
-       "kind": "herb",
+       "id": "w.iron.153",
+       "kind": "iron",
        "pos": [
         565.5,
         -612.5
@@ -3537,8 +3789,8 @@
        "ground": true
       },
       {
-       "id": "w.herb.126",
-       "kind": "herb",
+       "id": "w.iron.154",
+       "kind": "iron",
        "pos": [
         618.3,
         -664.3
@@ -3546,8 +3798,8 @@
        "ground": true
       },
       {
-       "id": "w.herb.127",
-       "kind": "herb",
+       "id": "w.iron.155",
+       "kind": "iron",
        "pos": [
         538.5,
         -601.7
@@ -3555,8 +3807,8 @@
        "ground": true
       },
       {
-       "id": "w.herb.128",
-       "kind": "herb",
+       "id": "w.iron.156",
+       "kind": "iron",
        "pos": [
         620.8,
         -771.8
@@ -3564,7 +3816,7 @@
        "ground": true
       },
       {
-       "id": "w.herb.129",
+       "id": "w.herb.157",
        "kind": "herb",
        "pos": [
         365.3,
@@ -3573,7 +3825,7 @@
        "ground": true
       },
       {
-       "id": "w.herb.130",
+       "id": "w.herb.158",
        "kind": "herb",
        "pos": [
         413.0,
@@ -3582,7 +3834,7 @@
        "ground": true
       },
       {
-       "id": "w.herb.131",
+       "id": "w.herb.159",
        "kind": "herb",
        "pos": [
         668.5,
@@ -3591,7 +3843,7 @@
        "ground": true
       },
       {
-       "id": "w.herb.132",
+       "id": "w.herb.160",
        "kind": "herb",
        "pos": [
         506.1,
@@ -3600,7 +3852,43 @@
        "ground": true
       },
       {
-       "id": "w.stone.133",
+       "id": "w.herb.161",
+       "kind": "herb",
+       "pos": [
+        648.1,
+        -754.3
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.herb.162",
+       "kind": "herb",
+       "pos": [
+        534.6,
+        -695.2
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.herb.163",
+       "kind": "herb",
+       "pos": [
+        593.1,
+        -567.4
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.herb.164",
+       "kind": "herb",
+       "pos": [
+        570.8,
+        -559.0
+       ],
+       "ground": true
+      },
+      {
+       "id": "w.stone.165",
        "kind": "stone",
        "pos": [
         522.3,
@@ -3609,7 +3897,7 @@
        "ground": true
       },
       {
-       "id": "w.stone.134",
+       "id": "w.stone.166",
        "kind": "stone",
        "pos": [
         498.7,
@@ -3618,7 +3906,7 @@
        "ground": true
       },
       {
-       "id": "w.stone.135",
+       "id": "w.stone.167",
        "kind": "stone",
        "pos": [
         505.8,
@@ -3627,7 +3915,7 @@
        "ground": true
       },
       {
-       "id": "w.stone.136",
+       "id": "w.stone.168",
        "kind": "stone",
        "pos": [
         452.2,
@@ -3636,7 +3924,7 @@
        "ground": true
       },
       {
-       "id": "w.stone.137",
+       "id": "w.stone.169",
        "kind": "stone",
        "pos": [
         536.5,
@@ -3645,7 +3933,7 @@
        "ground": true
       },
       {
-       "id": "w.stone.138",
+       "id": "w.stone.170",
        "kind": "stone",
        "pos": [
         532.0,
@@ -3654,7 +3942,7 @@
        "ground": true
       },
       {
-       "id": "w.stone.139",
+       "id": "w.stone.171",
        "kind": "stone",
        "pos": [
         466.2,
@@ -3663,7 +3951,7 @@
        "ground": true
       },
       {
-       "id": "w.stone.140",
+       "id": "w.stone.172",
        "kind": "stone",
        "pos": [
         449.6,
@@ -3672,7 +3960,7 @@
        "ground": true
       },
       {
-       "id": "w.stone.141",
+       "id": "w.stone.173",
        "kind": "stone",
        "pos": [
         522.9,
@@ -3681,7 +3969,7 @@
        "ground": true
       },
       {
-       "id": "w.stone.142",
+       "id": "w.stone.174",
        "kind": "stone",
        "pos": [
         490.9,
@@ -3690,7 +3978,7 @@
        "ground": true
       },
       {
-       "id": "w.stone.143",
+       "id": "w.stone.175",
        "kind": "stone",
        "pos": [
         505.3,
@@ -3699,7 +3987,7 @@
        "ground": true
       },
       {
-       "id": "w.stone.144",
+       "id": "w.stone.176",
        "kind": "stone",
        "pos": [
         469.9,
@@ -3708,7 +3996,7 @@
        "ground": true
       },
       {
-       "id": "w.stone.145",
+       "id": "w.stone.177",
        "kind": "stone",
        "pos": [
         544.5,
@@ -3717,7 +4005,7 @@
        "ground": true
       },
       {
-       "id": "w.stone.146",
+       "id": "w.stone.178",
        "kind": "stone",
        "pos": [
         501.7,
@@ -3726,7 +4014,7 @@
        "ground": true
       },
       {
-       "id": "w.tree.147",
+       "id": "w.tree.179",
        "kind": "tree",
        "pos": [
         461.2,
@@ -3735,7 +4023,7 @@
        "ground": true
       },
       {
-       "id": "w.tree.148",
+       "id": "w.tree.180",
        "kind": "tree",
        "pos": [
         531.8,
@@ -3744,7 +4032,7 @@
        "ground": true
       },
       {
-       "id": "w.tree.149",
+       "id": "w.tree.181",
        "kind": "tree",
        "pos": [
         507.1,
@@ -3753,7 +4041,7 @@
        "ground": true
       },
       {
-       "id": "w.tree.150",
+       "id": "w.tree.182",
        "kind": "tree",
        "pos": [
         438.5,
@@ -3762,7 +4050,7 @@
        "ground": true
       },
       {
-       "id": "w.tree.151",
+       "id": "w.tree.183",
        "kind": "tree",
        "pos": [
         494.0,
@@ -3771,7 +4059,7 @@
        "ground": true
       },
       {
-       "id": "w.tree.152",
+       "id": "w.tree.184",
        "kind": "tree",
        "pos": [
         532.5,
@@ -3780,7 +4068,7 @@
        "ground": true
       },
       {
-       "id": "w.tree.153",
+       "id": "w.tree.185",
        "kind": "tree",
        "pos": [
         538.8,
@@ -3789,7 +4077,7 @@
        "ground": true
       },
       {
-       "id": "w.tree.154",
+       "id": "w.tree.186",
        "kind": "tree",
        "pos": [
         515.0,
@@ -3798,7 +4086,7 @@
        "ground": true
       },
       {
-       "id": "w.tree.155",
+       "id": "w.tree.187",
        "kind": "tree",
        "pos": [
         427.8,
@@ -3807,7 +4095,7 @@
        "ground": true
       },
       {
-       "id": "w.tree.156",
+       "id": "w.tree.188",
        "kind": "tree",
        "pos": [
         424.4,
@@ -3816,7 +4104,7 @@
        "ground": true
       },
       {
-       "id": "w.tree.157",
+       "id": "w.tree.189",
        "kind": "tree",
        "pos": [
         455.1,
@@ -3825,7 +4113,7 @@
        "ground": true
       },
       {
-       "id": "w.tree.158",
+       "id": "w.tree.190",
        "kind": "tree",
        "pos": [
         454.3,
@@ -4113,8 +4401,8 @@
        "ground": true
       },
       {
-       "id": "mine.rock.1",
-       "kind": "rock",
+       "id": "mine.stone.1",
+       "kind": "stone",
        "pos": [
         496.9,
         -155.9
@@ -4122,8 +4410,8 @@
        "ground": true
       },
       {
-       "id": "mine.rock.2",
-       "kind": "rock",
+       "id": "mine.stone.2",
+       "kind": "stone",
        "pos": [
         495.3,
         -153.9
@@ -4131,8 +4419,8 @@
        "ground": true
       },
       {
-       "id": "mine.rock.3",
-       "kind": "rock",
+       "id": "mine.stone.3",
+       "kind": "stone",
        "pos": [
         493.2,
         -152.3
@@ -4140,8 +4428,8 @@
        "ground": true
       },
       {
-       "id": "mine.rock.4",
-       "kind": "rock",
+       "id": "mine.stone.4",
+       "kind": "stone",
        "pos": [
         490.7,
         -151.3
@@ -4149,8 +4437,8 @@
        "ground": true
       },
       {
-       "id": "mine.rock.5",
-       "kind": "rock",
+       "id": "mine.stone.5",
+       "kind": "stone",
        "pos": [
         488.0,
         -151.0
@@ -4158,8 +4446,8 @@
        "ground": true
       },
       {
-       "id": "mine.rock.6",
-       "kind": "rock",
+       "id": "mine.stone.6",
+       "kind": "stone",
        "pos": [
         485.3,
         -151.3
@@ -4167,8 +4455,8 @@
        "ground": true
       },
       {
-       "id": "mine.rock.7",
-       "kind": "rock",
+       "id": "mine.stone.7",
+       "kind": "stone",
        "pos": [
         482.8,
         -152.3
@@ -4176,8 +4464,8 @@
        "ground": true
       },
       {
-       "id": "mine.rock.8",
-       "kind": "rock",
+       "id": "mine.stone.8",
+       "kind": "stone",
        "pos": [
         480.7,
         -153.9

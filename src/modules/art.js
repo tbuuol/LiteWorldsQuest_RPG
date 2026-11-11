@@ -2061,10 +2061,12 @@
       const chips = mesh(new T.CylinderGeometry(0.8, 0.9, 0.08, 9), plain('#a8a296')); chips.position.y = 0.04; left.add(chips);
       use = mesh(new T.SphereGeometry(1.1, 8, 6), new T.MeshBasicMaterial({ visible: false })); use.position.y = 0.6;
       ctx.solid([x - 0.9, y0, z - 0.8], [x + 0.9, y0 + 1.2, z + 0.8], () => full.visible);
-    } else if (def.kind === 'rock') {
+    } else if (def.kind === 'rock' || def.kind === 'copper' || def.kind === 'tin' || def.kind === 'iron') {
       const geo = boulder(0.9, 1.2, 0.85, 1.0, Math.round(x * 7 + z * 13));
       const stone = mesh(geo, boulderM.grey); stone.position.y = 0.25; full.add(stone);
-      const copper = plain('#c87533', { metalness: 0.6, roughness: 0.35 }), iron = plain('#7d8590', { metalness: 0.7, roughness: 0.3 });
+      /* the veins say what is in it: copper's orange with green patina, tin's pale silver, iron's rust (2026-11-11) */
+      const VEIN = { copper: ['#c87533', '#5aa07a'], tin: ['#d4d8de', '#a9b0b8'], iron: ['#8a4428', '#5a3a30'], rock: ['#c87533', '#7d8590'] }[def.kind];
+      const copper = plain(VEIN[0], { metalness: 0.6, roughness: 0.35 }), iron = plain(VEIN[1], { metalness: 0.5, roughness: 0.45 });
       /* veins: bits of ore set INTO the stone's skin -- each on a corner of the boulder itself, along its outward
          normal, half sunk (tbuuol 2026-11-08: they floated beside it) */
       const P = geo.attributes.position, N = geo.attributes.normal, n0 = new T.Vector3(), at = new T.Vector3();
@@ -2953,5 +2955,5 @@
     return { groundAt, polys, segs, half, spawn, inside, stats: { buildings: buildings.length, trees: trees.length } };
   };
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('art', { api: 1, v: 37 }, () => art);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('art', { api: 1, v: 38 }, () => art);
 })(typeof globalThis !== 'undefined' ? globalThis : this);
