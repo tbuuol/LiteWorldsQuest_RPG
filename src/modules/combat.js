@@ -518,7 +518,7 @@
         }
         /* A BAR ONLY FOR WHOM I FIGHT (2026-11-10): struck by me lately, or at me right now from close by */
         const eye = eyeOf ? eyeOf() : null;
-        u.bar.s.visible = u.state !== 'dead' && (!o.engaged || o.engaged(u.id) || (u.state === 'attack' && !!eye && Math.hypot(u.x - eye.x, u.z - eye.z) < 4.5));
+        u.bar.s.visible = !o.noBars && u.state !== 'dead' && (!o.engaged || o.engaged(u.id) || (u.state === 'attack' && !!eye && Math.hypot(u.x - eye.x, u.z - eye.z) < 4.5));   /* noBars: the target frame shows it */
         u.shown.atk = u.atk;
       }
       for (let i = rings.length - 1; i >= 0; i--) {
@@ -673,7 +673,8 @@
       say(id, text, colour) { const u = units.get(String(id)); if (u) floater(u, text, colour || '#ffe08a', 0.3); },
       /* what a blow is against: how hard the foe is (what striking it teaches) and its defence */
       info(id) { const u = units.get(String(id)); if (!u) return null; return u.beast ? { kind: 'beast', lvl: u.beast.lvl, def: u.beast.spec.def || 0, species: u.beast.sp } : { kind: u.kind }; },
-      units() { return Array.from(units.values()).map(u => ({ id: u.id, kind: u.kind, name: u.name, x: Math.round(u.x * 10) / 10, z: Math.round(u.z * 10) / 10, y: Math.round(u.c.group.position.y * 100) / 100, hp: u.hp, max: u.max, state: u.state })); }
+      units() { return Array.from(units.values()).map(u => ({ id: u.id, kind: u.kind, name: u.name, x: Math.round(u.x * 10) / 10, z: Math.round(u.z * 10) / 10, y: Math.round(u.c.group.position.y * 100) / 100, top: Math.round((u.c.group.position.y + (u.c.barY || 2.2) * (u.beast ? u.beast.scale * (u.beast.spec.size || 1) : 1)) * 100) / 100,
+        lvl: u.beast ? u.beast.lvl : null, boss: !!(u.beast && u.beast.spec.boss), hp: u.hp, max: u.max, state: u.state })); }
     };
   }
 
@@ -720,5 +721,5 @@
     return snap;
   }
   const combat = { api: 1, player, gain, nextXp, create, encode, decode };
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('combat', { api: 1, v: 25, needs: { three: 160, art: 1 } }, () => combat);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('combat', { api: 1, v: 26, needs: { three: 160, art: 1 } }, () => combat);
 })(typeof globalThis !== 'undefined' ? globalThis : this);

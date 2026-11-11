@@ -1056,7 +1056,7 @@
     const combat = D.combat || null;
     const fight = (LV.defense || LV.wild) && combat ? combat.create({ THREE, art, ctx, def: LV.defense || {}, wild: LV.wild || null,
       height: ctx.height, eye: () => camera.position, far: PHONE ? 90 : 140,   /* creatures beyond far are not drawn */
-      number: (text, colour) => hudNumber(text, colour), engaged: id => performance.now() - (struck[id] || -1e9) < 20000 }) : null;
+      number: (text, colour) => hudNumber(text, colour), engaged: id => performance.now() - (struck[id] || -1e9) < 20000, noBars: true }) : null;
 
     /* everything that never moves, merged by material: hundreds of parts become a few dozen draw calls */
     for (const id in doors) if (!doors[id].pivots) doors[id].mesh.userData.keep = true;
@@ -1096,6 +1096,7 @@
       '<button class="lwq-unstuck" type="button" title="Stuck in a building? Out to the street in front of this plot (once in 5 minutes)">⇱ Stuck?</button>' +
       (TR ? '<div class="lwq-pos"></div><div class="lwq-compass"><div class="lwq-compass-in"></div><i></i></div><div class="lwq-map"><canvas></canvas><div class="lwq-map-t"></div></div>' : '') +
       '<div class="lwq-inv"></div><div class="lwq-log"></div><div class="lwq-talk"></div>' +
+      (fight ? '<div class="lwq-target"><div class="lwq-tname"></div><div class="lwq-bar lwq-thp"><i></i><span></span></div><div class="lwq-tlist"></div></div>' : '') +
       (fight ? '<div class="lwq-abil"></div><div class="lwq-stats"><span class="lwq-lv"></span><div class="lwq-bar lwq-hp"><i></i><span></span></div>' +
                '<div class="lwq-bar lwq-xp"><i></i><span></span></div></div>' : '') +
       (LV.credits ? '<div class="lwq-credit">' + esc(LV.credits) + '</div>' : '') +
@@ -1157,6 +1158,11 @@
       '.lwq-bar i{position:absolute;left:0;top:0;bottom:0;transition:width .2s}.lwq-hp i{background:linear-gradient(#e5574a,#a4241b)}' +
       '.lwq-xp{height:8px}.lwq-xp i{background:linear-gradient(#6fb6ff,#2f6fc9)}' +
       '.lwq-bar span{position:relative;font-size:10px;line-height:13px}.lwq-xp span{display:none}' +
+      '.lwq-target{position:absolute;left:50%;top:66px;transform:translateX(-50%);width:min(300px,52%);display:none;pointer-events:none;z-index:5;' +
+      'font:700 13px system-ui,sans-serif;color:#fff;text-shadow:0 1px 2px #000;text-align:center}' +
+      '.lwq-tname small{font-weight:600;color:#ffd96a;margin-left:6px}.lwq-thp{height:15px}.lwq-thp i{background:linear-gradient(#e5574a,#a4241b)}' +
+      '.lwq-tlist{margin-top:6px;display:flex;flex-direction:column;gap:3px;align-items:center}' +
+      '.lwq-trow{width:72%;font:600 10px system-ui,sans-serif;text-align:left}.lwq-trow .lwq-bar{height:5px;margin-top:1px}.lwq-trow .lwq-bar i{background:#c9463a}' +
       '.lwq-abil{position:absolute;left:50%;bottom:62px;transform:translateX(-50%);display:flex;gap:6px;z-index:5}' +
       '.lwq-abil button{position:relative;width:44px;height:44px;border-radius:8px;border:2px solid #c9a25e;background:rgba(40,28,14,.82);' +
       'color:#ffe7b0;font:700 20px Georgia,serif;padding:0;overflow:hidden;cursor:pointer;touch-action:none;box-shadow:inset 0 0 8px rgba(0,0,0,.6)}' +
@@ -1174,7 +1180,7 @@
       '.lwq-b-run{right:124px;bottom:104px;width:52px;height:52px;font-size:13px}.lwq-b-menu{right:14px;top:120px;width:48px;height:48px;font-size:22px}.lwq-b-map{right:70px;top:120px;width:48px;height:48px;font-size:22px}' +
       (TOUCH ? '.lwq-log{top:48px;bottom:auto;font-size:12px}.lwq-inv{bottom:auto;top:48px}' +
                /* held upright the buttons fill the bottom: the bars go to the top, the log below them */
-               '@media (max-aspect-ratio:1/1){.lwq-stats{bottom:auto;top:52px;width:min(320px,64%)}.lwq-log{top:104px;max-width:70%}}' : '');
+               '@media (max-aspect-ratio:1/1){.lwq-stats{bottom:auto;top:52px;width:min(320px,64%)}.lwq-log{top:104px;max-width:70%}.lwq-target{top:auto;bottom:150px;width:min(300px,70%)}}' : '');
     el.appendChild(st);
     const $ = c => hud.querySelector(c);
     const logLines = [];
@@ -1827,6 +1833,39 @@
       n.style.left = 'calc(50% + ' + Math.round((Math.random() - 0.5) * 90) + 'px)';
       el.appendChild(n);
       setTimeout(() => n.remove(), 1300);
+    }
+    /* THE TARGET (tbuuol 2026-11-11: "eine Lifebar wie unsere eigene, nur fürs Ziel"; the bars over heads are gone): the foe
+       under the crosshair, else the last one struck while the fight goes on; under it the others I fight, fewest life
+       first (five at most); a small red marker floats over the target */
+    let targetId = null, targetT = 0, targetKey = '', marker = null;
+    function targetTick(now) {
+      if (!fight || now - targetT < 100) return;
+      targetT = now;
+      const box = $('.lwq-target'); if (!box) return;
+      const foes = fight.units().filter(u => (u.kind === 'raider' || u.kind === 'beast') && u.state !== 'dead');
+      const byId = new Map(foes.map(u => [u.id, u]));
+      const engaged = u => now - (struck[u.id] || -1e9) < 20000 || (u.state === 'attack' && Math.hypot(u.x - me.x, u.z - me.z) < 4.5);
+      if (P && P.dead) { targetId = null; for (const k in struck) delete struck[k]; }   /* fallen: the fight is over */
+      const aim = !P || P.dead ? null : fight.pick(me.x, me.z, me.yaw, 30, me.y);
+      if (aim && byId.has(aim)) targetId = aim;
+      else if (targetId && (!byId.has(targetId) || !engaged(byId.get(targetId)))) targetId = null;
+      const t = targetId && byId.get(targetId);
+      const others = foes.filter(u => u.id !== targetId && engaged(u)).sort((a, b) => a.hp / a.max - b.hp / b.max).slice(0, 5);
+      const key = (t ? t.id + ':' + t.hp : '') + '|' + others.map(u => u.id + ':' + u.hp).join(',');
+      if (key !== targetKey) {
+        targetKey = key;
+        box.style.display = t || others.length ? 'block' : 'none';
+        $('.lwq-tname').innerHTML = t ? esc(t.name) + (t.lvl != null ? '<small>Lv ' + t.lvl + '</small>' : '') : '';
+        $('.lwq-thp').style.display = t ? '' : 'none';
+        if (t) { $('.lwq-thp i').style.width = (100 * t.hp / t.max) + '%'; $('.lwq-thp span').textContent = t.hp + ' / ' + t.max + (t.boss ? '  (' + Math.ceil(100 * t.hp / t.max) + ' %)' : ''); }
+        $('.lwq-tlist').innerHTML = others.map(u => '<div class="lwq-trow">' + esc(u.name) + '<div class="lwq-bar"><i style="width:' + (100 * u.hp / u.max) + '%"></i></div></div>').join('');
+      }
+      if (!marker) {
+        marker = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.34, 4), new THREE.MeshBasicMaterial({ color: new THREE.Color(2.2, 0.4, 0.3), depthTest: false }));
+        marker.rotation.x = Math.PI; marker.renderOrder = 13; marker.userData.keep = true; scene.add(marker);
+      }
+      marker.visible = !!t;
+      if (t) marker.position.set(t.x, t.top + 0.35 + Math.sin(now / 250) * 0.06, t.z);
     }
     function attack() {
       if (!fight || !P || P.dead || !playing() || (menu && menu.isOpen())) return;
@@ -2754,7 +2793,7 @@
       const t = now / 1000, fdt = Math.min(dt, 0.1);
       if (!iAmHouse) for (const fn of updates) fn(fdt, t);   /* flames, smoke, water: nothing the house needs */
       npcTick(fdt, t);
-      if (!iAmHouse) { gateTick(now); if (live()) { portalTick(); linkTick(); } zoneTick(); drawAbilities(); compassTick(); posTick(); buildTick(); if (mapOpen && now - (mapT || 0) > 200) { mapT = now; mapTick(); } }
+      if (!iAmHouse) { gateTick(now); targetTick(now); if (live()) { portalTick(); linkTick(); } zoneTick(); drawAbilities(); compassTick(); posTick(); buildTick(); if (mapOpen && now - (mapT || 0) > 200) { mapT = now; mapTick(); } }
       if (env && !iAmHouse) env.update(fdt, t, camera.position, underNow);
       if (land && !iAmHouse) land.update(camera.position);
       /* things to gather out in the land are drawn near you only: there are a hundred and more, each a few meshes */
@@ -2985,6 +3024,6 @@
     };
   }
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 62, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 63, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
     D => ({ start: (el, opts) => start(D, el, opts) }));
 })(typeof globalThis !== 'undefined' ? globalThis : this);
