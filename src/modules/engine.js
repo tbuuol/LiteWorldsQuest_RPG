@@ -1812,13 +1812,21 @@
     /* MY NUMBERS, in the middle of my view, just over the crosshair: they rise and fade */
     const struck = {};   /* a foe's id -> when I last struck it: its bar shows while we fight */
     function hudNumber(text, colour) {
+      /* a CSS animation, not a transition set a frame later: that one jumped straight to its end, unseen, most times
+         (tbuuol 2026-11-11: "bei 3 von 100 Hits kam eine Zahl") */
+      if (!document.getElementById('lwq-num-style')) {
+        const st = document.createElement('style'); st.id = 'lwq-num-style';
+        st.textContent = '@keyframes lwqNum{0%{transform:translate(-50%,8px) scale(.8);opacity:1}12%{transform:translate(-50%,0) scale(1.15);opacity:1}' +
+          '30%{transform:translate(-50%,-8px) scale(1);opacity:1}100%{transform:translate(-50%,-80px) scale(.95);opacity:0}}' +
+          '.lwq-num{position:absolute;top:42%;pointer-events:none;z-index:7;font:900 42px system-ui,sans-serif;text-shadow:0 3px 0 #000,0 0 8px rgba(0,0,0,.9);' +
+          'animation:lwqNum 1.2s ease-out forwards;white-space:nowrap}';
+        document.head.appendChild(st);
+      }
       const n = document.createElement('div');
-      n.textContent = text;
-      n.style.cssText = 'position:absolute;left:calc(50% + ' + Math.round((Math.random() - 0.5) * 70) + 'px);top:44%;transform:translate(-50%,0);pointer-events:none;z-index:7;' +
-        'font:800 26px system-ui,sans-serif;color:' + colour + ';text-shadow:0 2px 0 #000,0 0 6px rgba(0,0,0,.8);transition:transform 1.1s ease-out,opacity 1.1s ease-in;opacity:1';
+      n.className = 'lwq-num'; n.textContent = text; n.style.color = colour;
+      n.style.left = 'calc(50% + ' + Math.round((Math.random() - 0.5) * 90) + 'px)';
       el.appendChild(n);
-      requestAnimationFrame(() => { n.style.transform = 'translate(-50%,-70px)'; n.style.opacity = '0'; });
-      setTimeout(() => n.remove(), 1200);
+      setTimeout(() => n.remove(), 1300);
     }
     function attack() {
       if (!fight || !P || P.dead || !playing() || (menu && menu.isOpen())) return;
@@ -2044,7 +2052,7 @@
       const h = houseId();
       if (room && !iAmHouse && linked(h)) room.to([h], msg, true);
     }
-    const outQ = []; let outNo = 0, outAt = 0;
+    const outQ = []; let outNo = Math.floor(Math.random() * 1e9), outAt = 0;   /* random start: a new house's packets are not old ones */
     function toPlayer(item) { if (room) outQ.push(item); }
     function flushOut(now) {
       if (!room || !outQ.length || now - outAt < 100) return;
@@ -2977,6 +2985,6 @@
     };
   }
 
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 61, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('engine', { api: 1, v: 62, needs: { three: 160, net: 1, wallet: 1, art: 1, sound: 1, combat: 1, rpg: 1, menu: 1, terrain: 1, levels: 1 } },
     D => ({ start: (el, opts) => start(D, el, opts) }));
 })(typeof globalThis !== 'undefined' ? globalThis : this);
