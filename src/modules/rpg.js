@@ -136,6 +136,20 @@
     copper_wire: { name: 'Copper Wire', material: true }, ring_setting: { name: 'Ring Setting', material: true },
     clasp: { name: 'Clasp', material: true }, ring_mold: { name: 'Ring Mould', material: true },
     antler_beads: { name: 'Antler Beads', material: true }, polished_tusk: { name: 'Polished Tusk', material: true },
+    /* BRONZE (level 1, 2026-11-11): its parts, and what is made of them -- between copper and iron */
+    bronze_blade: { name: 'Bronze Blade', material: true }, bronze_rivets: { name: 'Bronze Rivets', material: true },
+    bronze_buckle: { name: 'Bronze Buckle', material: true }, bronze_wire: { name: 'Bronze Wire', material: true },
+    bronze_setting: { name: 'Bronze Setting', material: true },
+    bronze_sword: { name: 'Bronze Sword', slot: 'main', skill: 'sword', model: 'sword', dmg: [8, 14], req: { sword_hit: 1 }, look: '#b08d57' },
+    bronze_axe: { name: 'Bronze Axe', slot: 'main', skill: 'axe', model: 'axe', dmg: [8, 15], req: { axe_hit: 1 }, look: '#b08d57' },
+    bronze_mace: { name: 'Bronze Mace', slot: 'main', skill: 'mace', model: 'mace', dmg: [7, 13], req: { mace_hit: 1 }, look: '#b08d57' },
+    bronze_helm: { name: 'Bronze Helm', slot: 'head', def: 3 },
+    bronze_bracers: { name: 'Bronze Bracers', slot: 'wrists', def: 2, at: { sta: 1 } },
+    bronze_shield: { name: 'Bronze-rimmed Shield', slot: 'off', model: 'shield', def: 5, req: { defender: 1 }, look: '#b08d57' },
+    studded_vest: { name: 'Studded Vest', slot: 'chest', def: 4, at: { sta: 1 } },
+    bronze_ring: { name: 'Bronze Ring', slot: 'ring', at: { str: 1, sta: 1 } },
+    bronze_amulet: { name: 'Bronze Tusk Amulet', slot: 'amulet', at: { str: 1, dex: 1 } },
+    bronze_charm: { name: 'Bronze Charm', slot: 'trinket', at: { sta: 2 } },
     /* made from the parts (level 0): the first things a crafter makes from their own refined work */
     copper_longknife: { name: 'Copper Longknife', slot: 'main', skill: 'sword', model: 'sword', dmg: [5, 10], look: '#c87533' },
     hunters_jerkin: { name: "Hunter's Jerkin", slot: 'chest', def: 3, at: { dex: 1 } },
@@ -210,6 +224,22 @@
     ring_mold: { skill: 'jewelcrafting', prof: 'jeweler', level: 0, needs: { stone_block: 1, copper_bar: 1 }, yields: 1 },
     antler_beads: { skill: 'jewelcrafting', prof: 'jeweler', level: 0, needs: { antler: 1 }, yields: 4 },
     polished_tusk: { skill: 'jewelcrafting', prof: 'jeweler', level: 0, needs: { boar_tusk: 1 }, yields: 1 },
+    /* BRONZE (level 1, 2026-11-11) */
+    bronze_blade: { skill: 'smithing', prof: 'smith', level: 1, needs: { bronze_bar: 2 }, yields: 1 },
+    bronze_rivets: { skill: 'smithing', prof: 'smith', level: 1, needs: { bronze_bar: 1 }, yields: 6 },
+    bronze_buckle: { skill: 'smithing', prof: 'smith', level: 1, needs: { bronze_bar: 1 }, yields: 2 },
+    bronze_sword: { skill: 'smithing', prof: 'smith', level: 1, needs: { bronze_blade: 1, sword_hilt: 1, bronze_rivets: 2 } },
+    bronze_axe: { skill: 'smithing', prof: 'smith', level: 1, needs: { bronze_bar: 2, wooden_handle: 1, bronze_rivets: 2 } },
+    bronze_mace: { skill: 'smithing', prof: 'smith', level: 1, needs: { bronze_bar: 3, wooden_handle: 1 } },
+    bronze_helm: { skill: 'smithing', prof: 'smith', level: 1, needs: { bronze_bar: 2, linen_cloth: 1, bronze_rivets: 4 } },
+    bronze_bracers: { skill: 'smithing', prof: 'smith', level: 1, needs: { bronze_bar: 2, leather_strap: 2, bronze_buckle: 1 } },
+    bronze_shield: { skill: 'woodworking', prof: 'carpenter', level: 1, needs: { shield_boards: 1, bronze_bar: 1, bronze_rivets: 4, leather_strap: 1 } },
+    studded_vest: { skill: 'tailoring', prof: 'tailor', level: 1, needs: { boar_leather: 2, bronze_rivets: 6, linen_thread: 1 } },
+    bronze_wire: { skill: 'jewelcrafting', prof: 'jeweler', level: 1, needs: { bronze_bar: 1 }, yields: 3 },
+    bronze_setting: { skill: 'jewelcrafting', prof: 'jeweler', level: 1, needs: { bronze_wire: 2 }, yields: 1 },
+    bronze_ring: { skill: 'jewelcrafting', prof: 'jeweler', level: 1, needs: { bronze_bar: 1, ring_mold: 1 } },
+    bronze_amulet: { skill: 'jewelcrafting', prof: 'jeweler', level: 1, needs: { bronze_wire: 2, polished_tusk: 1, clasp: 1 } },
+    bronze_charm: { skill: 'jewelcrafting', prof: 'jeweler', level: 1, needs: { bronze_setting: 1, antler_beads: 2, leather_strap: 1 } },
     /* RUNES (2026-11-10): the blank from the jeweler, the runes from a runecrafter at a rune table */
     rune_blank: { skill: 'jewelcrafting', prof: 'jeweler', level: 0, needs: { stone_block: 1, copper_wire: 2 }, yields: 1 },
     rune_heavy: { skill: 'runecraft', prof: 'runecrafter', level: 0, needs: { rune_blank: 1, glyph_strike: 1, essence_might: 2 } },
@@ -283,6 +313,7 @@
   const REFINED = new Set(['copper_bar', 'iron_bar', 'tin_bar', 'bronze_bar', 'oak_plank', 'deer_leather', 'boar_leather', 'linen_thread', 'linen_cloth', 'copper_wire']);
   const PARTS = new Set(['copper_blade', 'sword_hilt', 'rivets', 'buckle', 'wooden_handle', 'shield_boards', 'antler_buttons', 'leather_strap',
     'fur_lining', 'ring_setting', 'clasp', 'ring_mold', 'antler_beads', 'polished_tusk', 'rune_blank',
+    'bronze_blade', 'bronze_rivets', 'bronze_buckle', 'bronze_wire', 'bronze_setting',
     'essence_might', 'essence_guard', 'essence_life', 'essence_venom', 'glyph_strike', 'glyph_sweep', 'glyph_bind', 'glyph_call', 'glyph_mend']);
   const matKind = id => REFINED.has(id) ? 'refined' : PARTS.has(id) ? 'part' : 'raw';
   const runeNeed = rk => Math.round(8 * Math.pow(rk, 1.6));   /* uses from a rank to the next */
@@ -767,5 +798,5 @@
   /* a bag entry's name as shown (a blueprint with its QR, a made thing with its quality) */
   const entryName = e => { const it = itemOf({ bag: [e] }, e[0]); return it ? it.name : String(e[1]); };
   const rpg = { api: 1, entryName, masterOf, gradeOf, SLOTS, SKILLS, PROFS, ATTRS, RANKS, ITEMS, FISTS, LOOT, GATHER, RECIPES, SALVAGE, STATIONS, stationOf, salvageAt, RUNE_MAX, BAR_SLOTS, matKind, CODEX, ABILITIES, abilities, questState, questProgress, knows, fresh, stats, profs, rank, meets, itemOf, attr, book };
-  if (G.LWQ && G.LWQ.define) G.LWQ.define('rpg', { api: 1, v: 22 }, () => rpg);
+  if (G.LWQ && G.LWQ.define) G.LWQ.define('rpg', { api: 1, v: 23 }, () => rpg);
 })(typeof globalThis !== 'undefined' ? globalThis : this);
