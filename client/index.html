@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>LiteWorldsQuest Beta</title>
+<link rel="stylesheet" href="src/hud.css">
+<script type="importmap">
+{ "imports": { "three": "./vendor/three/three.module.js", "three/addons/": "./vendor/three/addons/" } }
+</script>
+</head>
+<body>
+<div id="view"></div>
+<div id="hud">
+  <div id="who"></div>
+  <div id="stats"></div>
+  <div id="cross"></div>
+  <div id="chatlog"></div>
+  <input id="chat" maxlength="200" autocomplete="off" placeholder="Enter: say something">
+</div>
+<div id="boot"><div class="title">LiteWorldsQuest</div><div class="sub">Beta</div><div id="bootmsg">Loading…</div></div>
+<div id="beta">BETA</div>
+<script type="module" src="src/main.js"></script>
+</body>
+</html>

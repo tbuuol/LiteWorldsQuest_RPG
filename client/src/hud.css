@@ -1,0 +1,23 @@
+html, body { margin: 0; height: 100%; background: #000; overflow: hidden; touch-action: none; }
+#view { position: absolute; inset: 0; }
+#view canvas { display: block; width: 100%; height: 100%; }
+#hud { position: absolute; inset: 0; pointer-events: none; font: 13px/1.35 system-ui, sans-serif; color: #f2ead8;
+  text-shadow: 0 1px 2px #000, 0 0 6px rgba(0,0,0,.6); }
+#who { position: absolute; left: 14px; top: 12px; font-weight: 600; letter-spacing: .04em; }
+#stats { position: absolute; right: 14px; top: 12px; text-align: right; font: 12px/1.4 ui-monospace, monospace; opacity: .8; white-space: pre; }
+#cross { position: absolute; left: 50%; top: 50%; width: 4px; height: 4px; margin: -2px; border-radius: 50%; background: rgba(255,255,255,.75); }
+#chatlog { position: absolute; left: 14px; bottom: 44px; width: min(460px, 70vw); max-height: 30vh; overflow: hidden;
+  display: flex; flex-direction: column; justify-content: flex-end; }
+#chatlog div { margin-top: 2px; }
+#chatlog b { color: #f0c66a; font-weight: 600; }
+#chat { position: absolute; left: 14px; bottom: 12px; width: min(460px, 70vw); padding: 5px 8px; border: 1px solid rgba(255,255,255,.25);
+  border-radius: 4px; background: rgba(10,12,16,.55); color: #f2ead8; font: inherit; pointer-events: auto; display: none; }
+#boot { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  background: radial-gradient(ellipse at center, #1f2a24 0%, #070908 75%); color: #e9dfc6; font-family: Georgia, 'Times New Roman', serif; z-index: 50; }
+#boot .title { font-size: clamp(34px, 6vw, 64px); letter-spacing: .08em; text-shadow: 0 2px 14px rgba(0,0,0,.8); }
+#boot .sub { font-size: 16px; letter-spacing: .5em; text-transform: uppercase; color: #c8a660; margin: 4px 0 26px; }
+#bootmsg { font: 14px system-ui, sans-serif; opacity: .8; max-width: 80vw; text-align: center; }
+#beta { position: absolute; left: 8px; bottom: 8px; z-index: 60; padding: 2px 7px; border-radius: 4px; background: #b8402a; color: #fff;
+  font: bold 11px system-ui, sans-serif; letter-spacing: .08em; pointer-events: none; opacity: .85; display: none; }
+.nametag { position: absolute; transform: translate(-50%, -100%); font: 600 12px system-ui, sans-serif; color: #fff; pointer-events: none;
+  text-shadow: 0 1px 2px #000, 0 0 4px #000; white-space: nowrap; }

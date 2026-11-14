@@ -1,0 +1,40 @@
+{
+ "materials": [
+  {
+   "id": "grass",
+   "source": "ambientCG Grass004 (CC0 1.0)",
+   "url": "https://ambientcg.com/view?id=Grass004"
+  },
+  {
+   "id": "forest",
+   "source": "ambientCG Ground037 (CC0 1.0)",
+   "url": "https://ambientcg.com/view?id=Ground037"
+  },
+  {
+   "id": "dirt",
+   "source": "ambientCG Ground054 (CC0 1.0)",
+   "url": "https://ambientcg.com/view?id=Ground054"
+  },
+  {
+   "id": "moss",
+   "source": "ambientCG Ground068 (CC0 1.0)",
+   "url": "https://ambientcg.com/view?id=Ground068"
+  },
+  {
+   "id": "rock",
+   "source": "ambientCG Rock051 (CC0 1.0)",
+   "url": "https://ambientcg.com/view?id=Rock051"
+  },
+  {
+   "id": "road",
+   "source": "ambientCG Gravel041 (CC0 1.0)",
+   "url": "https://ambientcg.com/view?id=Gravel041"
+  },
+  {
+   "id": "sand",
+   "source": "ambientCG Ground087 (CC0 1.0)",
+   "url": "https://ambientcg.com/view?id=Ground087"
+  }
+ ],
+ "license": "CC0 1.0 Universal (public domain), https://ambientcg.com/license"
+}
