@@ -133,16 +133,29 @@ async function start() {
   $('#beta').style.display = 'block';
 
   let last = performance.now(), statAt = 0, floraAt = 0;
-  renderer.setAnimationLoop(now => {
+  // ?film=1: no clock of its own; LWQ.filmFrame(t, ...) moves the camera along a path, steps the world by exactly
+  // the frame time and renders one picture (a steady video however slow the machine is)
+  const FILM = Q.has('film');
+  function frame(now, film) {
     const dt = Math.min(0.1, (now - last) / 1000); last = now;
     if (closed) { $('#boot').style.display = 'flex'; say(`The house says: ${closed}`); renderer.setAnimationLoop(null); return; }
-    player.update(dt, now);
-    const pending = ground.update(player.pos.x, player.pos.z, 2);
+    if (film) {
+      player.pos.x = film.x; player.pos.z = film.z; player.pos.y = ground.height(film.x, film.z);
+      // everything around the camera fully there before the picture (no tiles popping in the film)
+      for (let i = 0; i < 200 && ground.update(film.x, film.z, 8) > 0; i++);
+    } else {
+      player.update(dt, now);
+    }
+    const pending = film ? 0 : ground.update(player.pos.x, player.pos.z, 2);
     flora.update(player.pos.x, player.pos.z, dt);
     grass.update(player.pos.x, player.pos.z, now / 1000);
     clutter.update(player.pos.x, player.pos.z, dt);
     places.update(now / 1000);
     sky.follow(player.pos);
+    if (film) {
+      camera.position.set(film.x, film.y, film.z);
+      camera.lookAt(film.tx, film.ty, film.tz);
+    }
     remotes.update(now, dt);
     const n = remotes.nearestNpc(player.pos.x, player.pos.z, 3.5);
     if ((n && n.id) !== (near && near.id)) {
@@ -153,6 +166,7 @@ async function start() {
     grade.setSun(sky.sunDir, rays);
     water.update(now / 1000, sky.sunDir);
     grade.render();
+    if (film) return;
     quality.frame(now, pending > 6);
     if (now - statAt > 500) {
       statAt = now;
@@ -160,9 +174,21 @@ async function start() {
       const fs = flora.stats();
       $('#stats').textContent = `${quality.fps.toFixed(0)} fps · ${quality.name}\n${remotes.count + 1} here\n${p.x.toFixed(0)}, ${p.z.toFixed(0)} · ${p.y.toFixed(1)} m\ntrees ${fs.near} + ${fs.far} · grass ${grass.count} · clutter ${clutter.stats()}`;
     }
-  });
+  }
+  if (FILM) {
+    for (const id of ['#hud', '#beta']) { const e = $(id); if (e) e.style.display = 'none'; }
+  } else {
+    renderer.setAnimationLoop(now => frame(now));
+  }
   window.LWQ = { scene, camera, renderer, ground, flora, quality, player, remotes,
-    tp(x, z, yaw, pitch) { net.tp(x, z); player.place(x, ground.height(x, z), z, yaw, pitch); } };
+    tp(x, z, yaw, pitch) { net.tp(x, z); player.place(x, ground.height(x, z), z, yaw, pitch); },
+    /** one film frame at film time t (s): camera at (x, ground + above, z) looking at (tx, ground + tabove, tz) */
+    filmFrame(t, x, z, above, tx, tz, tabove, q = 0.9) {
+      const film = { x, z, y: ground.height(x, z) + above, tx, tz, ty: ground.height(tx, tz) + tabove };
+      frame(10000 + t * 1000, film);
+      return renderer.domElement.toDataURL('image/jpeg', q);
+    } };
+  window.LWQ_READY = true;
 }
 
 start().catch(e => { console.error(e); say('Could not start: ' + (e && e.message || e)); });

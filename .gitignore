@@ -10,3 +10,4 @@ dist/
 design/*.mp4
 server/target/
 tools/bake/ground.base.bin
+media/*.mp4
