@@ -26,16 +26,16 @@
   "tool": "tools/bake/relief.py",
   "seed": 20261114,
   "amp": {
-   "green": 26,
-   "valley": 18,
-   "fey": 30,
-   "troll": 75,
-   "ruins": 16,
-   "cemetery": 10,
-   "swamp": 3,
-   "mountain": 170
+   "green": 55,
+   "valley": 38,
+   "fey": 60,
+   "troll": 120,
+   "ruins": 32,
+   "cemetery": 22,
+   "swamp": 4,
+   "mountain": 230
   },
   "min": -9.5,
-  "max": 306.78
+  "max": 416.09
  }
 }

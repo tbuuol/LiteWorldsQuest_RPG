@@ -65,13 +65,25 @@ Hs = ndimage.gaussian_filter(H0, sigma=2.5) * (1 - np.clip(near_water * 2, 0, 1)
 WX, WZ = noise(900), noise(900)
 
 # 2. relief by land kind (metres), blended over ~40 m so regions flow into each other
-AMP = {'green': 26, 'valley': 18, 'fey': 30, 'troll': 75, 'ruins': 16, 'cemetery': 10, 'swamp': 3, 'mountain': 170}
+AMP = {'green': 55, 'valley': 38, 'fey': 60, 'troll': 120, 'ruins': 32, 'cemetery': 22, 'swamp': 4, 'mountain': 230}
 amp = np.vectorize(lambda k: AMP.get(kinds[k], 8))(K).astype(np.float64)
 A = ndimage.gaussian_filter(amp, sigma=20)
 mount = ndimage.gaussian_filter(np.isin(K, [kinds.index('troll'), kinds.index('mountain')]).astype(np.float64), sigma=25)
-rolling = fbm(700, 4, warp=60) * 0.75 + fbm(220, 3, warp=25) * 0.35
+rolling = fbm(800, 4, warp=60) * 0.7 + fbm(260, 3, warp=25) * 0.45 + fbm(90, 2) * 0.08
 ridges = fbm(650, 5, ridged=True, warp=70)
 delta = A * ((1 - mount) * rolling * 0.7 + mount * (ridges * 1.15 - 0.25 + rolling * 0.35))
+
+# 2b. the world's edge on land: no wall, but a high, broken mountain range rising over ~320 m, as a natural border
+xs_ = x0 + np.arange(nx) * step
+zs_ = z0 + np.arange(nz) * step
+Xe, Ze = np.meshgrid(xs_, zs_)
+x1_, z1_ = meta['extent'][2], meta['extent'][3]
+edge_d = np.minimum.reduce([Xe - x0, x1_ - Xe, Ze - z0, z1_ - Ze]) + noise(350) * 110 + noise(120) * 30   # a ragged foot, not a line
+border = smooth01(320.0, 0.0, edge_d) ** 1.6
+landish = ndimage.gaussian_filter((H0 > sea + 0.5).astype(np.float64), sigma=40)   # only where the edge is land
+border_peaks = fbm(420, 5, ridged=True, warp=60)
+delta = delta * (1 - border) + border * landish * (160 + 260 * border_peaks)
+Hs = Hs * (1 - border * landish) + ndimage.gaussian_filter(Hs, sigma=30) * border * landish   # the old rim melts away
 
 # 3. the coast and the rivers stay: no relief near or below the water
 coast = smooth01(0.6, 10.0, Hs - sea)
@@ -110,4 +122,10 @@ out = np.clip(np.round((H - base) * 100), 0, 65535).astype('<u2')
 out.tofile(os.path.join(WORLD, 'ground.bin'))
 meta['relief'] = {'tool': 'tools/bake/relief.py', 'seed': 20261114, 'amp': AMP, 'min': round(float(H.min()), 2), 'max': round(float(H.max()), 2)}
 json.dump(meta, open(os.path.join(WORLD, 'ground.json'), 'w'), indent=1)
-print(f"relief: {H0.min():.1f}..{H0.max():.1f} m -> {H.min():.1f}..{H.max():.1f} m")
+gy, gx = np.gradient(H, step)
+deg = np.degrees(np.arctan(np.hypot(gx, gy)))
+landm = H > sea + 0.3
+inner = landm & (edge_d > 320)
+print(f"relief: {H0.min():.1f}..{H0.max():.1f} m -> {H.min():.1f}..{H.max():.1f} m; land steeper than 35 deg: "
+      f"{100 * (deg[landm] > 35).mean():.1f} % (inside the border range {100 * (deg[inner] > 35).mean():.1f} %), "
+      f"median slope {np.median(deg[inner]):.1f} deg")
