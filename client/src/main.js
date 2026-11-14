@@ -51,6 +51,7 @@ async function start() {
     sky.setFog(L.fog);
     ground.setViewDist(L.view);
     ground.setDetail(L.detail);
+    ground.setSoft(L.soft || 1);
     camera.far = L.view + 400; camera.updateProjectionMatrix();
     flora.configure({ near: L.near, dist: L.trees, density: L.density, shadows: L.shadows > 0 });
     grass.configure(L.grass);

@@ -99,7 +99,7 @@ export async function loadGround(contentBase, say) {
 
   const uniforms = {
     tColors: { value: colors }, tNormals: { value: normals }, tW0: { value: wtex(W0) }, tW1: { value: wtex(W1) },
-    uExt: { value: new THREE.Vector4(x0, z0, x1 - x0, z1 - z0) }, uTile: { value: 1 / 4.5 },
+    uExt: { value: new THREE.Vector4(x0, z0, x1 - x0, z1 - z0) }, uTile: { value: 1 / 4.5 }, uSoft: { value: 1 },
   };
   const material = new THREE.MeshStandardMaterial({ roughness: 0.92, metalness: 0 });
   material.defines = { DETAIL: 1 };
@@ -111,14 +111,17 @@ export async function loadGround(contentBase, say) {
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', `#include <common>
         precision highp sampler2DArray;
-        uniform sampler2DArray tColors, tNormals; uniform sampler2D tW0, tW1; uniform vec4 uExt; uniform float uTile;
+        uniform sampler2DArray tColors, tNormals; uniform sampler2D tW0, tW1; uniform vec4 uExt; uniform float uTile, uSoft;
         varying vec3 vWP; varying vec3 vWN;
         float gW[7];
         vec3 s2l(vec3 c) { return pow(c, vec3(2.2)); }
-        vec4 layer(sampler2DArray t, vec2 uv, int i) {
-          vec4 a = texture(t, vec3(uv, float(i)));
+        // explicit gradients: the layers are read inside a loop that skips per pixel, where the GPU's own derivatives
+        // are undefined (some GPUs then pick a too sharp mip level here and there: the ground glitters). uSoft > 1
+        // reads a little softer (the lower qualities render fewer pixels)
+        vec4 layer(sampler2DArray t, vec2 uv, int i, vec2 gx, vec2 gy) {
+          vec4 a = textureGrad(t, vec3(uv, float(i)), gx * uSoft, gy * uSoft);
         #if DETAIL > 0
-          vec4 b = texture(t, vec3(uv * 0.23 + vec2(0.37, 0.71), float(i)));   // a second, larger scale breaks the tiling
+          vec4 b = textureGrad(t, vec3(uv * 0.23 + vec2(0.37, 0.71), float(i)), gx * 0.23 * uSoft, gy * 0.23 * uSoft);   // a second, larger scale breaks the tiling
           a = mix(a, b, 0.35);
         #endif
           return a;
@@ -135,13 +138,16 @@ export async function loadGround(contentBase, say) {
         gW[4] += rockSlope;
         float sum = 0.0; for (int i = 0; i < 7; i++) sum += gW[i];
         vec2 tuv = vWP.xz * uTile;
+        vec2 gx = dFdx(tuv), gy = dFdy(tuv);
+        vec2 uzy = vWP.zy * uTile, uxy = vWP.xy * uTile;
+        vec2 gzx = dFdx(uzy), gzy = dFdy(uzy), gxx = dFdx(uxy), gxy = dFdy(uxy);
         // rock is seen from the side on steep ground: projected from three directions, not stretched from above
         vec3 an = abs(normalize(vWN)); an = pow(an, vec3(4.0)); an /= (an.x + an.y + an.z);
         vec3 col = vec3(0.0);
         for (int i = 0; i < 7; i++) {
           float k = gW[i] / max(sum, 1e-3); if (k <= 0.01) continue;
-          if (i == 4) col += k * (s2l(layer(tColors, vWP.zy * uTile, 4).rgb) * an.x + s2l(layer(tColors, tuv, 4).rgb) * an.y + s2l(layer(tColors, vWP.xy * uTile, 4).rgb) * an.z);
-          else col += s2l(layer(tColors, tuv, i).rgb) * k;
+          if (i == 4) col += k * (s2l(layer(tColors, uzy, 4, gzx, gzy).rgb) * an.x + s2l(layer(tColors, tuv, 4, gx, gy).rgb) * an.y + s2l(layer(tColors, uxy, 4, gxx, gxy).rgb) * an.z);
+          else col += s2l(layer(tColors, tuv, i, gx, gy).rgb) * k;
         }
         col *= mix(vec3(1.0), vec3(0.86, 0.92, 0.78), gW[0] / max(sum, 1e-3));   // grass: muted, towards olive
         float lum = dot(col, vec3(0.3, 0.6, 0.1));
@@ -151,9 +157,11 @@ export async function loadGround(contentBase, say) {
       .replace('#include <normal_fragment_maps>', `
         {
           vec3 tn = vec3(0.0);
-          for (int i = 0; i < 7; i++) { float k = gW[i] / max(sum, 1e-3); if (k > 0.01) tn += (layer(tNormals, tuv, i).xyz * 2.0 - 1.0) * k; }
+          for (int i = 0; i < 7; i++) { float k = gW[i] / max(sum, 1e-3); if (k > 0.01) tn += (layer(tNormals, tuv, i, gx, gy).xyz * 2.0 - 1.0) * k; }
+          // the bumps fade with distance: far off they only glitter
+          float bump = 1.1 * (1.0 - 0.75 * smoothstep(25.0, 140.0, length(vWP - cameraPosition)));
           vec3 N = normalize(vWN), T = normalize(vec3(1.0, 0.0, 0.0) - N * N.x), B = cross(T, N);
-          vec3 wn = normalize(T * tn.x * 1.1 - B * tn.y * 1.1 + N * max(tn.z, 0.2));
+          vec3 wn = normalize(T * tn.x * bump - B * tn.y * bump + N * max(tn.z, 0.2));
           normal = normalize((viewMatrix * vec4(wn, 0.0)).xyz);
         }`);
   };
@@ -269,6 +277,7 @@ export async function loadGround(contentBase, say) {
   return {
     group, height, inside, meta, update, paintEarth, heightTex, weights: uniforms.tW0.value, weights2: uniforms.tW1.value,
     setViewDist(d) { viewDist = d; },
+    setSoft(v) { uniforms.uSoft.value = v; },
     setDetail(on) { const v = on ? 1 : 0; if (v !== detail) { detail = v; material.defines.DETAIL = v; material.needsUpdate = true; } },
     get tileCount() { return tiles.size; },
   };

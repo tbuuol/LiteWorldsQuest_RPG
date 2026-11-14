@@ -2,10 +2,10 @@
 // when there is room for long enough. The player can also fix a level (setFixed). Levels 0 (lowest) .. 4.
 
 export const LEVELS = [
-  { name: 'low',     scale: 0.5,  shadows: 0,    view: 260,  near: 35,  grass: 0,  clutter: 0.5,  trees: 320, density: 0.35, detail: false, fog: 0.0030, grade: false },
-  { name: 'medium',  scale: 0.7,  shadows: 0,    view: 420,  near: 50,  grass: 14, clutter: 0.65,  trees: 480, density: 0.6,  detail: false, fog: 0.0019 },
-  { name: 'good',    scale: 0.85, shadows: 1024, view: 620,  near: 70,  grass: 22, clutter: 0.8, trees: 650, density: 0.8,  detail: true,  fog: 0.0013 },
-  { name: 'high',    scale: 1.0,  shadows: 2048, view: 900,  near: 100, grass: 30, clutter: 1.0, rays: 1, trees: 900, density: 1.0,  detail: true,  fog: 0.0009 },
+  { name: 'low',     scale: 0.7,  shadows: 0,    view: 260,  near: 35,  grass: 9, soft: 1.6,  clutter: 0.5,  trees: 320, density: 0.35, detail: false, fog: 0.0030, grade: false },
+  { name: 'medium',  scale: 0.8,  shadows: 0,    view: 420,  near: 50,  grass: 14, soft: 1.45, clutter: 0.65,  trees: 480, density: 0.6,  detail: false, fog: 0.0019 },
+  { name: 'good',    scale: 0.85, shadows: 1024, view: 620,  near: 70,  grass: 22, soft: 1.3, clutter: 0.8, trees: 650, density: 0.8,  detail: true,  fog: 0.0013 },
+  { name: 'high',    scale: 1.0,  shadows: 2048, view: 900,  near: 100, grass: 30, soft: 1.15, clutter: 1.0, rays: 1, trees: 900, density: 1.0,  detail: true,  fog: 0.0009 },
   { name: 'highest', scale: 1.0,  shadows: 4096, view: 1250, near: 140, grass: 42, clutter: 1.3, rays: 1, trees: 1200, density: 1.0,  detail: true,  fog: 0.0007, dprMax: 1.5 },
 ];
 const LOW = 28, HIGH = 50, DOWN_AFTER = 2500, UP_AFTER = 9000;

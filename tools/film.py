@@ -7,7 +7,7 @@ first = int(sys.argv[5]) if len(sys.argv) > 5 else 0
 n = int(fps * secs)
 last = int(sys.argv[6]) if len(sys.argv) > 6 else n - 1
 w, h = (int(x) for x in size.split('x'))
-URL = 'http://127.0.0.1:8096/client/?ws=ws://127.0.0.1:8095&as=film&film=1&q=4'
+URL = 'http://127.0.0.1:8096/client/?ws=ws://127.0.0.1:8095&as=film&film=1&q=' + os.environ.get('FILM_Q', '4')
 # (time s, camera x, z, height above ground, target x, z, target height above ground)
 KEYS = json.loads(os.environ['FILM_KEYS']) if os.environ.get('FILM_KEYS') else [
     (0.0, 30, 56, 9.0, 0, 16, 3.0),
