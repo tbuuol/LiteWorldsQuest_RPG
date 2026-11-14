@@ -329,7 +329,7 @@ impl World {
                 seen.insert(n.id);
                 let new = !p.known.contains(&n.id);
                 if new {
-                    texts.push(json!({"t": "spawn", "id": n.id, "kind": "npc", "name": n.name}));
+                    texts.push(json!({"t": "spawn", "id": n.id, "kind": "npc", "name": n.name, "figure": n.figure}));
                 }
                 if new || full || self.npc_changed.contains(&n.id) {
                     snap.push(SnapEntry { id: n.id, x: n.pos[0], y: n.pos[1], z: n.pos[2], yaw: n.yaw, pitch: 0, anim: 0 });

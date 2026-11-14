@@ -366,7 +366,16 @@
     "We are few, but the world beyond the fence is wide. One day you will see it.",
     "Raiders come out of the forest every day now. Hilda and Gareth hold the gate, and Brother Anselm keeps them standing.",
     "They say a wish at the well is heard, if you give something for it."
-   ]
+   ],
+   "body": {
+    "gender": 1.0,
+    "age": 0.92,
+    "muscle": 0.35,
+    "weight": 0.45,
+    "height": 0.45,
+    "skin": "old_caucasian_male",
+    "hair": "short02"
+   }
   },
   {
    "id": "mara",
@@ -393,7 +402,16 @@
     "Stew is on in an hour. Bring me nothing but an appetite.",
     "If you go out to the gate, take something sharp. And stay near the priest.",
     "One sits on old Gorm's cart. You'll have to jump for it."
-   ]
+   ],
+   "body": {
+    "gender": 0.0,
+    "age": 0.6,
+    "muscle": 0.45,
+    "weight": 0.55,
+    "height": 0.4,
+    "skin": "middleage_caucasian_female",
+    "hair": "ponytail01"
+   }
   },
   {
    "id": "tobin",
@@ -420,7 +438,16 @@
     "Mind the axe. It bites wood and fingers alike.",
     "These logs won't split themselves. Well, not yet. Ask me again next season.",
     "Behind the Elder's hut, by the fence, something glitters. Not my business."
-   ]
+   ],
+   "body": {
+    "gender": 1.0,
+    "age": 0.55,
+    "muscle": 0.8,
+    "weight": 0.55,
+    "height": 0.65,
+    "skin": "middleage_caucasian_male",
+    "hair": "short03"
+   }
   },
   {
    "id": "pip",
@@ -460,7 +487,16 @@
     "Tag! You're it! ...You're not very fast, are you?",
     "Did you see the well glow? Mum says it grants wishes.",
     "I'm the fastest in Blockshire. Also the only kid."
-   ]
+   ],
+   "body": {
+    "gender": 0.7,
+    "age": 0.17,
+    "muscle": 0.5,
+    "weight": 0.45,
+    "height": 0.5,
+    "skin": "young_caucasian_male",
+    "hair": "short04"
+   }
   },
   {
    "id": "odo",
@@ -486,7 +522,16 @@
    "lines": [
     "Steel wants a steady hand and a good plan. The plans I have; the hands are yours.",
     "A blueprint gets better the more you work from it. Mine are worn smooth."
-   ]
+   ],
+   "body": {
+    "gender": 1.0,
+    "age": 0.6,
+    "muscle": 0.9,
+    "weight": 0.7,
+    "height": 0.55,
+    "skin": "middleage_caucasian_male",
+    "hair": "short01"
+   }
   }
  ],
  "paths": {
@@ -579,6 +624,15 @@
     "helm": "#9aa1ab",
     "armor": "#9aa1ab",
     "gloves": "#5a4a3a"
+   },
+   "body": {
+    "gender": 0.0,
+    "age": 0.5,
+    "muscle": 0.7,
+    "weight": 0.45,
+    "height": 0.65,
+    "skin": "young_caucasian_female",
+    "hair": "braid01"
    }
   },
   {
@@ -601,6 +655,15 @@
     "helm": "#9aa1ab",
     "armor": "#9aa1ab",
     "gloves": "#5a4a3a"
+   },
+   "body": {
+    "gender": 1.0,
+    "age": 0.5,
+    "muscle": 0.7,
+    "weight": 0.5,
+    "height": 0.6,
+    "skin": "young_caucasian_male",
+    "hair": "short02"
    }
   }
  ],

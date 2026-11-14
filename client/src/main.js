@@ -39,7 +39,7 @@ async function start() {
   const clutter = await loadClutter(CONTENT, ground, scene, say);
   const water = createWater(ground, sky, scene);
   const places = await loadPlaces(CONTENT, ground, scene, say);
-  const remotes = createRemotes(scene, camera, $('#hud'));
+  const remotes = createRemotes(scene, camera, $('#hud'), CONTENT);
 
   const quality = createQuality((L) => {
     renderer.setPixelRatio(Math.min(devicePixelRatio, L.dprMax || 1) * L.scale);
@@ -84,7 +84,7 @@ async function start() {
     despawn(m) { remotes.despawn(m); },
     snap(tick, list) { remotes.snap(list); },
     fix(seq, x, y, z) { player.fix(x, y, z); },
-    say(m) { line(m.from, m.text, !!m.npc); },
+    say(m) { line(m.from, m.text, !!m.npc); if (m.npc) remotes.talking(m.npc); },
     close(why) { closed = why; },
   });
   player = createPlayer(camera, renderer.domElement, ground, net);
@@ -143,7 +143,7 @@ async function start() {
     clutter.update(player.pos.x, player.pos.z, dt);
     places.update(now / 1000);
     sky.follow(player.pos);
-    remotes.update(now);
+    remotes.update(now, dt);
     const n = remotes.nearestNpc(player.pos.x, player.pos.z, 3.5);
     if ((n && n.id) !== (near && near.id)) {
       near = n; hint.style.display = n ? 'block' : 'none';

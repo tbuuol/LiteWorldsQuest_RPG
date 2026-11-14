@@ -20,6 +20,8 @@ pub struct Solid {
 pub struct Npc {
     pub id: u32,
     pub name: String,
+    /// the baked figure (content/<module>/people/<figure>.glb)
+    pub figure: String,
     pub pos: [f32; 3],
     pub yaw: u16,
     pub home_yaw: u16,
@@ -29,6 +31,8 @@ pub struct Npc {
 
 #[derive(Deserialize)]
 struct NpcFile {
+    #[serde(default)]
+    id: String,
     name: String,
     pos: [f32; 2],
     #[serde(default, rename = "lookAt")]
@@ -104,7 +108,7 @@ impl Places {
                     None => 0,
                 };
                 let id = NPC_ID0 + out.npcs.len() as u32;
-                out.npcs.push(Npc { id, name: n.name, pos, yaw, home_yaw: yaw, turns: n.talk_turn, lines: n.lines });
+                out.npcs.push(Npc { id, name: n.name, figure: n.id, pos, yaw, home_yaw: yaw, turns: n.talk_turn, lines: n.lines });
             }
         }
         eprintln!("places: {} solids, {} villagers", out.solids.len(), out.npcs.len());

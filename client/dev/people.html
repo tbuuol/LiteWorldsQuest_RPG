@@ -1,0 +1,49 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>LWQ people</title>
+<style>html,body{margin:0;height:100%;background:#8a9aa8;overflow:hidden}#info{position:absolute;left:8px;top:6px;font:12px monospace;color:#fff}</style>
+<script type="importmap">
+{ "imports": { "three": "../vendor/three/three.module.js", "three/addons/": "../vendor/three/addons/" } }
+</script></head>
+<body><div id="info"></div>
+<script type="module">
+// Dev look at the baked villagers: all of them in a row, one clip (?clip=idle|talk|walk|run), ?t= seconds into it,
+// ?only=<id> for one close up.
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+const Q = new URLSearchParams(location.search);
+const ids = (Q.get('only') || 'bram,mara,tobin,pip,odo,g1,g2').split(',');
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight); renderer.shadowMap.enabled = true;
+renderer.toneMapping = THREE.ACESFilmicToneMapping; document.body.appendChild(renderer.domElement);
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0x8a9aa8);
+scene.add(new THREE.HemisphereLight(0xcfe0ff, 0x5a4a3a, 1.2));
+const sun = new THREE.DirectionalLight(0xfff0dd, 2.6); sun.position.set(3, 6, 5); sun.castShadow = true;
+sun.shadow.camera.left = -6; sun.shadow.camera.right = 6; sun.shadow.camera.top = 4; sun.shadow.camera.bottom = -1; scene.add(sun);
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(30, 30), new THREE.MeshStandardMaterial({ color: 0x7a6a55 }));
+floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
+const one = ids.length === 1, w = 1.0;
+const camera = new THREE.PerspectiveCamera(one ? 30 : 40, innerWidth / innerHeight, 0.05, 100);
+const cz = +(Q.get('cz') || (one ? 3.2 : 6.5)), cy = +(Q.get('cy') || (one ? 1.1 : 0.95));
+camera.position.set(0, cy + 0.2, cz); camera.lookAt(0, cy, 0);
+const mixers = [], clip = Q.get('clip') || 'idle', t = +(Q.get('t') || 0.5);
+const L = new GLTFLoader();
+await Promise.all(ids.map(async (id, i) => {
+  const g = await L.loadAsync(`../../content/core/people/${id}.glb`);
+  for (const a of g.animations) a.name = { Idle_Loop: 'idle', Idle_Talking_Loop: 'talk', Walk_Loop: 'walk', Jog_Fwd_Loop: 'run' }[a.name] || a.name;
+  g.scene.position.x = (i - (ids.length - 1) / 2) * w;
+  g.scene.rotation.y = +(Q.get('turn') || 0);
+  const hide = (Q.get('hide') || '').split(',').filter(Boolean);
+  g.scene.traverse(o => { if (o.isMesh && hide.some(h => o.name.includes(h))) o.visible = false; });
+  g.scene.traverse(o => { if (o.isMesh) { o.castShadow = true; o.frustumCulled = false;
+    const m = o.material; if (m.transparent || m.alphaTest > 0) { m.transparent = false; m.alphaTest = 0.45; m.side = THREE.DoubleSide; } } });
+  scene.add(g.scene);
+  const mx = new THREE.AnimationMixer(g.scene); const c = g.animations.find(a => a.name === clip);
+  if (c) { mx.clipAction(c).play(); mx.setTime(t); }
+  mixers.push(mx);
+  if (i === 0) document.getElementById('info').textContent = `${clip} @ ${t}s · clips: ${g.animations.map(a => a.name).join(' ')} · ` +
+    (() => { const m = []; g.scene.traverse(o => o.isMesh && m.push(`${o.name}:${o.material.name}`)); return m.join(' '); })();
+}));
+renderer.render(scene, camera);
+window.READY = true;
+renderer.setAnimationLoop(() => renderer.render(scene, camera));
+</script></body></html>
