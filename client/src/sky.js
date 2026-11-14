@@ -73,6 +73,24 @@ export function createSky(scene, renderer) {
   }
   setSun(elevation, azimuth);
 
+  // light from the whole sky for every PBR material (rock, bark, leaves, ferns): the sky dome itself, prefiltered.
+  // Without it such materials get no light from the sky but the hemisphere's two colours, and look black in shade.
+  function bakeEnvironment() {
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    const env = new THREE.Scene();
+    const dome = skyDome(fogColor); dome.u.sunDir.value.copy(dir); dome.u.uTime.value = 0;
+    dome.mesh.material.uniforms.sunColor.value.multiplyScalar(0.25);
+    const groundDisc = new THREE.Mesh(new THREE.CircleGeometry(4000, 16), new THREE.MeshBasicMaterial({ color: 0x3a3c2c }));
+    groundDisc.rotation.x = -Math.PI / 2; groundDisc.position.y = -40;
+    env.add(dome.mesh, groundDisc);
+    const rt = pmrem.fromScene(env, 0.02);
+    scene.environment = rt.texture;
+    scene.environmentIntensity = 0.55;
+    pmrem.dispose();
+  }
+  bakeEnvironment();
+  hemi.intensity *= 0.6;
+
   return {
     setSun,
     sunDir: dir,
