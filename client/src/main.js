@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { connect } from './net.js';
 import { loadGround } from './ground.js';
 import { loadFlora } from './flora.js';
+import { createGrass } from './grass.js';
 import { createSky } from './sky.js';
 import { createPlayer } from './player.js';
 import { createRemotes } from './remotes.js';
@@ -28,6 +29,7 @@ async function start() {
   scene.add(ground.group);
   say('Growing the forest…');
   const flora = await loadFlora(CONTENT, ground, scene, renderer, say);
+  const grass = createGrass(ground, scene);
   const remotes = createRemotes(scene, camera, $('#hud'));
 
   const quality = createQuality((L) => {
@@ -39,6 +41,7 @@ async function start() {
     ground.setDetail(L.detail);
     camera.far = L.view + 400; camera.updateProjectionMatrix();
     flora.configure({ near: L.near, dist: L.trees, density: L.density, shadows: L.shadows > 0 });
+    grass.configure(L.grass);
   }, Q.has('q') ? Number(Q.get('q')) : 2);
   if (Q.has('q')) quality.setFixed(Number(Q.get('q')));
 
@@ -119,6 +122,7 @@ async function start() {
     player.update(dt, now);
     const pending = ground.update(player.pos.x, player.pos.z, 2);
     flora.update(player.pos.x, player.pos.z, dt);
+    grass.update(player.pos.x, player.pos.z, now / 1000);
     sky.follow(player.pos);
     remotes.update(now);
     renderer.render(scene, camera);
@@ -127,7 +131,7 @@ async function start() {
       statAt = now;
       const p = player.pos;
       const fs = flora.stats();
-      $('#stats').textContent = `${quality.fps.toFixed(0)} fps · ${quality.name}\n${remotes.count + 1} here\n${p.x.toFixed(0)}, ${p.z.toFixed(0)} · ${p.y.toFixed(1)} m\ntrees ${fs.near} + ${fs.far}`;
+      $('#stats').textContent = `${quality.fps.toFixed(0)} fps · ${quality.name}\n${remotes.count + 1} here\n${p.x.toFixed(0)}, ${p.z.toFixed(0)} · ${p.y.toFixed(1)} m\ntrees ${fs.near} + ${fs.far} · grass ${grass.count}`;
     }
   });
   window.LWQ = { scene, camera, renderer, ground, flora, quality, player, remotes,

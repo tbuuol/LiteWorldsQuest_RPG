@@ -213,8 +213,11 @@ export async function loadGround(contentBase, say) {
     return todo.length - building;   // tiles still to build
   }
 
+  // for the grass: the heights as a texture (read in its vertex shader) and where grass grows
+  const heightTex = new THREE.DataTexture(H, nx, nz, THREE.RedFormat, THREE.FloatType);
+  heightTex.needsUpdate = true;
   return {
-    group, height, inside, meta, update,
+    group, height, inside, meta, update, heightTex, weights: uniforms.tW0.value,
     setViewDist(d) { viewDist = d; },
     setDetail(on) { const v = on ? 1 : 0; if (v !== detail) { detail = v; material.defines.DETAIL = v; material.needsUpdate = true; } },
     get tileCount() { return tiles.size; },
