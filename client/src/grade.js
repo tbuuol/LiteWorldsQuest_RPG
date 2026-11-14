@@ -17,8 +17,10 @@ const Grade = {
       vec3 c = texture2D(tDiffuse, vUv).rgb;
       // light shafts: march towards the sun on screen and gather the bright sky between leaves and clouds
       if (uRays > 0.0 && uSun.z > 0.0) {
-        vec2 d = (uSun.xy - vUv) / 20.0; vec2 p = vUv; float acc = 0.0, w = 1.0;
-        for (int i = 0; i < 20; i++) { p += d; vec3 s = texture2D(tDiffuse, p).rgb; acc += smoothstep(0.72, 1.0, dot(s, vec3(0.33))) * w; w *= 0.93; }
+        // 12 steps (was 20): a third of the cost, the same light (weights and strength matched)
+        vec2 d = (uSun.xy - vUv) / 12.0; vec2 p = vUv; float acc = 0.0, w = 1.0;
+        for (int i = 0; i < 12; i++) { p += d; vec3 s = texture2D(tDiffuse, p).rgb; acc += smoothstep(0.72, 1.0, dot(s, vec3(0.33))) * w; w *= 0.89; }
+        acc *= 1.6;
         float fall = 1.0 - smoothstep(0.0, 0.75, length(uSun.xy - vUv));
         c += vec3(1.0, 0.92, 0.78) * acc * 0.06 * fall * uRays * uSun.z;
       }

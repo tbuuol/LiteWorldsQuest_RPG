@@ -30,7 +30,7 @@ async function start() {
 
   const sky = createSky(scene, renderer);
   const grade = createGrade(renderer, scene, camera);
-  let rays = 0;
+  let rays = 0, shadowEvery = 1, frameNo = 0;
   const ground = await loadGround(CONTENT, say);
   scene.add(ground.group);
   say('Growing the forest…');
@@ -53,7 +53,8 @@ async function start() {
     ground.setDetail(L.detail);
     ground.setSoft(L.soft || 1);
     camera.far = L.view + 400; camera.updateProjectionMatrix();
-    flora.configure({ near: L.near, dist: L.trees, density: L.density, shadows: L.shadows > 0 });
+    flora.configure({ near: L.near, dist: L.trees, density: L.density, shadows: L.shadows > 0, leafShadows: L.shadows >= 2048 });
+    shadowEvery = L.shadowEvery || 1;
     grass.configure(L.grass);
     clutter.configure(L.clutter);
   }, Q.has('q') ? Number(Q.get('q')) : 2);
@@ -166,6 +167,8 @@ async function start() {
     }
     sky.tick(now / 1000);
     grade.setSun(sky.sunDir, rays);
+    renderer.shadowMap.autoUpdate = false;
+    renderer.shadowMap.needsUpdate = !!film || (frameNo++ % shadowEvery) === 0;
     water.update(now / 1000, sky.sunDir);
     grade.render();
     if (film) return;

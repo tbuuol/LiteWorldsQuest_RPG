@@ -137,7 +137,7 @@ export async function loadFlora(contentBase, ground, scene, renderer, say = () =
     rec.far.count = 0; rec.far.frustumCulled = false; scene.add(rec.far);
   }
 
-  let nearDist = 120, farDist = 600, density = 1, shadows = true, lastX = 1e9, lastZ = 1e9, time = 0;
+  let nearDist = 120, farDist = 600, density = 1, shadows = true, leafShadows = true, lastX = 1e9, lastZ = 1e9, time = 0;
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), p = new THREE.Vector3(), sc = new THREE.Vector3();
   function refill(px, pz) {
     for (const rec of variants) { rec.n = 0; rec.f = 0; }
@@ -159,13 +159,13 @@ export async function loadFlora(contentBase, ground, scene, renderer, say = () =
     }
     for (const rec of variants) {
       rec.nb.count = rec.n; rec.nb.instanceMatrix.needsUpdate = true; rec.nb.castShadow = shadows;
-      if (rec.nl) { rec.nl.count = rec.n; rec.nl.instanceMatrix.needsUpdate = true; rec.nl.castShadow = shadows; }
+      if (rec.nl) { rec.nl.count = rec.n; rec.nl.instanceMatrix.needsUpdate = true; rec.nl.castShadow = shadows && leafShadows; }
       rec.far.count = rec.f; rec.far.instanceMatrix.needsUpdate = true;
     }
   }
   return {
     count: trees.length,
-    configure(o) { nearDist = o.near; farDist = o.dist; density = o.density; shadows = o.shadows; lastX = 1e9; },
+    configure(o) { nearDist = o.near; farDist = o.dist; density = o.density; shadows = o.shadows; leafShadows = o.leafShadows !== false; lastX = 1e9; },
     update(px, pz, dt = 0) {
       time += dt;
       for (const rec of variants) {
