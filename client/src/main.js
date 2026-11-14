@@ -27,7 +27,7 @@ async function start() {
   const ground = await loadGround(CONTENT, say);
   scene.add(ground.group);
   say('Growing the forest…');
-  const flora = await loadFlora(CONTENT, ground, scene);
+  const flora = await loadFlora(CONTENT, ground, scene, renderer, say);
   const remotes = createRemotes(scene, camera, $('#hud'));
 
   const quality = createQuality((L) => {
@@ -38,7 +38,7 @@ async function start() {
     ground.setViewDist(L.view);
     ground.setDetail(L.detail);
     camera.far = L.view + 400; camera.updateProjectionMatrix();
-    flora.configure({ dist: L.trees, density: L.density, shadows: L.shadows > 0 });
+    flora.configure({ near: L.near, dist: L.trees, density: L.density, shadows: L.shadows > 0 });
   }, Q.has('q') ? Number(Q.get('q')) : 2);
   if (Q.has('q')) quality.setFixed(Number(Q.get('q')));
 
@@ -102,6 +102,13 @@ async function start() {
     };
     wait();
   });
+  // compile every shader now, behind the curtain, not in the first seconds of play
+  say('Preparing the light…');
+  flora.update(player.pos.x, player.pos.z, 0);
+  sky.follow(player.pos);
+  player.update(0, performance.now());
+  if (renderer.compileAsync) await renderer.compileAsync(scene, camera);
+  for (let i = 0; i < 3; i++) { renderer.render(scene, camera); await new Promise(r => requestAnimationFrame(r)); }
   $('#boot').style.display = 'none';
   $('#beta').style.display = 'block';
 
@@ -110,16 +117,17 @@ async function start() {
     const dt = Math.min(0.1, (now - last) / 1000); last = now;
     if (closed) { $('#boot').style.display = 'flex'; say(`The house says: ${closed}`); renderer.setAnimationLoop(null); return; }
     player.update(dt, now);
-    ground.update(player.pos.x, player.pos.z, 2);
-    if (now - floraAt > 250) { floraAt = now; flora.update(player.pos.x, player.pos.z); }
+    const pending = ground.update(player.pos.x, player.pos.z, 2);
+    flora.update(player.pos.x, player.pos.z, dt);
     sky.follow(player.pos);
     remotes.update(now);
     renderer.render(scene, camera);
-    quality.frame(now);
+    quality.frame(now, pending > 6);
     if (now - statAt > 500) {
       statAt = now;
       const p = player.pos;
-      $('#stats').textContent = `${quality.fps.toFixed(0)} fps · ${quality.name}\n${remotes.count + 1} here\n${p.x.toFixed(0)}, ${p.z.toFixed(0)} · ${p.y.toFixed(1)} m`;
+      const fs = flora.stats();
+      $('#stats').textContent = `${quality.fps.toFixed(0)} fps · ${quality.name}\n${remotes.count + 1} here\n${p.x.toFixed(0)}, ${p.z.toFixed(0)} · ${p.y.toFixed(1)} m\ntrees ${fs.near} + ${fs.far}`;
     }
   });
   window.LWQ = { scene, camera, renderer, ground, flora, quality, player, remotes,

@@ -1,0 +1,23 @@
+<!doctype html><html><head><meta charset="utf-8"><title>trees</title>
+<script type="importmap">{ "imports": { "three": "../vendor/three/three.module.js", "three/addons/": "../vendor/three/addons/" } }</script>
+</head><body style="margin:0;background:#89a">
+<script type="module">
+// dev: measures the ez-tree presets (triangles, time, height) and shows them side by side
+import * as THREE from 'three';
+import { Tree } from '../vendor/ez-tree/index.js';
+const names = (new URLSearchParams(location.search).get('p') || 'Oak Medium,Pine Medium,Ash Large,Aspen Medium,Bush 1').split(',');
+const r = new THREE.WebGLRenderer({ antialias: true }); r.setSize(innerWidth, innerHeight); document.body.appendChild(r.domElement);
+const s = new THREE.Scene(); s.background = new THREE.Color(0x9ab4cc);
+s.add(new THREE.HemisphereLight(0xcfe0f0, 0x506040, 1.5)); const d = new THREE.DirectionalLight(0xffffff, 2.5); d.position.set(5, 10, 7); s.add(d);
+const out = {}; let x = 0;
+for (const n of names) {
+  const t0 = performance.now(); const t = new Tree(); t.loadPreset(n); t.generate();
+  const tri = g => (g.index ? g.index.count : g.attributes.position.count) / 3;
+  const bb = new THREE.Box3().setFromObject(t); const h = bb.max.y - bb.min.y;
+  out[n] = { ms: Math.round(performance.now() - t0), branchTris: tri(t.branchesMesh.geometry), leafTris: tri(t.leavesMesh.geometry), h: +h.toFixed(1) };
+  t.scale.setScalar(10 / h); t.position.x = x; x += 9; s.add(t);
+}
+const c = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.1, 500); c.position.set(x / 2 - 4.5, 6, 28); c.lookAt(x / 2 - 4.5, 5, 0);
+r.setAnimationLoop(() => r.render(s, c));
+window.__out = JSON.stringify(out);
+</script></body></html>
