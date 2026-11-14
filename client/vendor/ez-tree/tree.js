@@ -544,7 +544,7 @@ export class Tree extends THREE.Group {
     );
     g.computeBoundingSphere();
 
-    const mat = new THREE.MeshPhongMaterial({
+    const mat = new THREE.MeshStandardMaterial({ roughness: 1, metalness: 0, // LiteWorldsQuest: PBR, lit by the sky (was Phong)
       name: 'branches',
       flatShading: this.options.bark.flatShading,
       color: new THREE.Color(this.options.bark.tint),
@@ -584,7 +584,7 @@ export class Tree extends THREE.Group {
     g.computeVertexNormals();
     g.computeBoundingSphere();
 
-    const mat = new THREE.MeshPhongMaterial({
+    const mat = new THREE.MeshStandardMaterial({ roughness: 0.78, metalness: 0, // LiteWorldsQuest: PBR, lit by the sky (was Phong)
       name: 'leaves',
       map: getLeafTexture(this.options.leaves.type),
       color: new THREE.Color(this.options.leaves.tint),

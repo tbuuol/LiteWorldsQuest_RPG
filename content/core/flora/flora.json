@@ -15,13 +15,14 @@
  "note": "plants and trees are world content placed on the ground, not part of it",
  "clutter": {
   "file": "clutter.bin",
-  "count": 97512,
+  "count": 119079,
   "kinds": [
    "stone",
    "boulder",
    "fern",
    "bush",
-   "log"
+   "log",
+   "cliff"
   ],
   "record": "i16 x dm, i16 z dm, u8 size*20, u8 kind (index into kinds), u8 turn/256",
   "tool": "tools/bake/clutter.py"

@@ -20,7 +20,7 @@ land = np.fromfile(os.path.join(WORLD, 'land.bin'), dtype=np.uint8).reshape(nz, 
 K, R = land[..., 0], land[..., 1] / 255.0
 rng = np.random.default_rng(20261114 + 7)
 
-KINDS = ['stone', 'boulder', 'fern', 'bush', 'log']
+KINDS = ['stone', 'boulder', 'fern', 'bush', 'log', 'cliff']
 
 # trees per sample, blurred into a forest density 0..1
 flora = json.load(open(os.path.join(FLORA, 'flora.json')))
@@ -52,8 +52,11 @@ P = {
     'fern':    ok * (forest * 0.16) * (slope < 30) * ~mount,
     'bush':    ok * (0.004 * (K == kinds.index('green')) + 0.02 * forest * (1 - forest) * 4 + 0.006 * forest) * (slope < 32),
     'log':     ok * (0.0035 * forest) * (slope < 22),
+    # rock faces: slabs set into steep ground, facing down the slope (their turn below)
+    'cliff':   dry * ~town * (0.05 * (slope > 34) + 0.02 * ((slope > 26) & mount)),
 }
-SIZE = {'stone': (0.25, 0.8), 'boulder': (1.4, 4.2), 'fern': (0.6, 1.2), 'bush': (0.8, 1.8), 'log': (0.8, 1.4)}
+SIZE = {'stone': (0.25, 0.8), 'boulder': (1.4, 4.2), 'fern': (0.6, 1.2), 'bush': (0.8, 1.8), 'log': (0.8, 1.4), 'cliff': (4.0, 10.0)}
+downhill = np.arctan2(gx, gy)   # direction the ground falls (radians, as the client's turn about y)
 
 recs = []
 for k, name in enumerate(KINDS):
@@ -64,6 +67,8 @@ for k, name in enumerate(KINDS):
     lo, hi = SIZE[name]
     s = lo + (hi - lo) * rng.random(ix.size) ** 1.6
     r = rng.integers(0, 256, ix.size)
+    if name == 'cliff':   # face down the slope, with a little scatter
+        r = (np.round((downhill[iz, ix] + rng.normal(0, 0.25, ix.size)) / (2 * np.pi) * 256) % 256).astype(int)
     recs.append(np.stack([np.round(x * 10), np.round(z * 10), np.round(s * 20), np.full(ix.size, k), r], axis=1))
     print(f"{name}: {ix.size}")
 allr = np.concatenate(recs)

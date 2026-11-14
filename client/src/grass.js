@@ -14,7 +14,7 @@ function clump() {
     const a = b * 1.37 + 0.3, ca = Math.cos(a), sa = Math.sin(a), lean = 0.10 + (b % 3) * 0.06;
     const ox = Math.cos(a * 2.3) * 0.11, oz = Math.sin(a * 2.3) * 0.11, tall = 0.75 + (b % 2) * 0.35;
     const base = pos.length / 3;
-    const rows = [[0, 0.028], [0.55 * tall, 0.018], [tall, 0.0]];
+    const rows = [[0, 0.036], [0.55 * tall, 0.022], [tall, 0.0]];
     for (const [t, w] of rows) {
       const bend = lean * t * t;
       for (const side of [-1, 1]) {
@@ -57,8 +57,10 @@ export function createGrass(ground, scene) {
       #include <fog_pars_vertex>
       attribute vec2 offset;
       uniform sampler2D uHeight, uWeights; uniform vec4 uExt; uniform vec2 uSize, uCenter; uniform float uRadius, uTime, uSpacing;
-      varying float vT; varying float vShade; varying float vHue;
+      varying float vT; varying float vShade; varying float vHue; varying float vDry; varying vec3 vFlower;
       float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+      float vn2(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+        return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y); }
       float heightAt(vec2 xz) {   // bilinear by hand: float textures need not be filterable
         vec2 f = (xz - uExt.xy) / uExt.zw * (uSize - 1.0);
         vec2 i = floor(f), t = f - i;
@@ -75,7 +77,9 @@ export function createGrass(ground, scene) {
         vec4 w = texture2D(uWeights, (xz - uExt.xy) / uExt.zw);
         float grassy = (w.r + w.g * 0.6) * (1.0 - smoothstep(150.0, 210.0, heightAt(cell)));   // grass, some in the forest floor; thinning up the mountains
         float keep = step(h3, grassy * 1.15 - 0.15) * (1.0 - smoothstep(uRadius * 0.75, uRadius, dist));
-        float size = (0.32 + 0.38 * h1) * keep * (0.6 + 0.4 * grassy);
+        // height varies a lot: low fescue, normal clumps, now and then a tall tussock
+        float size = (0.22 + 0.5 * pow(h1, 1.4)) * keep * (0.6 + 0.4 * grassy);
+        if (h3 > 0.86) size *= 1.7;
         float ang = h2 * 6.2831;
         vec3 p = position;
         p.xz = mat2(cos(ang), -sin(ang), sin(ang), cos(ang)) * p.xz;
@@ -86,6 +90,9 @@ export function createGrass(ground, scene) {
         p.z += wave * position.y * position.y * 0.18 * size;
         vec3 world = vec3(xz.x, heightAt(xz) - 0.03, xz.y) + p;
         vT = position.y; vHue = h3;
+        vDry = smoothstep(0.55, 0.8, vn2(xz * 0.045) * 0.75 + vn2(xz * 0.21) * 0.25);   // dry patches across the field
+        float fl = hash(cell + 91.7);
+        vFlower = fl > 0.972 ? (fl > 0.99 ? vec3(0.62, 0.42, 0.75) : fl > 0.981 ? vec3(0.92, 0.82, 0.25) : vec3(0.9, 0.9, 0.86)) : vec3(-1.0);
         vShade = 0.75 + 0.25 * h2;
         vec4 mvPosition = viewMatrix * vec4(world, 1.0);
         gl_Position = projectionMatrix * mvPosition;
@@ -94,10 +101,12 @@ export function createGrass(ground, scene) {
     fragmentShader: `
       #include <common>
       #include <fog_pars_fragment>
-      uniform vec3 uSunDir; varying float vT; varying float vShade; varying float vHue;
+      uniform vec3 uSunDir; varying float vT; varying float vShade; varying float vHue; varying float vDry; varying vec3 vFlower;
       void main() {
         vec3 root = vec3(0.04, 0.055, 0.02), tip = mix(vec3(0.19, 0.23, 0.09), vec3(0.29, 0.27, 0.12), vHue * 0.8);
+        tip = mix(tip, vec3(0.40, 0.35, 0.17), vDry * 0.85);                         // straw
         vec3 c = mix(root, tip, vT) * vShade;
+        if (vFlower.x >= 0.0 && vT > 0.82) c = vFlower * 0.8;
         c *= 0.75 + 0.55 * clamp(uSunDir.y, 0.0, 1.0);
         gl_FragColor = vec4(c, 1.0);
         #include <tonemapping_fragment>

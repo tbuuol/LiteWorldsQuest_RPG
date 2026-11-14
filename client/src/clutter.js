@@ -11,8 +11,8 @@ import { TreePreset } from '../vendor/ez-tree/presets/index.js';
 
 const CELL = 64;
 // how far each kind is drawn at quality scale 1, and how many of a variant at most
-const REACH = { stone: 55, boulder: 260, fern: 34, bush: 70, log: 60 };
-const CAP = { stone: 3000, boulder: 1500, fern: 6000, bush: 1500, log: 400 };
+const REACH = { stone: 55, boulder: 260, fern: 34, bush: 70, log: 60, cliff: 240 };
+const CAP = { stone: 3000, boulder: 1500, fern: 6000, bush: 1500, log: 400, cliff: 1400 };
 
 function hash3(x, y, z, s) { const v = Math.sin(x * 127.1 + y * 311.7 + z * 74.7 + s * 19.3) * 43758.5453; return v - Math.floor(v); }
 function vnoise(x, y, z, s) {
@@ -23,8 +23,8 @@ function vnoise(x, y, z, s) {
 }
 
 // a rock: a sphere pushed by layered noise, a flat-ish bottom, wider than high; box-projected UVs
-function rockGeometry(seed) {
-  const g = mergeVertices(new THREE.IcosahedronGeometry(1, 4));
+function rockGeometry(seed, detail = 4, shape = [1.25, 0.72, 1]) {
+  const g = mergeVertices(new THREE.IcosahedronGeometry(1, detail));
   const p = g.attributes.position, v = new THREE.Vector3();
   for (let i = 0; i < p.count; i++) {
     v.fromBufferAttribute(p, i);
@@ -32,7 +32,7 @@ function rockGeometry(seed) {
             + vnoise(v.x * 7.0, v.y * 7.0, v.z * 7.0, seed + 2) * 0.15;
     v.multiplyScalar(0.72 + n * 0.55);
     v.y = v.y < -0.15 ? -0.15 + (v.y + 0.15) * 0.25 : v.y;   // sits on the ground
-    v.x *= 1.25; v.y *= 0.72;
+    v.x *= shape[0]; v.y *= shape[1]; v.z *= shape[2];
     p.setXYZ(i, v.x, v.y, v.z);
   }
   g.computeVertexNormals();
@@ -85,11 +85,13 @@ export async function loadClutter(contentBase, ground, scene, say = () => {}) {
         float moss = smoothstep(0.45, 0.8, vUp);
         diffuseColor.rgb = mix(diffuseColor.rgb * vec3(0.9, 0.92, 0.95), texture2D(tMoss, vMapUv * 1.7).rgb * vec3(0.8, 0.9, 0.7), moss * 0.85);`);
   };
-  const variants = { stone: [], boulder: [], fern: [], bush: [], log: [] };
+  const variants = { stone: [], boulder: [], fern: [], bush: [], log: [], cliff: [] };
   for (const s of [3, 7, 11]) {
     const g = rockGeometry(s);
     variants.stone.push({ parts: [[g, rockMat]], unit: 1 });
     variants.boulder.push({ parts: [[g, rockMat]], unit: 1 });
+    // a rock face: a tall slab, coarse mesh (the normal map carries the detail), set into the slope
+    variants.cliff.push({ parts: [[rockGeometry(s + 20, 3, [1.35, 1.45, 0.5]), rockMat]], unit: 1, tilt: 0.42 });
   }
   // fern (Poly Haven fern_02, CC0)
   try {
@@ -115,7 +117,7 @@ export async function loadClutter(contentBase, ground, scene, say = () => {}) {
   for (const kind of c.kinds) for (const v of variants[kind] || []) {
     v.meshes = v.parts.map(([g, m]) => {
       const im = new THREE.InstancedMesh(g, m, CAP[kind]);
-      im.count = 0; im.frustumCulled = false; im.castShadow = kind === 'boulder' || kind === 'bush'; im.receiveShadow = true;
+      im.count = 0; im.frustumCulled = false; im.castShadow = kind === 'boulder' || kind === 'bush' || kind === 'cliff'; im.receiveShadow = true;
       if (m.alphaTest > 0 && m.map) im.customDepthMaterial = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, map: m.map, alphaTest: m.alphaTest });
       scene.add(im); return im;
     });
@@ -130,12 +132,12 @@ export async function loadClutter(contentBase, ground, scene, say = () => {}) {
     const vs = variants[kind]; if (!vs || !vs.length) continue;
     const key = Math.floor((x - x0) / CELL) + ',' + Math.floor((z - z0) / CELL);
     if (!cells.has(key)) cells.set(key, []);
-    const y = ground.height(x, z) - (kind === 'boulder' ? s * 0.18 : kind === 'stone' ? s * 0.1 : 0.02);
+    const y = ground.height(x, z) - (kind === 'cliff' ? s * 0.45 : kind === 'boulder' ? s * 0.18 : kind === 'stone' ? s * 0.1 : 0.02);
     cells.get(key).push({ x, y, z, s, r, v: vs[i % vs.length], kind });
   }
 
   let scale = 1, lastX = 1e9, lastZ = 1e9, time = 0;
-  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), p = new THREE.Vector3(), sc = new THREE.Vector3();
+  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), tq = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), side = new THREE.Vector3(1, 0, 0), p = new THREE.Vector3(), sc = new THREE.Vector3();
   function refill(px, pz) {
     for (const v of all) v.n = 0;
     const reach = Math.max(...Object.values(REACH)) * scale, cr = Math.ceil(reach / CELL);
@@ -146,7 +148,7 @@ export async function loadClutter(contentBase, ground, scene, say = () => {}) {
         const R = REACH[o.kind] * scale, dx = o.x - px, dz = o.z - pz;
         if (dx * dx + dz * dz > R * R) continue;
         const v = o.v; if (v.n >= CAP[o.kind]) continue;
-        q.setFromAxisAngle(up, o.r); p.set(o.x, o.y, o.z); sc.setScalar(o.s * v.unit);
+        q.setFromAxisAngle(up, o.r); if (v.tilt) q.multiply(tq.setFromAxisAngle(side, v.tilt)); p.set(o.x, o.y, o.z); sc.setScalar(o.s * v.unit);
         m4.compose(p, q, sc);
         for (const im of v.meshes) im.setMatrixAt(v.n, m4);
         v.n++;
