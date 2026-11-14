@@ -39,6 +39,7 @@ async function start() {
   const clutter = await loadClutter(CONTENT, ground, scene, say);
   const water = createWater(ground, sky, scene);
   const places = await loadPlaces(CONTENT, ground, scene, say);
+  grass.setMask(places.mask);
   const remotes = createRemotes(scene, camera, $('#hud'), CONTENT);
 
   const quality = createQuality((L) => {
@@ -183,9 +184,13 @@ async function start() {
   window.LWQ = { scene, camera, renderer, ground, flora, quality, player, remotes,
     tp(x, z, yaw, pitch) { net.tp(x, z); player.place(x, ground.height(x, z), z, yaw, pitch); },
     /** one film frame at film time t (s): camera at (x, ground + above, z) looking at (tx, ground + tabove, tz) */
-    filmFrame(t, x, z, above, tx, tz, tabove, q = 0.9) {
+    filmFrame(t, x, z, above, tx, tz, tabove, q = 0.9, gdx = 0) {
       const film = { x, z, y: ground.height(x, z) + above, tx, tz, ty: ground.height(tx, tz) + tabove };
       frame(10000 + t * 1000, film);
+      if (gdx) {   // test: the grass grid's centre moved, the camera not (stable grass must look the same)
+        grass.update(x + gdx, z, t);
+        grade.render();
+      }
       return renderer.domElement.toDataURL('image/jpeg', q);
     } };
   window.LWQ_READY = true;

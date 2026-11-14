@@ -36,10 +36,12 @@ export function createGrass(ground, scene) {
   const geo = new THREE.InstancedBufferGeometry().copy(clump());
   // nearest first: drawing the first n clumps draws a disc, so the radius only changes a count
   const cells = [];
-  for (let j = 0; j < GRID; j++) for (let i = 0; i < GRID; i++) cells.push([(i - GRID / 2) * SPACING, (j - GRID / 2) * SPACING]);
+  // whole cell numbers: the shader adds them to the camera's cell exactly (metres would round differently from
+  // every camera cell, and the hash would scatter the blades anew each time the camera crosses a cell)
+  for (let j = 0; j < GRID; j++) for (let i = 0; i < GRID; i++) cells.push([i - GRID / 2, j - GRID / 2]);
   cells.sort((a, b) => (a[0] * a[0] + a[1] * a[1]) - (b[0] * b[0] + b[1] * b[1]));
   const offsets = new Float32Array(cells.flat());
-  const within = r => { let lo = 0, hi = cells.length; while (lo < hi) { const m = (lo + hi) >> 1; if (Math.hypot(...cells[m]) <= r) lo = m + 1; else hi = m; } return lo; };
+  const within = r => { let lo = 0, hi = cells.length; while (lo < hi) { const m = (lo + hi) >> 1; if (Math.hypot(...cells[m]) * SPACING <= r) lo = m + 1; else hi = m; } return lo; };
   geo.setAttribute('offset', new THREE.InstancedBufferAttribute(offsets, 2));
   geo.instanceCount = GRID * GRID;
 
@@ -48,6 +50,7 @@ export function createGrass(ground, scene) {
     uExt: { value: new THREE.Vector4(x0, z0, x1 - x0, z1 - z0) }, uSize: { value: new THREE.Vector2(ground.meta.nx, ground.meta.nz) },
     uCenter: { value: new THREE.Vector2() }, uRadius: { value: 30 }, uTime: { value: 0 },
     uSunDir: { value: new THREE.Vector3(0.4, 0.8, 0.4).normalize() }, uSpacing: { value: SPACING },
+    uMask: { value: null }, uMaskExt: { value: new THREE.Vector4(0, 0, 0, 0) },
   }]);
   uniforms.uHeight.value = ground.heightTex; uniforms.uWeights.value = ground.weights; uniforms.uWeights2.value = ground.weights2;
   const mat = new THREE.ShaderMaterial({
@@ -56,7 +59,10 @@ export function createGrass(ground, scene) {
       #include <common>
       #include <fog_pars_vertex>
       attribute vec2 offset;
-      uniform sampler2D uHeight, uWeights, uWeights2; uniform vec4 uExt; uniform vec2 uSize, uCenter; uniform float uRadius, uTime, uSpacing;
+      uniform sampler2D uHeight, uWeights, uWeights2, uMask; uniform vec4 uExt, uMaskExt; uniform vec2 uSize, uCenter; uniform float uRadius, uTime, uSpacing;
+      // integer hash (exact for the same cell from anywhere): a cell number and a salt to [0, 1)
+      uint ihash(uint x) { x ^= x >> 16; x *= 0x7feb352du; x ^= x >> 15; x *= 0x846ca68bu; x ^= x >> 16; return x; }
+      float h01(vec2 c, uint salt) { ivec2 i = ivec2(c); return float(ihash(uint(i.x) * 1664525u ^ ihash(uint(i.y) + salt * 2654435761u)) >> 8) / 16777216.0; }
       varying float vT; varying float vShade; varying float vHue; varying float vDry; varying vec3 vFlower;
       float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
       float vn2(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
@@ -70,13 +76,19 @@ export function createGrass(ground, scene) {
       }
       void main() {
         // the grid stays put in the world: snapped to its spacing, only the window moves with the player
-        vec2 cell = floor(uCenter / uSpacing) * uSpacing + offset;
-        float h1 = hash(cell), h2 = hash(cell + 17.3), h3 = hash(cell + 41.9);
+        vec2 ci = floor(uCenter / uSpacing) + offset;   // whole numbers, exact
+        vec2 cell = ci * uSpacing;
+        float h1 = h01(ci, 1u), h2 = h01(ci, 2u), h3 = h01(ci, 3u), h4 = h01(ci, 4u);
         vec2 xz = cell + (vec2(h1, h2) - 0.5) * uSpacing;
         float dist = length(xz - uCenter);
+        // no grass where a place says so (floors of huts, the well, the fire, solid things)
+        vec2 mu = (xz - uMaskExt.xy) / uMaskExt.zw;
+        float masked = (uMaskExt.z > 0.0 && mu.x > 0.0 && mu.y > 0.0 && mu.x < 1.0 && mu.y < 1.0) ? texture2D(uMask, mu).r : 0.0;
         vec4 w = texture2D(uWeights, (xz - uExt.xy) / uExt.zw);
         float grassy = (w.r + w.g * 0.6) * (1.0 - smoothstep(150.0, 210.0, heightAt(cell)));   // grass, some in the forest floor; thinning up the mountains
-        float keep = step(h3, grassy * 1.15 - 0.15) * (1.0 - smoothstep(uRadius * 0.75, uRadius, dist));
+        // the edge: thinned out over a wide band (each clump has its own distance where it goes), no line in the field
+        float fade = 1.0 - smoothstep(uRadius * 0.5, uRadius, dist);
+        float keep = step(h3, grassy * 1.15 - 0.15) * step(h4, fade) * (0.55 + 0.45 * fade) * step(masked, 0.5);
         // height varies a lot: low fescue, normal clumps, now and then a tall tussock
         float size = (0.22 + 0.5 * pow(h1, 1.4)) * keep * (0.6 + 0.4 * grassy);
         if (h3 > 0.86) size *= 1.7;
@@ -91,7 +103,7 @@ export function createGrass(ground, scene) {
         vec3 world = vec3(xz.x, heightAt(xz) - 0.03, xz.y) + p;
         vT = position.y; vHue = h3;
         vDry = smoothstep(0.55, 0.8, vn2(xz * 0.045) * 0.75 + vn2(xz * 0.21) * 0.25);   // dry patches across the field
-        float fl = hash(cell + 91.7);
+        float fl = h01(ci, 5u);
         vFlower = fl > 0.972 ? (fl > 0.99 ? vec3(0.62, 0.42, 0.75) : fl > 0.981 ? vec3(0.92, 0.82, 0.25) : vec3(0.9, 0.9, 0.86)) : vec3(-1.0);
         // the ground's hollows, and the shade of the wood (forest floor share) darken the blades too
         vShade = (0.75 + 0.25 * h2) * texture2D(uWeights2, (xz - uExt.xy) / uExt.zw).a * (1.0 - 0.45 * w.g);
@@ -126,5 +138,14 @@ export function createGrass(ground, scene) {
     },
     get count() { return mesh.visible ? geo.instanceCount : 0; },
     update(px, pz, t) { uniforms.uCenter.value.set(px, pz); uniforms.uTime.value = t; },
+    /** where no grass grows: {data: Uint8Array (255 = none), w, h, x0, z0, res (m per texel)} */
+    setMask(m) {
+      if (!m) return;
+      const tex = new THREE.DataTexture(m.data, m.w, m.h, THREE.RedFormat, THREE.UnsignedByteType);
+      tex.magFilter = tex.minFilter = THREE.NearestFilter;
+      tex.needsUpdate = true;
+      uniforms.uMask.value = tex;
+      uniforms.uMaskExt.value.set(m.x0, m.z0, m.w * m.res, m.h * m.res);
+    },
   };
 }

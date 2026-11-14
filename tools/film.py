@@ -9,7 +9,7 @@ last = int(sys.argv[6]) if len(sys.argv) > 6 else n - 1
 w, h = (int(x) for x in size.split('x'))
 URL = 'http://127.0.0.1:8096/client/?ws=ws://127.0.0.1:8095&as=film&film=1&q=4'
 # (time s, camera x, z, height above ground, target x, z, target height above ground)
-KEYS = [
+KEYS = json.loads(os.environ['FILM_KEYS']) if os.environ.get('FILM_KEYS') else [
     (0.0, 30, 56, 9.0, 0, 16, 3.0),
     (4.0, 7, 36, 3.8, 0, 18, 2.2),
     (7.0, 0, 21, 2.3, 0, 3, 1.5),
@@ -57,7 +57,7 @@ try:
         call('POST', f'/session/{sid}/execute/sync', {'script': 'LWQ.filmFrame(0, ...arguments); return 1', 'args': pose(0)})
     t0 = time.time()
     for i in range(first, last + 1):
-        url = call('POST', f'/session/{sid}/execute/sync', {'script': 'return LWQ.filmFrame(...arguments)', 'args': [i / fps] + pose(i / fps)})
+        url = call('POST', f'/session/{sid}/execute/sync', {'script': 'return LWQ.filmFrame(...arguments)', 'args': [0 if os.environ.get('FILM_FREEZE') else i / fps] + pose(i / fps) + [0.9, float(os.environ.get('FILM_GSTEP') or '0') * i]})
         open(os.path.join(out, f'f{i:04d}.jpg'), 'wb').write(base64.b64decode(url.split(',', 1)[1]))
         if i % 30 == 0:
             print(f'frame {i}/{n} ({(time.time() - t0) / (i - first + 1):.2f} s/frame)', flush=True)

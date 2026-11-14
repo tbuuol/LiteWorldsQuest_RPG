@@ -166,17 +166,20 @@ export async function loadPlaces(contentBase, ground, scene, say = () => {}) {
   const M = { timber, planks, thatch, stone, bark, walls: planks };
   const group = new THREE.Group(); scene.add(group);
   const lights = [], tickers = [], solids = [], npcs = [];
+  const bare = [];   // where no grass grows: [cx, cz, hx, hz, deg] boxes and [cx, cz, r] discs
   for (const id of list) {
     const p = await (await fetch(`${contentBase}/core/places/${id}.json`)).json();
     const [ox, oz] = p.origin || [0, 0];
     ground.paintEarth && ground.paintEarth(p.paths, ox, oz);
     for (const h of p.huts || []) {
       const x = ox + h.pos[0], z = oz + h.pos[1];
+      bare.push([x, z, h.size[0] / 2 + 0.25, h.size[1] / 2 + 0.25, h.rot || 0]);
       const o = hut(h, M, lights); o.position.set(x, ground.height(x, z) - 0.05, z); o.rotation.y = THREE.MathUtils.degToRad(h.rot || 0); group.add(o);
     }
     if (p.fence) palisade({ ...p.fence, rect: [p.fence.rect[0] + ox, p.fence.rect[1] + oz, p.fence.rect[2] + ox, p.fence.rect[3] + oz], gate: [p.fence.gate[0] + ox, p.fence.gate[1] + ox] }, ground, M, group);
     if (p.well) {
       const [x, z] = [ox + p.well.pos[0], oz + p.well.pos[1]], y = ground.height(x, z);
+      bare.push([x, z, 1.05]);
       const ring = cyl(0.95, 0.95, 0.85, stone, 16); ring.position.set(x, y + 0.42, z); group.add(ring);
       const water = new THREE.Mesh(new THREE.CircleGeometry(0.8, 16), new THREE.MeshStandardMaterial({ color: 0x0c1a20, roughness: 0.1 })); water.rotation.x = -Math.PI / 2; water.position.set(x, y + 0.6, z); group.add(water);
       for (const s of [-1, 1]) group.add(at(cyl(0.08, 0.08, 2.3, bark, 6), x + s * 0.85, y + 1.15, z));
@@ -184,6 +187,7 @@ export async function loadPlaces(contentBase, ground, scene, say = () => {}) {
     }
     if (p.forge) {
       const [x, z] = [ox + p.forge.pos[0], oz + p.forge.pos[1]], y = ground.height(x, z);
+      bare.push([x, z, 1.25, 0.85, p.forge.rot || 0]);
       const f = new THREE.Group(); f.position.set(x, y, z); f.rotation.y = THREE.MathUtils.degToRad(p.forge.rot || 0);
       f.add(at(box(2.2, 1.0, 1.4, stone), 0, 0.5, 0));
       const coals = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.08, 0.8), new THREE.MeshStandardMaterial({ color: 0x1a0a05, emissive: 0xff4a10, emissiveIntensity: 1.6 })); coals.position.y = 1.02; f.add(coals);
@@ -191,11 +195,13 @@ export async function loadPlaces(contentBase, ground, scene, say = () => {}) {
       f.add(at(box(0.45, 0.35, 0.25, new THREE.MeshStandardMaterial({ color: 0x2a2a2e, metalness: 0.8, roughness: 0.4 })), 1.6, 0.75, 0));
       group.add(f);
     }
-    if (p.fire) { const [x, z] = [ox + p.fire.pos[0], oz + p.fire.pos[1]]; tickers.push(campfire(M, lights, group, x, ground.height(x, z), z)); }
+    if (p.fire) { const [x, z] = [ox + p.fire.pos[0], oz + p.fire.pos[1]]; bare.push([x, z, 1.15]); tickers.push(campfire(M, lights, group, x, ground.height(x, z), z)); }
     for (const pr of p.props || []) {
       const o = prop(pr, M); if (!o) continue;
       const [x, z] = [ox + pr.pos[0], oz + pr.pos[1]];
       o.position.set(x, ground.height(x, z), z); o.rotation.y = THREE.MathUtils.degToRad(pr.rot || 0); group.add(o);
+      const SOLID = { barrel: [0.4, 0.4], crate: [0.5, 0.5], cart: [1.05, 0.75], haystack: [1.1, 1.1], logpile: [1.45, 0.65] };
+      if (SOLID[pr.kind]) bare.push([x, z, ...SOLID[pr.kind], pr.rot || 0]);
       if (pr.kind === 'lamppost') { const l = new THREE.PointLight(0xffb050, 4, 10, 2); const r = (pr.rot || 0) * Math.PI / 180; l.position.set(x + 0.42 * Math.cos(r), ground.height(x, z) + 2.2, z - 0.42 * Math.sin(r)); group.add(l); lights.push(l); }
     }
     for (const s of p.solids || []) solids.push([s[0] + ox, s[1] + oz, s[2], s[3], s[4], s[5]]);
@@ -203,9 +209,30 @@ export async function loadPlaces(contentBase, ground, scene, say = () => {}) {
   }
   group.traverse(o => { if (o.isMesh) { o.matrixAutoUpdate = true; } });
   return {
-    solids, npcs,
+    solids, npcs, mask: grassMask(bare),
     update(t) { for (const f of tickers) f(t); },
   };
+}
+
+/** A texture of where no grass grows (25 cm a texel) over everything the places marked bare. */
+function grassMask(bare, res = 0.25) {
+  if (!bare.length) return null;
+  const ext = s => s.length === 3 ? s[2] : Math.hypot(s[2], s[3]);
+  const x0 = Math.min(...bare.map(s => s[0] - ext(s))) - 1, x1 = Math.max(...bare.map(s => s[0] + ext(s))) + 1;
+  const z0 = Math.min(...bare.map(s => s[1] - ext(s))) - 1, z1 = Math.max(...bare.map(s => s[1] + ext(s))) + 1;
+  const w = Math.ceil((x1 - x0) / res), h = Math.ceil((z1 - z0) / res), data = new Uint8Array(w * h);
+  for (const s of bare) {
+    const r = ext(s), i0 = Math.max(0, Math.floor((s[0] - r - x0) / res)), i1 = Math.min(w - 1, Math.ceil((s[0] + r - x0) / res));
+    const j0 = Math.max(0, Math.floor((s[1] - r - z0) / res)), j1 = Math.min(h - 1, Math.ceil((s[1] + r - z0) / res));
+    const a = THREE.MathUtils.degToRad(s[4] || 0), c = Math.cos(a), sn = Math.sin(a);
+    for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+      const dx = x0 + (i + 0.5) * res - s[0], dz = z0 + (j + 0.5) * res - s[1];
+      const inside = s.length === 3 ? dx * dx + dz * dz <= s[2] * s[2]
+        : Math.abs(dx * c - dz * sn) <= s[2] && Math.abs(dx * sn + dz * c) <= s[3];
+      if (inside) data[j * w + i] = 255;
+    }
+  }
+  return { data, w, h, x0, z0, res };
 }
 
 /** Push a circle (the player) out of every solid it overlaps; returns the corrected [x, z]. */
