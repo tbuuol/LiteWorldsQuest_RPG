@@ -3,7 +3,7 @@
 // them later without anything else changing.
 
 import * as THREE from 'three';
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { mergeGeometries, mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 
 const CELL = 128;
 
@@ -31,13 +31,13 @@ function jitter(g, amount, seed) {
 function trunk(h, r0, r1, color, seed) {
   const g = new THREE.CylinderGeometry(r1, r0, h, 7, 3);
   g.translate(0, h / 2, 0);
-  return colorize(jitter(g.toNonIndexed(), r0 * 0.25, seed), color, 0.08, seed);
+  return colorize(jitter(g, r0 * 0.08, seed).toNonIndexed(), color, 0.08, seed);
 }
 
 function blob(r, x, y, z, color, seed, detail = 1) {
-  const g = new THREE.IcosahedronGeometry(r, detail);
+  const g = mergeVertices(new THREE.IcosahedronGeometry(r, detail));
   g.scale(1, 0.82, 1); g.translate(x, y, z);
-  return colorize(jitter(g, r * 0.32, seed), color, 0.12, seed);
+  return colorize(jitter(g, r * 0.07, seed).toNonIndexed(), color, 0.12, seed);
 }
 
 const SHAPES = {
@@ -46,7 +46,7 @@ const SHAPES = {
     for (let i = 0; i < 4; i++) {
       const g = new THREE.ConeGeometry(2.6 - i * 0.5, 3.4 - i * 0.3, 9, 2);
       g.translate(0, 3.0 + i * 1.75, 0);
-      parts.push(colorize(jitter(g.toNonIndexed(), 0.35, 11 + i), 0x2f5a35, 0.1, 11 + i));
+      parts.push(colorize(jitter(g, 0.12, 11 + i).toNonIndexed(), 0x2f5a35, 0.1, 11 + i));
     }
     return mergeGeometries(parts);
   },

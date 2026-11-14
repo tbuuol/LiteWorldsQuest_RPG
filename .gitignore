@@ -9,3 +9,4 @@ dist/
 # teaser videos: too big for the repo, kept only on disk
 design/*.mp4
 server/target/
+tools/bake/ground.base.bin

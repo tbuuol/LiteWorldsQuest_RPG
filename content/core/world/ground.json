@@ -21,5 +21,21 @@
   "mountain",
   "road"
  ],
- "baked_from": "src/modules/terrain.js v7 (ground only)"
+ "baked_from": "src/modules/terrain.js v7 (ground only)",
+ "relief": {
+  "tool": "tools/bake/relief.py",
+  "seed": 20261114,
+  "amp": {
+   "green": 26,
+   "valley": 18,
+   "fey": 30,
+   "troll": 75,
+   "ruins": 16,
+   "cemetery": 10,
+   "swamp": 3,
+   "mountain": 170
+  },
+  "min": -9.5,
+  "max": 306.78
+ }
 }
