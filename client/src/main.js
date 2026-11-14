@@ -11,6 +11,7 @@ import { createSky } from './sky.js';
 import { createPlayer } from './player.js';
 import { createRemotes } from './remotes.js';
 import { createQuality } from './quality.js';
+import { createGrade } from './grade.js';
 
 const Q = new URLSearchParams(location.search);
 const $ = s => document.querySelector(s);
@@ -25,6 +26,7 @@ async function start() {
   const camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.1, 3000);
 
   const sky = createSky(scene, renderer);
+  const grade = createGrade(renderer, scene, camera);
   const ground = await loadGround(CONTENT, say);
   scene.add(ground.group);
   say('Growing the forest…');
@@ -35,6 +37,7 @@ async function start() {
   const quality = createQuality((L) => {
     renderer.setPixelRatio(Math.min(devicePixelRatio, L.dprMax || 1) * L.scale);
     renderer.setSize(innerWidth, innerHeight);
+    grade.setPixelRatio(renderer.getPixelRatio()); grade.setSize(innerWidth, innerHeight); grade.setOn(L.grade !== false);
     sky.setShadows(L.shadows, renderer);
     sky.setFog(L.fog);
     ground.setViewDist(L.view);
@@ -45,7 +48,7 @@ async function start() {
   }, Q.has('q') ? Number(Q.get('q')) : 2);
   if (Q.has('q')) quality.setFixed(Number(Q.get('q')));
 
-  addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
+  addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); grade.setSize(innerWidth, innerHeight); });
 
   // the house
   say('Knocking at the house…');
@@ -125,7 +128,8 @@ async function start() {
     grass.update(player.pos.x, player.pos.z, now / 1000);
     sky.follow(player.pos);
     remotes.update(now);
-    renderer.render(scene, camera);
+    sky.tick(now / 1000);
+    grade.render();
     quality.frame(now, pending > 6);
     if (now - statAt > 500) {
       statAt = now;

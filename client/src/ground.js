@@ -70,6 +70,27 @@ export async function loadGround(contentBase, say) {
     if (sand > 0) { for (let k = 0; k < 7; k++) w[k] *= 1 - sand; w[idx.sand] += sand; }
     for (let k = 0; k < 4; k++) { W0[i * 4 + k] = Math.round(w[k] * 255); W1[i * 4 + k] = Math.round(w[k + 4] * 255); }
   }
+  // occlusion baked from the heights: hollows, gullies and valley floors get less sky (alpha of the second weights)
+  say('Shading the hollows…');
+  const blur = (src, r) => {   // separable box blur, twice (close to a gaussian)
+    let a = Float32Array.from(src), b = new Float32Array(src.length);
+    for (let pass = 0; pass < 2; pass++) {
+      for (let z = 0; z < nz; z++) { let acc = 0; const row = z * nx;
+        for (let x = -r; x <= r; x++) acc += a[row + Math.min(nx - 1, Math.max(0, x))];
+        for (let x = 0; x < nx; x++) { b[row + x] = acc / (2 * r + 1);
+          acc += a[row + Math.min(nx - 1, x + r + 1)] - a[row + Math.max(0, x - r)]; } }
+      for (let x = 0; x < nx; x++) { let acc = 0;
+        for (let z = -r; z <= r; z++) acc += b[Math.min(nz - 1, Math.max(0, z)) * nx + x];
+        for (let z = 0; z < nz; z++) { a[z * nx + x] = acc / (2 * r + 1);
+          acc += b[Math.min(nz - 1, z + r + 1) * nx + x] - b[Math.max(0, z - r) * nx + x]; } }
+    }
+    return a;
+  };
+  const near = blur(H, 4), wide = blur(H, 24);
+  for (let i = 0; i < nx * nz; i++) {
+    const cav = Math.max(0, near[i] - H[i]) * 0.35 + Math.max(0, wide[i] - H[i]) * 0.035;
+    W1[i * 4 + 3] = Math.round(255 * Math.max(0.35, 1 - Math.min(1, cav) * 0.65));
+  }
   const wtex = d => { const t = new THREE.DataTexture(d, nx, nz); t.magFilter = t.minFilter = THREE.LinearFilter; t.needsUpdate = true; return t; };
 
   say('Loading the materials…');
@@ -106,7 +127,9 @@ export async function loadGround(contentBase, say) {
         vec2 wuv = (vWP.xz - uExt.xy) / uExt.zw;
         vec4 w0 = texture(tW0, wuv), w1 = texture(tW1, wuv);
         float slope = 1.0 - clamp(normalize(vWN).y, 0.0, 1.0);
-        float rockSlope = smoothstep(0.28, 0.55, slope);
+        // rock on steep ground, and more of it the higher one gets; snow above ~210 m where it can lie
+        float rockSlope = clamp(smoothstep(0.17, 0.40, slope) + smoothstep(120.0, 260.0, vWP.y) * 0.55, 0.0, 1.0);
+        float snow = smoothstep(195.0, 235.0, vWP.y + (w0.r - 0.5) * 20.0) * (1.0 - smoothstep(0.30, 0.55, slope));
         gW[0] = w0.r; gW[1] = w0.g; gW[2] = w0.b; gW[3] = w0.a; gW[4] = w1.r; gW[5] = w1.g; gW[6] = w1.b;
         for (int i = 0; i < 7; i++) gW[i] *= (1.0 - rockSlope);
         gW[4] += rockSlope;
@@ -120,6 +143,10 @@ export async function loadGround(contentBase, say) {
           if (i == 4) col += k * (s2l(layer(tColors, vWP.zy * uTile, 4).rgb) * an.x + s2l(layer(tColors, tuv, 4).rgb) * an.y + s2l(layer(tColors, vWP.xy * uTile, 4).rgb) * an.z);
           else col += s2l(layer(tColors, tuv, i).rgb) * k;
         }
+        col *= mix(vec3(1.0), vec3(0.86, 0.92, 0.78), gW[0] / max(sum, 1e-3));   // grass: muted, towards olive
+        float lum = dot(col, vec3(0.3, 0.6, 0.1));
+        col = mix(col, vec3(0.80, 0.84, 0.90) * (0.82 + lum * 0.6), snow);
+        col *= w1.a;                                                                // hollows: less sky
         diffuseColor.rgb *= col;`)
       .replace('#include <normal_fragment_maps>', `
         {

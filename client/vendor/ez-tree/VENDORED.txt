@@ -1,3 +1,4 @@
 ez-tree 1.1.0 (MIT, Daniel Greenheck), https://github.com/dgreenheck/ez-tree, npm integrity checked.
 Changed for plain browser ES modules: .js on relative imports, textures by URL, presets as data.js.
 Bark textures: Poly Haven (CC0) and TextureCan (CC0), see assets/bark/README.md.
+Fix: tree.js leaf wind shader applies instanceMatrix (USE_INSTANCING), so InstancedMesh leaves sit on their trees.

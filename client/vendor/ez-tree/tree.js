@@ -711,6 +711,9 @@ export class Tree extends THREE.Group {
         `#include <project_vertex>`,
         `
         vec4 mvPosition = vec4(transformed, 1.0);
+        #ifdef USE_INSTANCING
+          mvPosition = instanceMatrix * mvPosition;   // LiteWorldsQuest: instanced trees (the original drops this)
+        #endif
 
         float windOffset = 2.0 * 3.14 * simplex3(mvPosition.xyz / uWindScale);
         vec3 windSway = uv.y * uWindStrength * (

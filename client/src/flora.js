@@ -112,6 +112,9 @@ export async function loadFlora(contentBase, ground, scene, renderer, say = () =
       const unit = k.height / v.height;           // instance scale 1 = the kind's height
       const nb = new THREE.InstancedMesh(v.branches.geometry, v.branches.material, NEAR_CAP);
       const nl = v.leafless ? null : new THREE.InstancedMesh(v.leaves.geometry, v.leaves.material, NEAR_CAP);
+      if (nl) {   // leaf shadows cut out like the leaves, not as squares
+        nl.customDepthMaterial = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, map: v.leaves.material.map, alphaTest: v.leaves.material.alphaTest });
+      }
       for (const m of [nb, nl]) if (m) { m.count = 0; m.frustumCulled = false; m.castShadow = true; m.receiveShadow = m === nb; scene.add(m); }   // leaves receive no shadows: costly on alpha-tested cards
       const quad = new THREE.PlaneGeometry(imp.w * unit, imp.h * unit); quad.translate(0, imp.h * unit / 2 + v.base * unit, 0);
       const rec = { kind, unit, nb, nl, quad, mat: impostorMaterial(imp.texture), far: null, n: 0, f: 0, total: 0 };

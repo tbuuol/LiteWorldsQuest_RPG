@@ -73,7 +73,7 @@ export function createGrass(ground, scene) {
         vec2 xz = cell + (vec2(h1, h2) - 0.5) * uSpacing;
         float dist = length(xz - uCenter);
         vec4 w = texture2D(uWeights, (xz - uExt.xy) / uExt.zw);
-        float grassy = w.r + w.g * 0.6;                    // grass, and some in the forest floor
+        float grassy = (w.r + w.g * 0.6) * (1.0 - smoothstep(150.0, 210.0, heightAt(cell)));   // grass, some in the forest floor; thinning up the mountains
         float keep = step(h3, grassy * 1.15 - 0.15) * (1.0 - smoothstep(uRadius * 0.75, uRadius, dist));
         float size = (0.32 + 0.38 * h1) * keep * (0.6 + 0.4 * grassy);
         float ang = h2 * 6.2831;
@@ -96,7 +96,7 @@ export function createGrass(ground, scene) {
       #include <fog_pars_fragment>
       uniform vec3 uSunDir; varying float vT; varying float vShade; varying float vHue;
       void main() {
-        vec3 root = vec3(0.045, 0.07, 0.02), tip = mix(vec3(0.20, 0.27, 0.08), vec3(0.30, 0.30, 0.11), vHue * 0.7);
+        vec3 root = vec3(0.04, 0.055, 0.02), tip = mix(vec3(0.19, 0.23, 0.09), vec3(0.29, 0.27, 0.12), vHue * 0.8);
         vec3 c = mix(root, tip, vT) * vShade;
         c *= 0.75 + 0.55 * clamp(uSunDir.y, 0.0, 1.0);
         gl_FragColor = vec4(c, 1.0);
