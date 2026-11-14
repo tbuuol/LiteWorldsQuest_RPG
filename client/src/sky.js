@@ -75,6 +75,7 @@ export function createSky(scene, renderer) {
 
   return {
     setSun,
+    sunDir: dir,
     // shadows: 0 off, else the map size; the sun's box follows the player
     setShadows(size, renderer) {
       if (size === shadowSize) return;

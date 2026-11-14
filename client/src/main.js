@@ -12,6 +12,7 @@ import { createPlayer } from './player.js';
 import { createRemotes } from './remotes.js';
 import { createQuality } from './quality.js';
 import { createGrade } from './grade.js';
+import { createWater } from './water.js';
 
 const Q = new URLSearchParams(location.search);
 const $ = s => document.querySelector(s);
@@ -32,6 +33,7 @@ async function start() {
   say('Growing the forest…');
   const flora = await loadFlora(CONTENT, ground, scene, renderer, say);
   const grass = createGrass(ground, scene);
+  const water = createWater(ground, sky, scene);
   const remotes = createRemotes(scene, camera, $('#hud'));
 
   const quality = createQuality((L) => {
@@ -129,6 +131,7 @@ async function start() {
     sky.follow(player.pos);
     remotes.update(now);
     sky.tick(now / 1000);
+    water.update(now / 1000, sky.sunDir);
     grade.render();
     quality.frame(now, pending > 6);
     if (now - statAt > 500) {

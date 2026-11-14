@@ -205,11 +205,7 @@ export async function loadGround(contentBase, say) {
   const tiles = new Map();   // "tx,tz" -> {lod, mesh}
   let viewDist = 600, detail = 1, building = 0;
 
-  // the sea
-  const sea = new THREE.Mesh(new THREE.PlaneGeometry(8000, 6000), new THREE.MeshStandardMaterial({
-    color: 0x1d4a5c, roughness: 0.12, metalness: 0.1, transparent: true, opacity: 0.86, side: THREE.DoubleSide }));
-  sea.rotation.x = -Math.PI / 2; sea.position.set((x0 + x1) / 2, meta.sea, (z0 + z1) / 2);
-  group.add(sea);
+  // the sea and the rivers: water.js
 
   function lodFor(d) { return d < 260 ? 0 : d < 520 ? 1 : d < 950 ? 2 : 3; }
 
