@@ -236,11 +236,38 @@ export async function loadGround(contentBase, say) {
     return todo.length - building;   // tiles still to build
   }
 
+  // a place's paths and square become trodden earth (the dirt material), softly edged
+  const W0tex = uniforms.tW0.value, W1tex = uniforms.tW1.value;
+  function paintEarth(paths, ox = 0, oz = 0) {
+    if (!paths) return;
+    const shapes = [];
+    for (const [cx, cz, r] of paths.circles || []) shapes.push(p => Math.hypot(p[0] - cx - ox, p[1] - cz - oz) - r);
+    for (const [ax, az, bx, bz, w] of paths.strips || []) shapes.push(p => {
+      const vx = bx - ax, vz = bz - az, L = vx * vx + vz * vz || 1;
+      const t = Math.max(0, Math.min(1, ((p[0] - ax - ox) * vx + (p[1] - az - oz) * vz) / L));
+      return Math.hypot(p[0] - ax - ox - vx * t, p[1] - az - oz - vz * t) - w / 2;
+    });
+    let minx = Infinity, minz = Infinity, maxx = -Infinity, maxz = -Infinity;
+    for (const [cx, cz, r] of paths.circles || []) { minx = Math.min(minx, cx - r); maxx = Math.max(maxx, cx + r); minz = Math.min(minz, cz - r); maxz = Math.max(maxz, cz + r); }
+    for (const [ax, az, bx, bz, w] of paths.strips || []) { minx = Math.min(minx, ax - w, bx - w); maxx = Math.max(maxx, ax + w, bx + w); minz = Math.min(minz, az - w, bz - w); maxz = Math.max(maxz, az + w, bz + w); }
+    const i0 = Math.max(0, Math.floor((minx + ox - 3 - x0) / step)), i1 = Math.min(nx - 1, Math.ceil((maxx + ox + 3 - x0) / step));
+    const j0 = Math.max(0, Math.floor((minz + oz - 3 - z0) / step)), j1 = Math.min(nz - 1, Math.ceil((maxz + oz + 3 - z0) / step));
+    for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+      const p = [x0 + i * step, z0 + j * step];
+      let d = Infinity; for (const f of shapes) d = Math.min(d, f(p));
+      const k = Math.max(0, Math.min(1, 0.5 - d / 1.6));
+      if (k <= 0) continue;
+      const n = j * nx + i;
+      for (let c = 0; c < 4; c++) { W0[n * 4 + c] = Math.round(W0[n * 4 + c] * (1 - k)); if (c < 3) W1[n * 4 + c] = Math.round(W1[n * 4 + c] * (1 - k)); }
+      W0[n * 4 + 2] = Math.min(255, W0[n * 4 + 2] + Math.round(255 * k));
+    }
+    W0tex.needsUpdate = true; W1tex.needsUpdate = true;
+  }
   // for the grass: the heights as a texture (read in its vertex shader) and where grass grows
   const heightTex = new THREE.DataTexture(H, nx, nz, THREE.RedFormat, THREE.FloatType);
   heightTex.needsUpdate = true;
   return {
-    group, height, inside, meta, update, heightTex, weights: uniforms.tW0.value, weights2: uniforms.tW1.value,
+    group, height, inside, meta, update, paintEarth, heightTex, weights: uniforms.tW0.value, weights2: uniforms.tW1.value,
     setViewDist(d) { viewDist = d; },
     setDetail(on) { const v = on ? 1 : 0; if (v !== detail) { detail = v; material.defines.DETAIL = v; material.needsUpdate = true; } },
     get tileCount() { return tiles.size; },

@@ -1,0 +1,21 @@
+{
+ "license": "CC0 1.0",
+ "files": {
+  "dirt-color.webp": "Poly Haven: Park Dirt (park_dirt)",
+  "dirt-normal.webp": "Poly Haven: Park Dirt (park_dirt)",
+  "timber-color.webp": "Poly Haven: Weathered Peeling Timber (weathered_peeling_timber)",
+  "timber-normal.webp": "Poly Haven: Weathered Peeling Timber (weathered_peeling_timber)",
+  "planks-color.webp": "Poly Haven: Brown Planks 03 (brown_planks_03)",
+  "planks-normal.webp": "Poly Haven: Brown Planks 03 (brown_planks_03)",
+  "thatch-color.webp": "Poly Haven: Thatch Roof Angled (thatch_roof_angled)",
+  "thatch-normal.webp": "Poly Haven: Thatch Roof Angled (thatch_roof_angled)",
+  "stone-color.webp": "Poly Haven: Castle Wall Slates (castle_wall_slates)",
+  "stone-normal.webp": "Poly Haven: Castle Wall Slates (castle_wall_slates)",
+  "bark-color.webp": "Poly Haven: Bark Brown 02 (bark_brown_02)",
+  "bark-normal.webp": "Poly Haven: Bark Brown 02 (bark_brown_02)",
+  "tiles-color.webp": "Poly Haven: Clay Roof Tiles 02 (clay_roof_tiles_02)",
+  "tiles-normal.webp": "Poly Haven: Clay Roof Tiles 02 (clay_roof_tiles_02)",
+  "plaster-color.webp": "Poly Haven: Clay Plaster (clay_plaster)",
+  "plaster-normal.webp": "Poly Haven: Clay Plaster (clay_plaster)"
+ }
+}

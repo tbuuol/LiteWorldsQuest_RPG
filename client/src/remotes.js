@@ -25,9 +25,9 @@ export function createRemotes(scene, camera, hudEl) {
       const hue = ((m.id * 0.618034) % 1);
       const obj = figure(hue);
       scene.add(obj);
-      const label = document.createElement('div'); label.className = 'nametag'; label.textContent = m.tag ? '@' + m.tag : 'guest';
+      const label = document.createElement('div'); label.className = 'nametag'; label.textContent = m.name || (m.tag ? '@' + m.tag : 'guest');
       hudEl.appendChild(label);
-      all.set(m.id, { obj, tag: m.tag, samples: [], label });
+      all.set(m.id, { obj, tag: m.tag, name: m.name, npc: m.kind === 'npc', samples: [], label });
     },
     despawn(m) {
       const r = all.get(m.id); if (!r) return;
@@ -52,10 +52,20 @@ export function createRemotes(scene, camera, hudEl) {
         let dy = b.yaw - a.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy));
         r.obj.rotation.y = a.yaw + dy * k;
         v.copy(r.obj.position); v.y += 2.05; v.project(camera);
-        const vis = v.z < 1 && camera.position.distanceTo(r.obj.position) < 60;
+        const vis = v.z < 1 && camera.position.distanceTo(r.obj.position) < 25;
         r.label.style.display = vis ? '' : 'none';
         if (vis) { r.label.style.left = `${(v.x + 1) / 2 * innerWidth}px`; r.label.style.top = `${(1 - v.y) / 2 * innerHeight}px`; }
       }
+    },
+    /** the nearest villager within d metres of (x, z): {id, name} or null */
+    nearestNpc(x, z, d) {
+      let best = null;
+      for (const [id, r] of all) {
+        if (!r.npc || !r.samples.length) continue;
+        const e = Math.hypot(r.obj.position.x - x, r.obj.position.z - z);
+        if (e < d) { d = e; best = { id, name: r.name }; }
+      }
+      return best;
     },
     get count() { return all.size; },
   };

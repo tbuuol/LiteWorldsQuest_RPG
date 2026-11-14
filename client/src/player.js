@@ -5,6 +5,7 @@ const WALK = 4.0, RUN = 6.8, JUMP = 5.0, GRAVITY = 14, EYE = 1.65, SEND_HZ = 15;
 
 export function createPlayer(camera, dom, ground, net) {
   const pos = { x: 0, y: 0, z: 0 }, keys = {};
+  let solids = [], collideFn = null;
   let yaw = 0, pitch = 0, vy = 0, onGround = true, lastSend = 0, lastSent = '', locked = false, typing = false;
   const touch = { move: null, look: null, mx: 0, mz: 0 };
 
@@ -58,6 +59,7 @@ export function createPlayer(camera, dom, ground, net) {
       const s = Math.sin(yaw), c = Math.cos(yaw);
       const nx = pos.x + (fx * c + fz * s) * sp * dt, nz = pos.z + (-fx * s + fz * c) * sp * dt;
       if (ground.inside(nx, nz)) { pos.x = nx; pos.z = nz; moving = true; }
+      if (collideFn) { const [cx, cz] = collideFn(solids, pos.x, pos.z); pos.x = cx; pos.z = cz; }
     }
     if (keys.Space && onGround) { vy = JUMP; onGround = false; }
     const floor = ground.height(pos.x, pos.z);
@@ -86,6 +88,7 @@ export function createPlayer(camera, dom, ground, net) {
     get yaw() { return yaw; },
     place(x, y, z, yw, pt) { pos.x = x; pos.y = y; pos.z = z; if (yw !== undefined) yaw = yw; if (pt !== undefined) pitch = pt; vy = 0; },
     fix(x, y, z) { pos.x = x; pos.y = y; pos.z = z; vy = 0; },
+    setSolids(s, fn) { solids = s; collideFn = fn; },
     setTyping(t) { typing = t; if (t) for (const k in keys) keys[k] = false; },
     update,
   };

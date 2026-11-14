@@ -2,6 +2,7 @@
 //! the single place where anything about the game changes, so there are no locks around the game state.
 
 use crate::ground::Ground;
+use crate::places::{self, Places};
 use crate::proto::{self, SnapEntry};
 use crate::store::{Saved, Store};
 use serde_json::{json, Value};
@@ -24,6 +25,8 @@ const AIR: f32 = 3.2;
 /// at most this many messages a second from one connection
 const RATE: u32 = 60;
 const SAVE_EVERY: Duration = Duration::from_secs(30);
+/// how close a player must stand to talk to a villager (metres)
+const TALK: f32 = 4.0;
 
 pub struct Ident {
     pub key: String,
@@ -60,6 +63,8 @@ struct Player {
     rate_n: u32,
     rate_at: Instant,
     saved_at: Instant,
+    /// the next line each villager will say to this player
+    talked: HashMap<u32, usize>,
 }
 
 impl Player {
@@ -72,12 +77,17 @@ impl Player {
 }
 
 pub struct World {
+    /// local test only (LWQ_DEV): players may jump anywhere ({"t": "tp", "x", "z"})
+    pub dev: bool,
     ground: Arc<Ground>,
+    places: Places,
     store: Store,
     spawn: [f32; 2],
     players: HashMap<u64, Player>, // by connection
     next_id: u32,
     tick: u32,
+    /// villagers that turned this tick
+    npc_changed: HashSet<u32>,
 }
 
 fn cell_of(x: f32, z: f32) -> (i32, i32) {
@@ -85,8 +95,8 @@ fn cell_of(x: f32, z: f32) -> (i32, i32) {
 }
 
 impl World {
-    pub fn new(ground: Arc<Ground>, store: Store, spawn: [f32; 2]) -> World {
-        World { ground, store, spawn, players: HashMap::new(), next_id: 1, tick: 0 }
+    pub fn new(ground: Arc<Ground>, places: Places, store: Store, spawn: [f32; 2]) -> World {
+        World { dev: false, ground, places, store, spawn, players: HashMap::new(), next_id: 1, tick: 0, npc_changed: HashSet::new() }
     }
 
     pub async fn run(mut self, mut rx: mpsc::UnboundedReceiver<Event>) {
@@ -123,6 +133,24 @@ impl World {
                     return;
                 }
                 let Ok(v) = serde_json::from_str::<Value>(&data) else { return };
+                if self.dev && v["t"] == "tp" {
+                    let ground = self.ground.clone();
+                    let (x, z) = (v["x"].as_f64().unwrap_or(0.0) as f32, v["z"].as_f64().unwrap_or(0.0) as f32);
+                    if let Some(p) = self.players.get_mut(&conn) {
+                        if ground.inside(x, z) {
+                            p.pos = [x, ground.height(x, z), z];
+                            p.moved_at = Instant::now();
+                            p.changed = true;
+                            let _ = p.out.send(Out::Bin(proto::fix(0, p.pos[0], p.pos[1], p.pos[2])));
+                        }
+                    }
+                    return;
+                }
+                if v["t"] == "talk" {
+                    let id = v["id"].as_u64().unwrap_or(0) as u32;
+                    self.talk(conn, id);
+                    return;
+                }
                 if v["t"] == "say" {
                     let text: String = v["text"].as_str().unwrap_or("").chars().take(200).collect();
                     if text.trim().is_empty() {
@@ -190,6 +218,7 @@ impl World {
             rate_n: 0,
             rate_at: now,
             saved_at: now,
+            talked: HashMap::new(),
         };
         p.send_text(json!({"t": "welcome", "id": id, "tag": p.tag, "zone": "world", "pos": pos, "yaw": yaw, "hz": HZ}));
         eprintln!("join {} ({}), {} playing", if p.tag.is_empty() { "guest" } else { &p.tag }, ident.address, self.players.len() + 1);
@@ -218,7 +247,11 @@ impl World {
         let horiz = (m.x - p.pos[0]).hypot(m.z - p.pos[2]);
         let ok_where = ground.inside(m.x, m.z) && m.x.is_finite() && m.y.is_finite() && m.z.is_finite();
         let floor = if ok_where { ground.height(m.x, m.z) } else { 0.0 };
-        let ok = ok_where && horiz <= reach && m.y >= floor - 0.4 && m.y <= floor + AIR;
+        let ok = ok_where
+            && horiz <= reach
+            && m.y >= floor - 0.4
+            && m.y <= floor + AIR
+            && self.places.path_free(p.pos[0], p.pos[2], m.x, m.z);
         if ok {
             p.pos = [m.x, m.y.max(floor), m.z];
             p.yaw = m.yaw;
@@ -231,6 +264,23 @@ impl World {
             let _ = p.out.send(Out::Bin(proto::fix(m.seq, p.pos[0], p.pos[1], p.pos[2])));
             p.moved_at = now;
         }
+    }
+
+    /// A player speaks to a villager: the next of its lines, to that player only; it turns to them if it does that.
+    fn talk(&mut self, conn: u64, id: u32) {
+        let Some(p) = self.players.get_mut(&conn) else { return };
+        let Some(n) = id.checked_sub(places::NPC_ID0).and_then(|i| self.places.npcs.get_mut(i as usize)) else { return };
+        if (n.pos[0] - p.pos[0]).hypot(n.pos[2] - p.pos[2]) > TALK || n.lines.is_empty() {
+            return;
+        }
+        let k = p.talked.entry(id).or_insert(0);
+        let line = n.lines[*k % n.lines.len()].clone();
+        *k += 1;
+        if n.turns {
+            n.yaw = places::yaw_toward(n.pos, p.pos[0], p.pos[2]);
+            self.npc_changed.insert(id);
+        }
+        p.send_text(json!({"t": "say", "from": n.name, "npc": id, "text": line}));
     }
 
     /// One tick: who sees whom, and what changed.
@@ -272,6 +322,19 @@ impl World {
                     }
                 }
             }
+            for n in &self.places.npcs {
+                if (n.pos[0] - p.pos[0]).hypot(n.pos[2] - p.pos[2]) > VIEW {
+                    continue;
+                }
+                seen.insert(n.id);
+                let new = !p.known.contains(&n.id);
+                if new {
+                    texts.push(json!({"t": "spawn", "id": n.id, "kind": "npc", "name": n.name}));
+                }
+                if new || full || self.npc_changed.contains(&n.id) {
+                    snap.push(SnapEntry { id: n.id, x: n.pos[0], y: n.pos[1], z: n.pos[2], yaw: n.yaw, pitch: 0, anim: 0 });
+                }
+            }
             for gone in p.known.difference(&seen) {
                 texts.push(json!({"t": "despawn", "id": gone}));
             }
@@ -287,6 +350,14 @@ impl World {
             }
             if !snap.is_empty() {
                 let _ = p.out.send(Out::Bin(proto::snap(self.tick, &snap)));
+            }
+        }
+        self.npc_changed.clear();
+        // a villager that turned to someone looks back where it looked after a while
+        if self.tick % (HZ * 12) == 0 {
+            for n in self.places.npcs.iter_mut().filter(|n| n.yaw != n.home_yaw) {
+                n.yaw = n.home_yaw;
+                self.npc_changed.insert(n.id);
             }
         }
         for p in self.players.values_mut() {

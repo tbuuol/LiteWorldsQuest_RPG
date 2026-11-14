@@ -13,6 +13,7 @@
 //!   LWQ_DEV      1: no arcade, players name themselves (?as=name); only for a local test, never in service
 
 mod ground;
+mod places;
 mod proto;
 mod store;
 mod world;
@@ -151,7 +152,9 @@ async fn main() {
         }
     };
     let (tx, rx) = mpsc::unbounded_channel();
-    let world = world::World::new(ground, store, [0.0, 0.0]);
+    let places = places::Places::load(&content, &ground);
+    let mut world = world::World::new(ground, places, store, [0.0, 0.0]);
+    world.dev = cfg.dev;
     let sim = tokio::spawn(world.run(rx));
     let listener = match TcpListener::bind(&bind).await {
         Ok(l) => l,

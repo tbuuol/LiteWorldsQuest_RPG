@@ -45,6 +45,7 @@ export function connect(url, on) {
       v.setUint8(19, flags);
       ws.send(b);
     },
+    talk(id) { if (ws.readyState === 1) ws.send(JSON.stringify({ t: 'talk', id })); },
     say(text) { if (ws.readyState === 1) ws.send(JSON.stringify({ t: 'say', text })); },
     // only a house in dev mode answers this (local tests, screenshots)
     tp(x, z) { if (ws.readyState === 1) ws.send(JSON.stringify({ t: 'tp', x, z })); },

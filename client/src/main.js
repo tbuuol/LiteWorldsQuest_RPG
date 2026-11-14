@@ -8,6 +8,7 @@ import { loadGround } from './ground.js';
 import { loadFlora } from './flora.js';
 import { createGrass } from './grass.js';
 import { loadClutter } from './clutter.js';
+import { loadPlaces, collide } from './places.js';
 import { createSky } from './sky.js';
 import { createPlayer } from './player.js';
 import { createRemotes } from './remotes.js';
@@ -37,6 +38,7 @@ async function start() {
   const grass = createGrass(ground, scene);
   const clutter = await loadClutter(CONTENT, ground, scene, say);
   const water = createWater(ground, sky, scene);
+  const places = await loadPlaces(CONTENT, ground, scene, say);
   const remotes = createRemotes(scene, camera, $('#hud'));
 
   const quality = createQuality((L) => {
@@ -63,10 +65,10 @@ async function start() {
   const url = Q.has('as') ? `${wsUrl}?as=${encodeURIComponent(Q.get('as'))}` : wsUrl;
   let me = null, player = null, closed = null;
   const chatlog = $('#chatlog');
-  const line = (who, text) => {
+  const line = (who, text, npc) => {
     const d = document.createElement('div');
     d.innerHTML = who ? `<b></b> ` : '';
-    if (who) d.querySelector('b').textContent = '@' + who;
+    if (who) d.querySelector('b').textContent = npc ? who + ':' : '@' + who;
     d.appendChild(document.createTextNode(text));
     chatlog.appendChild(d);
     while (chatlog.children.length > 12) chatlog.firstChild.remove();
@@ -76,19 +78,21 @@ async function start() {
       me = m;
       player.place(m.pos[0], m.pos[1], m.pos[2], m.yaw);
       $('#who').textContent = m.tag ? '@' + m.tag : 'guest';
-      line(null, 'Welcome to LiteWorldsQuest. WASD to walk, Shift to run, Space to jump, Enter to talk.');
+      line(null, 'Welcome to LiteWorldsQuest. WASD to walk, Shift to run, Space to jump, Enter to chat, E to speak to villagers.');
     },
     spawn(m) { remotes.spawn(m); },
     despawn(m) { remotes.despawn(m); },
     snap(tick, list) { remotes.snap(list); },
     fix(seq, x, y, z) { player.fix(x, y, z); },
-    say(m) { line(m.from, m.text); },
+    say(m) { line(m.from, m.text, !!m.npc); },
     close(why) { closed = why; },
   });
   player = createPlayer(camera, renderer.domElement, ground, net);
+  player.setSolids(places.solids, collide);
 
   // chat
-  const chat = $('#chat');
+  const chat = $('#chat'), hint = $('#hint');
+  let near = null;   // the villager one could talk to now
   addEventListener('keydown', e => {
     if (e.code === 'Enter') {
       if (chat.style.display === 'block') {
@@ -98,6 +102,8 @@ async function start() {
         chat.style.display = 'block'; player.setTyping(true); document.exitPointerLock && document.exitPointerLock(); chat.focus();
       }
       e.preventDefault();
+    } else if (e.code === 'KeyE' && chat.style.display !== 'block' && near) {
+      net.talk(near.id);
     } else if (e.code === 'Escape' && chat.style.display === 'block') {
       chat.value = ''; chat.style.display = 'none'; player.setTyping(false);
     }
@@ -135,8 +141,14 @@ async function start() {
     flora.update(player.pos.x, player.pos.z, dt);
     grass.update(player.pos.x, player.pos.z, now / 1000);
     clutter.update(player.pos.x, player.pos.z, dt);
+    places.update(now / 1000);
     sky.follow(player.pos);
     remotes.update(now);
+    const n = remotes.nearestNpc(player.pos.x, player.pos.z, 3.5);
+    if ((n && n.id) !== (near && near.id)) {
+      near = n; hint.style.display = n ? 'block' : 'none';
+      if (n) { hint.innerHTML = '<b>E</b>'; hint.append(`Talk to ${n.name}`); }
+    }
     sky.tick(now / 1000);
     grade.setSun(sky.sunDir, rays);
     water.update(now / 1000, sky.sunDir);

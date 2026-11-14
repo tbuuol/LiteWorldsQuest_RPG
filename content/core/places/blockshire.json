@@ -1,0 +1,973 @@
+{
+ "id": "blockshire",
+ "title": "Blockshire",
+ "note": "from the old world.json places[0]; positions in metres around origin",
+ "origin": [
+  0,
+  0
+ ],
+ "level": 14.0,
+ "fence": {
+  "rect": [
+   -20,
+   -20,
+   20,
+   20
+  ],
+  "gate": [
+   -2.5,
+   2.5
+  ],
+  "sign": "Blockshire",
+  "gateId": "gate",
+  "gateLabel": "Gate",
+  "gateOpen": true
+ },
+ "huts": [
+  {
+   "id": "elder",
+   "pos": [
+    0,
+    -13
+   ],
+   "size": [
+    6,
+    5
+   ],
+   "rot": 180,
+   "chimney": true,
+   "lit": true,
+   "trim": "#7a3b2e",
+   "inside": [
+    "bed",
+    "table",
+    "shelf",
+    "rug"
+   ],
+   "rug": "#7d2f3c",
+   "blanket": "#5a3f7a",
+   "door": {
+    "id": "door_elder",
+    "label": "Elder's door",
+    "opens": "hand"
+   }
+  },
+  {
+   "id": "kitchen",
+   "pos": [
+    -13,
+    -2
+   ],
+   "size": [
+    5,
+    4.5
+   ],
+   "rot": 270,
+   "chimney": true,
+   "lit": true,
+   "trim": "#4f7a3a",
+   "inside": [
+    "table",
+    "barrel",
+    "shelf",
+    "rug"
+   ],
+   "rug": "#a0662e",
+   "door": {
+    "id": "door_kitchen",
+    "label": "Kitchen door",
+    "opens": "hand"
+   }
+  },
+  {
+   "id": "woodcutter",
+   "pos": [
+    13,
+    -3
+   ],
+   "size": [
+    4.5,
+    4
+   ],
+   "rot": 90,
+   "trim": "#3f5f8f",
+   "inside": [
+    "bed",
+    "barrel"
+   ],
+   "blanket": "#7a5a2e",
+   "door": {
+    "id": "door_wood",
+    "label": "Woodcutter's door",
+    "opens": "hand"
+   }
+  },
+  {
+   "id": "store",
+   "pos": [
+    12,
+    10
+   ],
+   "size": [
+    4,
+    4
+   ],
+   "rot": 90,
+   "trim": "#6b6b6b",
+   "lantern": false,
+   "inside": [
+    "barrel",
+    "shelf"
+   ],
+   "doorColor": "#8a6a4a",
+   "door": {
+    "id": "door_store",
+    "label": "Storehouse door",
+    "opens": "hand"
+   }
+  },
+  {
+   "id": "guest",
+   "pos": [
+    -12,
+    11
+   ],
+   "size": [
+    4,
+    4
+   ],
+   "rot": 270,
+   "trim": "#8e3b2e",
+   "inside": [
+    "bed",
+    "rug"
+   ],
+   "rug": "#2e5a8e",
+   "blanket": "#8e3b2e",
+   "door": {
+    "id": "door_guest",
+    "label": "Guest hut door",
+    "opens": "hand"
+   }
+  }
+ ],
+ "fire": {
+  "pos": [
+   0,
+   0
+  ]
+ },
+ "well": {
+  "id": "well",
+  "pos": [
+   5.6,
+   4.6
+  ],
+  "label": "Wishing well",
+  "action": "make a wish",
+  "offer": {
+   "amount": "1",
+   "note": "A wish at the Blockshire well (paid to yourself)"
+  }
+ },
+ "forge": {
+  "pos": [
+   15.2,
+   3.6
+  ],
+  "rot": 270,
+  "label": "Forge"
+ },
+ "props": [
+  {
+   "kind": "bench",
+   "pos": [
+    0,
+    -3.1
+   ],
+   "rot": 0
+  },
+  {
+   "kind": "bench",
+   "pos": [
+    3.1,
+    0
+   ],
+   "rot": 90
+  },
+  {
+   "kind": "bench",
+   "pos": [
+    -3.1,
+    0
+   ],
+   "rot": 90
+  },
+  {
+   "kind": "bench",
+   "pos": [
+    2.3,
+    2.4
+   ],
+   "rot": -45
+  },
+  {
+   "kind": "bench",
+   "pos": [
+    -2.3,
+    2.4
+   ],
+   "rot": 45
+  },
+  {
+   "kind": "logpile",
+   "pos": [
+    16.5,
+    -8.5
+   ],
+   "rot": 0
+  },
+  {
+   "kind": "stump",
+   "pos": [
+    10.2,
+    -7.2
+   ],
+   "axe": true
+  },
+  {
+   "kind": "stump",
+   "pos": [
+    11.6,
+    -8.6
+   ]
+  },
+  {
+   "kind": "crate",
+   "pos": [
+    8.8,
+    13.6
+   ],
+   "rot": 10
+  },
+  {
+   "kind": "crate",
+   "pos": [
+    9.9,
+    14.4
+   ],
+   "rot": -8
+  },
+  {
+   "kind": "barrel",
+   "pos": [
+    15.2,
+    13.8
+   ]
+  },
+  {
+   "kind": "barrel",
+   "pos": [
+    15.9,
+    13.0
+   ]
+  },
+  {
+   "kind": "haystack",
+   "pos": [
+    -16.2,
+    16.2
+   ]
+  },
+  {
+   "kind": "haystack",
+   "pos": [
+    -17.6,
+    13.4
+   ]
+  },
+  {
+   "kind": "cart",
+   "pos": [
+    -6,
+    15
+   ],
+   "rot": 20
+  },
+  {
+   "kind": "barrel",
+   "pos": [
+    -9.6,
+    -5.6
+   ]
+  },
+  {
+   "kind": "crate",
+   "pos": [
+    -9.4,
+    1.8
+   ],
+   "rot": 25
+  },
+  {
+   "kind": "lamppost",
+   "pos": [
+    2.2,
+    12
+   ]
+  },
+  {
+   "kind": "lamppost",
+   "pos": [
+    -2.2,
+    17.5
+   ]
+  },
+  {
+   "kind": "lamppost",
+   "pos": [
+    6.5,
+    -6.5
+   ]
+  },
+  {
+   "kind": "lamppost",
+   "pos": [
+    -6.5,
+    -6.5
+   ]
+  }
+ ],
+ "npcs": [
+  {
+   "id": "bram",
+   "name": "Elder Bram",
+   "pos": [
+    1.6,
+    -4.4
+   ],
+   "lookAt": [
+    0,
+    0
+   ],
+   "talkTurn": true,
+   "look": {
+    "person": "i",
+    "skin": "#d9a882",
+    "shirt": "#5a3f7a",
+    "pants": "#3b2f25",
+    "hair": "#d8d8d8",
+    "beard": "#e6e6e6",
+    "hood": "#4a3466",
+    "robe": "#5a3f7a"
+   },
+   "lines": [
+    "Welcome to Blockshire, traveller. Warm yourself by the fire.",
+    "We are few, but the world beyond the fence is wide. One day you will see it.",
+    "Raiders come out of the forest every day now. Hilda and Gareth hold the gate, and Brother Anselm keeps them standing.",
+    "They say a wish at the well is heard, if you give something for it."
+   ]
+  },
+  {
+   "id": "mara",
+   "name": "Mara the Cook",
+   "pos": [
+    -9.4,
+    -0.6
+   ],
+   "lookAt": [
+    0,
+    0
+   ],
+   "look": {
+    "person": "n",
+    "skin": "#c98b62",
+    "shirt": "#9a3b2e",
+    "pants": "#4a3b2a",
+    "hair": "#2a1a10",
+    "apron": "#efe6d2",
+    "build": "slim",
+    "hairStyle": "bun"
+   },
+   "lines": [
+    "Stew is on in an hour. Bring me nothing but an appetite.",
+    "If you go out to the gate, take something sharp. And stay near the priest.",
+    "One sits on old Gorm's cart. You'll have to jump for it."
+   ]
+  },
+  {
+   "id": "tobin",
+   "name": "Tobin the Woodcutter",
+   "pos": [
+    10.6,
+    -6.2
+   ],
+   "lookAt": [
+    10.2,
+    -7.2
+   ],
+   "look": {
+    "person": "a",
+    "skin": "#e0b18c",
+    "shirt": "#2f6b3a",
+    "pants": "#3a2c20",
+    "hair": "#8a4a1e",
+    "beard": "#8a4a1e",
+    "hat": "#5a4030",
+    "gloves": "#6b4a2e"
+   },
+   "lines": [
+    "Mind the axe. It bites wood and fingers alike.",
+    "These logs won't split themselves. Well, not yet. Ask me again next season.",
+    "Behind the Elder's hut, by the fence, something glitters. Not my business."
+   ]
+  },
+  {
+   "id": "pip",
+   "name": "Pip",
+   "pos": [
+    5,
+    -5
+   ],
+   "walk": [
+    [
+     5,
+     -5
+    ],
+    [
+     5.5,
+     2.5
+    ],
+    [
+     -5,
+     5
+    ],
+    [
+     -5.2,
+     -4.5
+    ]
+   ],
+   "speed": 1.6,
+   "look": {
+    "person": "e",
+    "skin": "#f0c8a0",
+    "shirt": "#d8a630",
+    "pants": "#4a6a8a",
+    "hair": "#a0522d",
+    "scale": 0.68
+   },
+   "lines": [
+    "Tag! You're it! ...You're not very fast, are you?",
+    "Did you see the well glow? Mum says it grants wishes.",
+    "I'm the fastest in Blockshire. Also the only kid."
+   ]
+  },
+  {
+   "id": "odo",
+   "name": "Odo the Smith",
+   "pos": [
+    17.6,
+    5.4
+   ],
+   "lookAt": [
+    15.2,
+    3.6
+   ],
+   "talkTurn": true,
+   "look": {
+    "person": "a",
+    "skin": "#c98b62",
+    "shirt": "#4a3a2a",
+    "pants": "#2a2620",
+    "hair": "#2a1a10",
+    "beard": "#3a2a1a",
+    "gloves": "#3a2a1a"
+   },
+   "lines": [
+    "Steel wants a steady hand and a good plan. The plans I have; the hands are yours.",
+    "A blueprint gets better the more you work from it. Mine are worn smooth."
+   ]
+  }
+ ],
+ "paths": {
+  "circles": [
+   [
+    0,
+    0,
+    7.5
+   ]
+  ],
+  "strips": [
+   [
+    0,
+    7,
+    0,
+    20.5,
+    3
+   ],
+   [
+    0,
+    -7,
+    0,
+    -10.6,
+    2
+   ],
+   [
+    -7,
+    -1.5,
+    -10.8,
+    -2,
+    2
+   ],
+   [
+    7,
+    -2,
+    11,
+    -3,
+    2
+   ],
+   [
+    5,
+    5,
+    10,
+    10,
+    1.8
+   ],
+   [
+    -5,
+    5,
+    -10,
+    11,
+    1.8
+   ],
+   [
+    0,
+    20.5,
+    0,
+    34,
+    3
+   ],
+   [
+    7,
+    2,
+    13.2,
+    3.6,
+    2
+   ]
+  ]
+ },
+ "guards": [
+  {
+   "id": "g1",
+   "name": "Hilda the Guard",
+   "pos": [
+    -2.4,
+    25
+   ],
+   "face": [
+    -2.4,
+    40
+   ],
+   "look": {
+    "person": "m",
+    "skin": "#e8c09c",
+    "shirt": "#6b6f78",
+    "pants": "#3a3a40",
+    "hair": "#c9a04a",
+    "build": "slim",
+    "hairStyle": "long",
+    "helm": "#9aa1ab",
+    "armor": "#9aa1ab",
+    "gloves": "#5a4a3a"
+   }
+  },
+  {
+   "id": "g2",
+   "name": "Gareth the Guard",
+   "pos": [
+    2.4,
+    25
+   ],
+   "face": [
+    2.4,
+    40
+   ],
+   "look": {
+    "person": "f",
+    "skin": "#d9a882",
+    "shirt": "#5d6470",
+    "pants": "#33333a",
+    "hair": "#3a2a1a",
+    "helm": "#9aa1ab",
+    "armor": "#9aa1ab",
+    "gloves": "#5a4a3a"
+   }
+  }
+ ],
+ "priest": {
+  "id": "pr",
+  "name": "Brother Anselm",
+  "pos": [
+   0,
+   22.2
+  ],
+  "face": [
+   0,
+   40
+  ],
+  "look": {
+   "person": "c",
+   "skin": "#e8c09c",
+   "shirt": "#e9e2cf",
+   "pants": "#c9bfa5",
+   "hair": "#8a6a4a",
+   "hood": "#d8cfb6",
+   "robe": "#e9e2cf"
+  },
+  "ae": {
+   "radius": 10,
+   "min": 11,
+   "every": 10,
+   "heal": 40,
+   "dmg": 35
+  }
+ },
+ "solids": [
+  [
+   0.0,
+   -15.34,
+   3.0,
+   0.16,
+   180,
+   2.7
+  ],
+  [
+   2.84,
+   -13.0,
+   0.16,
+   2.5,
+   180,
+   2.7
+  ],
+  [
+   -2.84,
+   -13.0,
+   0.16,
+   2.5,
+   180,
+   2.7
+  ],
+  [
+   1.825,
+   -10.66,
+   1.175,
+   0.16,
+   180,
+   2.7
+  ],
+  [
+   -1.825,
+   -10.66,
+   1.175,
+   0.16,
+   180,
+   2.7
+  ],
+  [
+   -15.09,
+   -2.0,
+   2.5,
+   0.16,
+   270,
+   2.7
+  ],
+  [
+   -13.0,
+   -4.34,
+   0.16,
+   2.25,
+   270,
+   2.7
+  ],
+  [
+   -13.0,
+   0.34,
+   0.16,
+   2.25,
+   270,
+   2.7
+  ],
+  [
+   -10.91,
+   -3.575,
+   0.925,
+   0.16,
+   270,
+   2.7
+  ],
+  [
+   -10.91,
+   -0.425,
+   0.925,
+   0.16,
+   270,
+   2.7
+  ],
+  [
+   14.84,
+   -3.0,
+   2.25,
+   0.16,
+   90,
+   2.7
+  ],
+  [
+   13.0,
+   -0.91,
+   0.16,
+   2.0,
+   90,
+   2.7
+  ],
+  [
+   13.0,
+   -5.09,
+   0.16,
+   2.0,
+   90,
+   2.7
+  ],
+  [
+   11.16,
+   -1.55,
+   0.8,
+   0.16,
+   90,
+   2.7
+  ],
+  [
+   11.16,
+   -4.45,
+   0.8,
+   0.16,
+   90,
+   2.7
+  ],
+  [
+   13.84,
+   10.0,
+   2.0,
+   0.16,
+   90,
+   2.7
+  ],
+  [
+   12.0,
+   11.84,
+   0.16,
+   2.0,
+   90,
+   2.7
+  ],
+  [
+   12.0,
+   8.16,
+   0.16,
+   2.0,
+   90,
+   2.7
+  ],
+  [
+   10.16,
+   11.325,
+   0.675,
+   0.16,
+   90,
+   2.7
+  ],
+  [
+   10.16,
+   8.675,
+   0.675,
+   0.16,
+   90,
+   2.7
+  ],
+  [
+   -13.84,
+   11.0,
+   2.0,
+   0.16,
+   270,
+   2.7
+  ],
+  [
+   -12.0,
+   9.16,
+   0.16,
+   2.0,
+   270,
+   2.7
+  ],
+  [
+   -12.0,
+   12.84,
+   0.16,
+   2.0,
+   270,
+   2.7
+  ],
+  [
+   -10.16,
+   9.675,
+   0.675,
+   0.16,
+   270,
+   2.7
+  ],
+  [
+   -10.16,
+   12.325,
+   0.675,
+   0.16,
+   270,
+   2.7
+  ],
+  [
+   0.0,
+   -20,
+   20.0,
+   0.25,
+   0,
+   3.2
+  ],
+  [
+   -20,
+   0.0,
+   0.25,
+   20.0,
+   0,
+   3.2
+  ],
+  [
+   20,
+   0.0,
+   0.25,
+   20.0,
+   0,
+   3.2
+  ],
+  [
+   -11.25,
+   20,
+   8.75,
+   0.25,
+   0,
+   3.2
+  ],
+  [
+   11.25,
+   20,
+   8.75,
+   0.25,
+   0,
+   3.2
+  ],
+  [
+   5.6,
+   4.6,
+   0.95,
+   0.95,
+   0,
+   1.0
+  ],
+  [
+   15.2,
+   3.6,
+   1.2,
+   0.8,
+   270,
+   1.0
+  ],
+  [
+   16.5,
+   -8.5,
+   1.4,
+   0.6,
+   0,
+   1.2
+  ],
+  [
+   8.8,
+   13.6,
+   0.45,
+   0.45,
+   10,
+   1.2
+  ],
+  [
+   9.9,
+   14.4,
+   0.45,
+   0.45,
+   352,
+   1.2
+  ],
+  [
+   15.2,
+   13.8,
+   0.35,
+   0.35,
+   0,
+   1.2
+  ],
+  [
+   15.9,
+   13.0,
+   0.35,
+   0.35,
+   0,
+   1.2
+  ],
+  [
+   -16.2,
+   16.2,
+   1.0,
+   1.0,
+   0,
+   1.2
+  ],
+  [
+   -17.6,
+   13.4,
+   1.0,
+   1.0,
+   0,
+   1.2
+  ],
+  [
+   -6.0,
+   15.0,
+   1.0,
+   0.7,
+   20,
+   1.2
+  ],
+  [
+   -9.6,
+   -5.6,
+   0.35,
+   0.35,
+   0,
+   1.2
+  ],
+  [
+   -9.4,
+   1.8,
+   0.45,
+   0.45,
+   25,
+   1.2
+  ]
+ ]
+}
