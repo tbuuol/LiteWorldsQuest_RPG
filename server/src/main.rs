@@ -31,6 +31,15 @@ use tokio_tungstenite::tungstenite::protocol::{CloseFrame, WebSocketConfig};
 use tokio_tungstenite::tungstenite::Message;
 use world::{Event, Ident, Out};
 
+/// Open connections at most (everything comes through Caddy, so one global cap instead of one per address).
+const MAX_CONNS: usize = 200;
+/// Time a client gets to finish the WebSocket handshake.
+const HANDSHAKE_TIME: std::time::Duration = std::time::Duration::from_secs(10);
+/// Messages that may wait for one player before the house hangs up on them.
+const OUT_MAX: usize = 512;
+/// Longest a single write to one player may take.
+const WRITE_TIME: std::time::Duration = std::time::Duration::from_secs(10);
+
 fn env(k: &str, d: &str) -> String {
     std::env::var(k).unwrap_or_else(|_| d.to_string())
 }
@@ -63,7 +72,7 @@ async fn connection(stream: TcpStream, conn: u64, cfg: Arc<Cfg>, events: mpsc::U
     let mut query = String::new();
     let mut origin_ok = false;
     let ws_cfg = WebSocketConfig { max_message_size: Some(64 * 1024), max_frame_size: Some(64 * 1024), ..Default::default() };
-    let accept = tokio_tungstenite::accept_hdr_async_with_config(
+    let accept = tokio::time::timeout(HANDSHAKE_TIME, tokio_tungstenite::accept_hdr_async_with_config(
         stream,
         |req: &Request, resp: Response| -> Result<Response, ErrorResponse> {
             cookie = req.headers().get("cookie").and_then(|v| v.to_str().ok()).unwrap_or("").to_string();
@@ -73,9 +82,9 @@ async fn connection(stream: TcpStream, conn: u64, cfg: Arc<Cfg>, events: mpsc::U
             Ok(resp)
         },
         Some(ws_cfg),
-    )
+    ))
     .await;
-    let Ok(mut ws) = accept else { return };
+    let Ok(Ok(mut ws)) = accept else { return };
     let close = |why: &str| Message::Close(Some(CloseFrame { code: CloseCode::Policy, reason: why.to_string().into() }));
     if !origin_ok {
         let _ = ws.send(close("not from the arcade")).await;
@@ -97,31 +106,44 @@ async fn connection(stream: TcpStream, conn: u64, cfg: Arc<Cfg>, events: mpsc::U
         return;
     }
     let (mut sink, mut source) = ws.split();
-    let writer = tokio::spawn(async move {
+    // A player who does not read (slow or stalled link) must not make the house hoard their messages:
+    // more than OUT_MAX waiting, or one write stuck for WRITE_TIME, ends the connection.
+    let mut writer = tokio::spawn(async move {
         while let Some(o) = out_rx.recv().await {
-            let r = match o {
-                Out::Bin(b) => sink.send(Message::Binary(b)).await,
-                Out::Text(t) => sink.send(Message::Text(t)).await,
+            if out_rx.len() > OUT_MAX {
+                let _ = sink.send(Message::Close(Some(CloseFrame { code: CloseCode::Policy, reason: "too slow".into() }))).await;
+                break;
+            }
+            let msg = match o {
+                Out::Bin(b) => Message::Binary(b),
+                Out::Text(t) => Message::Text(t),
                 Out::Close(why) => {
                     let _ = sink.send(Message::Close(Some(CloseFrame { code: CloseCode::Policy, reason: why.into() }))).await;
                     break;
                 }
             };
-            if r.is_err() {
-                break;
+            match tokio::time::timeout(WRITE_TIME, sink.send(msg)).await {
+                Ok(Ok(())) => {}
+                _ => break,
             }
         }
     });
-    while let Some(Ok(msg)) = source.next().await {
-        let ev = match msg {
-            Message::Binary(data) => Event::Bin { conn, data },
-            Message::Text(data) => Event::Text { conn, data },
-            Message::Close(_) => break,
-            _ => continue,
-        };
-        if events.send(ev).is_err() {
-            break;
+    let reader = async {
+        while let Some(Ok(msg)) = source.next().await {
+            let ev = match msg {
+                Message::Binary(data) => Event::Bin { conn, data },
+                Message::Text(data) => Event::Text { conn, data },
+                Message::Close(_) => break,
+                _ => continue,
+            };
+            if events.send(ev).is_err() {
+                break;
+            }
         }
+    };
+    tokio::select! {
+        _ = reader => {}
+        _ = &mut writer => {}
     }
     let _ = events.send(Event::Leave { conn });
     writer.abort();
@@ -165,14 +187,20 @@ async fn main() {
     };
     eprintln!("lwq-house: listening on {bind}{}", if cfg.dev { " (DEV: no sign-in)" } else { "" });
     let next = AtomicU64::new(1);
+    let slots = Arc::new(tokio::sync::Semaphore::new(MAX_CONNS));
     let mut term = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()).expect("SIGTERM");
     loop {
         tokio::select! {
             r = listener.accept() => {
                 let Ok((stream, _)) = r else { continue };
+                let Ok(permit) = slots.clone().try_acquire_owned() else { continue }; // full: drop the socket
                 stream.set_nodelay(true).ok();
                 let conn = next.fetch_add(1, Ordering::Relaxed);
-                tokio::spawn(connection(stream, conn, cfg.clone(), tx.clone()));
+                let (cfg, tx) = (cfg.clone(), tx.clone());
+                tokio::spawn(async move {
+                    connection(stream, conn, cfg, tx).await;
+                    drop(permit);
+                });
             }
             _ = tokio::signal::ctrl_c() => break,
             _ = term.recv() => break,
