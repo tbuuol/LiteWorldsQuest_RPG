@@ -86,11 +86,28 @@ export async function loadClutter(contentBase, ground, scene, say = () => {}) {
         diffuseColor.rgb = mix(diffuseColor.rgb * vec3(0.9, 0.92, 0.95), texture2D(tMoss, vMapUv * 1.7).rgb * vec3(0.8, 0.9, 0.7), moss * 0.85);`);
   };
   const variants = { stone: [], boulder: [], fern: [], bush: [], log: [], cliff: [] };
-  for (const s of [3, 7, 11]) {
+  // real rocks (Poly Haven CC0, simplified by tools/bake/rocks.py); the shaped ones stay as a fallback
+  const rocks = {};
+  const loader = new GLTFLoader();
+  // (rock_face_01/02 are open surface scans: hollow from behind, not for free-standing rocks)
+  await Promise.all(['rock_07', 'rock_09'].map(async n => {
+    try {
+      const gl = await loader.loadAsync(`${contentBase}/core/assets/rocks/${n}/${n}.gltf`);
+      let mesh = null; gl.scene.traverse(o => { if (o.isMesh && !mesh) mesh = o; });
+      mesh.geometry.computeBoundingBox();
+      const bb = mesh.geometry.boundingBox, size = bb.getSize(new THREE.Vector3());
+      mesh.material.roughness = 1; mesh.material.color.setScalar(1.35);   // the scans are dark; lifted to sit with the ground's rock
+      rocks[n] = { geo: mesh.geometry, mat: mesh.material, maxDim: Math.max(size.x, size.y, size.z), height: size.y };
+    } catch (e) { console.warn('rock', n, e); }
+  }));
+  const real = (n, by) => rocks[n] && { parts: [[rocks[n].geo, rocks[n].mat]], unit: 1 / (by === 'height' ? rocks[n].height : rocks[n].maxDim) };
+  for (const [kind, list, by, tilt] of [['stone', ['rock_07', 'rock_09'], 'max']]) {
+    for (const n of list) { const v = real(n, by); if (v) { if (tilt) v.tilt = tilt; variants[kind].push(v); } }
+  }
+  for (const s of [3, 7, 11]) {   // boulders and rock faces: shaped here (and stones, if the models are missing)
     const g = rockGeometry(s);
-    variants.stone.push({ parts: [[g, rockMat]], unit: 1 });
+    if (!variants.stone.length) variants.stone.push({ parts: [[g, rockMat]], unit: 1 });
     variants.boulder.push({ parts: [[g, rockMat]], unit: 1 });
-    // a rock face: a tall slab, coarse mesh (the normal map carries the detail), set into the slope
     variants.cliff.push({ parts: [[rockGeometry(s + 20, 3, [1.35, 1.45, 0.5]), rockMat]], unit: 1, tilt: 0.42 });
   }
   // fern (Poly Haven fern_02, CC0)
