@@ -84,7 +84,7 @@ export function createPlayer(camera, dom, ground, net) {
   return {
     pos,
     get yaw() { return yaw; },
-    place(x, y, z, yw) { pos.x = x; pos.y = y; pos.z = z; if (yw !== undefined) yaw = yw; vy = 0; },
+    place(x, y, z, yw, pt) { pos.x = x; pos.y = y; pos.z = z; if (yw !== undefined) yaw = yw; if (pt !== undefined) pitch = pt; vy = 0; },
     fix(x, y, z) { pos.x = x; pos.y = y; pos.z = z; vy = 0; },
     setTyping(t) { typing = t; if (t) for (const k in keys) keys[k] = false; },
     update,

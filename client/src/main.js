@@ -29,6 +29,7 @@ async function start() {
 
   const sky = createSky(scene, renderer);
   const grade = createGrade(renderer, scene, camera);
+  let rays = 0;
   const ground = await loadGround(CONTENT, say);
   scene.add(ground.group);
   say('Growing the forest…');
@@ -42,6 +43,7 @@ async function start() {
     renderer.setPixelRatio(Math.min(devicePixelRatio, L.dprMax || 1) * L.scale);
     renderer.setSize(innerWidth, innerHeight);
     grade.setPixelRatio(renderer.getPixelRatio()); grade.setSize(innerWidth, innerHeight); grade.setOn(L.grade !== false);
+    rays = L.rays || 0;
     sky.setShadows(L.shadows, renderer);
     sky.setFog(L.fog);
     ground.setViewDist(L.view);
@@ -136,6 +138,7 @@ async function start() {
     sky.follow(player.pos);
     remotes.update(now);
     sky.tick(now / 1000);
+    grade.setSun(sky.sunDir, rays);
     water.update(now / 1000, sky.sunDir);
     grade.render();
     quality.frame(now, pending > 6);
@@ -147,7 +150,7 @@ async function start() {
     }
   });
   window.LWQ = { scene, camera, renderer, ground, flora, quality, player, remotes,
-    tp(x, z, yaw) { net.tp(x, z); player.place(x, ground.height(x, z), z, yaw); } };
+    tp(x, z, yaw, pitch) { net.tp(x, z); player.place(x, ground.height(x, z), z, yaw, pitch); } };
 }
 
 start().catch(e => { console.error(e); say('Could not start: ' + (e && e.message || e)); });

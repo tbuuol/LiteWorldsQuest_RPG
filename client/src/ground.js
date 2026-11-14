@@ -240,7 +240,7 @@ export async function loadGround(contentBase, say) {
   const heightTex = new THREE.DataTexture(H, nx, nz, THREE.RedFormat, THREE.FloatType);
   heightTex.needsUpdate = true;
   return {
-    group, height, inside, meta, update, heightTex, weights: uniforms.tW0.value,
+    group, height, inside, meta, update, heightTex, weights: uniforms.tW0.value, weights2: uniforms.tW1.value,
     setViewDist(d) { viewDist = d; },
     setDetail(on) { const v = on ? 1 : 0; if (v !== detail) { detail = v; material.defines.DETAIL = v; material.needsUpdate = true; } },
     get tileCount() { return tiles.size; },

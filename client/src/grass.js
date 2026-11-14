@@ -44,19 +44,19 @@ export function createGrass(ground, scene) {
   geo.instanceCount = GRID * GRID;
 
   const uniforms = THREE.UniformsUtils.merge([THREE.UniformsLib.fog, {
-    uHeight: { value: ground.heightTex }, uWeights: { value: ground.weights },
+    uHeight: { value: ground.heightTex }, uWeights: { value: ground.weights }, uWeights2: { value: ground.weights2 },
     uExt: { value: new THREE.Vector4(x0, z0, x1 - x0, z1 - z0) }, uSize: { value: new THREE.Vector2(ground.meta.nx, ground.meta.nz) },
     uCenter: { value: new THREE.Vector2() }, uRadius: { value: 30 }, uTime: { value: 0 },
     uSunDir: { value: new THREE.Vector3(0.4, 0.8, 0.4).normalize() }, uSpacing: { value: SPACING },
   }]);
-  uniforms.uHeight.value = ground.heightTex; uniforms.uWeights.value = ground.weights;
+  uniforms.uHeight.value = ground.heightTex; uniforms.uWeights.value = ground.weights; uniforms.uWeights2.value = ground.weights2;
   const mat = new THREE.ShaderMaterial({
     uniforms, fog: true, side: THREE.DoubleSide,
     vertexShader: `
       #include <common>
       #include <fog_pars_vertex>
       attribute vec2 offset;
-      uniform sampler2D uHeight, uWeights; uniform vec4 uExt; uniform vec2 uSize, uCenter; uniform float uRadius, uTime, uSpacing;
+      uniform sampler2D uHeight, uWeights, uWeights2; uniform vec4 uExt; uniform vec2 uSize, uCenter; uniform float uRadius, uTime, uSpacing;
       varying float vT; varying float vShade; varying float vHue; varying float vDry; varying vec3 vFlower;
       float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
       float vn2(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
@@ -93,7 +93,8 @@ export function createGrass(ground, scene) {
         vDry = smoothstep(0.55, 0.8, vn2(xz * 0.045) * 0.75 + vn2(xz * 0.21) * 0.25);   // dry patches across the field
         float fl = hash(cell + 91.7);
         vFlower = fl > 0.972 ? (fl > 0.99 ? vec3(0.62, 0.42, 0.75) : fl > 0.981 ? vec3(0.92, 0.82, 0.25) : vec3(0.9, 0.9, 0.86)) : vec3(-1.0);
-        vShade = 0.75 + 0.25 * h2;
+        // the ground's hollows, and the shade of the wood (forest floor share) darken the blades too
+        vShade = (0.75 + 0.25 * h2) * texture2D(uWeights2, (xz - uExt.xy) / uExt.zw).a * (1.0 - 0.45 * w.g);
         vec4 mvPosition = viewMatrix * vec4(world, 1.0);
         gl_Position = projectionMatrix * mvPosition;
         #include <fog_vertex>
