@@ -21,14 +21,5 @@
   "mountain",
   "road"
  ],
- "tree_kinds": [
-  "dead",
-  "fey",
-  "oak",
-  "palm",
-  "pine",
-  "swamp"
- ],
- "trees": 13773,
- "baked_from": "src/modules/terrain.js v7 + src/levels/world.json land"
+ "baked_from": "src/modules/terrain.js v7 (ground only)"
 }

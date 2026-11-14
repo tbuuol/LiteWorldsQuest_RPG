@@ -2,8 +2,9 @@
      node --jitless tools/bake/bake_world.cjs [out-dir (content/core/world)]
    ground.bin  u16 LE per 2 m sample, centimetres above BASE, rows north to south (z), columns west to east (x)
    land.bin    2 bytes per sample: land kind (index into KINDS, the strongest), road 0..255
-   trees.bin   per tree: i16 x dm, i16 z dm, u8 scale*50, u8 kind (index into TREE_KINDS)
-   ground.json the grid's extent, step, base, the kinds and the sea level */
+   ground.json the grid's extent, step, base, the kinds and the sea level
+   The ground is only the ground. The trees the old code grew on it are world content of their own:
+   ../flora/trees.bin (per tree: i16 x dm, i16 z dm, u8 scale*50, u8 kind) and ../flora/flora.json. */
 const fs = require('fs'), path = require('path');
 const T = require('../../src/modules/terrain.js');
 const W = require('../../src/levels/world.json').data;
@@ -37,10 +38,15 @@ trees.forEach(([x, z, s, k], i) => {
 });
 fs.writeFileSync(path.join(OUT, 'ground.bin'), ground);
 fs.writeFileSync(path.join(OUT, 'land.bin'), land);
-fs.writeFileSync(path.join(OUT, 'trees.bin'), tb);
+const FLORA = path.join(OUT, '../flora');
+fs.mkdirSync(FLORA, { recursive: true });
+fs.writeFileSync(path.join(FLORA, 'trees.bin'), tb);
+fs.writeFileSync(path.join(FLORA, 'flora.json'), JSON.stringify({ trees: { file: 'trees.bin', count: trees.length, kinds: TREE_KINDS,
+  record: 'i16 x dm, i16 z dm, u8 scale*50, u8 kind (index into kinds)' },
+  note: 'plants and trees are world content placed on the ground, not part of it' }, null, 1));
 fs.writeFileSync(path.join(OUT, 'ground.json'), JSON.stringify({
   extent: [x0, z0, x1, z1], step: STEP, nx: NX, nz: NZ, base: BASE, sea: TR.SEA,
-  kinds: KINDS.concat(['road']), tree_kinds: TREE_KINDS, trees: trees.length,
-  baked_from: 'src/modules/terrain.js v7 + src/levels/world.json land'
+  kinds: KINDS.concat(['road']),
+  baked_from: 'src/modules/terrain.js v7 (ground only)'
 }, null, 1));
 process.stderr.write(`done: ${NX}x${NZ} samples, ${trees.length} trees, ${Math.round((Date.now() - t0) / 1000)} s\n`);

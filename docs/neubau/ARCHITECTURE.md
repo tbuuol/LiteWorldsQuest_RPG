@@ -62,8 +62,10 @@ The old `terrain.js` computed the ground in code. It is run once by `tools/bake/
 
 - height tiles, 64 m by 64 m on a 2 m grid (u16, centimetres above a base), for the whole 3072 m by 2048 m;
 - a land-kind map (green, valley, troll, fey, ruins, cemetery, swamp, mountain, road) for the client's texture
-  splatting and the house's rules;
-- the trees as a list.
+  splatting and the house's rules.
+
+The ground is only the ground. Trees, rocks and plants are world content placed on it (`content/core/flora/`),
+like buildings and creatures: a module can add, move or remove them without touching the terrain.
 
 The house walks on the tiles, the client draws them. Neither computes the ground.
 

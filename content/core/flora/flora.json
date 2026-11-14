@@ -1,0 +1,16 @@
+{
+ "trees": {
+  "file": "trees.bin",
+  "count": 13773,
+  "kinds": [
+   "dead",
+   "fey",
+   "oak",
+   "palm",
+   "pine",
+   "swamp"
+  ],
+  "record": "i16 x dm, i16 z dm, u8 scale*50, u8 kind (index into kinds)"
+ },
+ "note": "plants and trees are world content placed on the ground, not part of it"
+}
