@@ -22,6 +22,8 @@ function figure(hue) {
 
 export function createRemotes(scene, camera, hudEl, contentBase) {
   const all = new Map();   // id -> {obj, tag, samples, label, body}
+  const loading = new Set();   // figures still coming (the curtain waits for them)
+  let loaded = 0;
   const v = new THREE.Vector3(), p = new THREE.Vector3();
   return {
     spawn(m) {
@@ -35,7 +37,7 @@ export function createRemotes(scene, camera, hudEl, contentBase) {
       const r = { obj, tag: m.tag, name: m.name, npc, samples: [], label, body: null, talkUntil: 0 };
       all.set(m.id, r);
       const fig = m.figure || (npc ? null : playerFigure(m.id));
-      if (fig && contentBase) loadFigure(contentBase, fig).then(g => {
+      if (fig && contentBase) { const pr = loadFigure(contentBase, fig).then(g => {
         if (!g || all.get(m.id) !== r) return;
         // villagers' yaw faces them (atan2(dx, dz)); a player's yaw is where its camera looks (-Z): turned round
         r.body = createBody(g, { yawBase: npc ? 0 : Math.PI });
@@ -43,7 +45,7 @@ export function createRemotes(scene, camera, hudEl, contentBase) {
         scene.remove(r.obj);
         r.obj = r.body.obj;
         scene.add(r.obj);
-      });
+      }); loading.add(pr); pr.finally(() => { loading.delete(pr); loaded++; }); }
     },
     despawn(m) {
       const r = all.get(m.id); if (!r) return;
@@ -95,5 +97,8 @@ export function createRemotes(scene, camera, hudEl, contentBase) {
       return best;
     },
     get count() { return all.size; },
+    /** the figures asked for so far: {done, total}; ready() when none is still loading */
+    figures() { return { done: loaded, total: loaded + loading.size }; },
+    ready() { return Promise.all([...loading]); },
   };
 }

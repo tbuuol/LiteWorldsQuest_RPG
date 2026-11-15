@@ -13,13 +13,15 @@ import { createSky } from './sky.js';
 import { createPlayer } from './player.js';
 import { createRemotes } from './remotes.js';
 import { createSelf } from './self.js';
+import { createBoot } from './boot.js';
 import { createQuality } from './quality.js';
 import { createGrade } from './grade.js';
 import { createWater } from './water.js';
 
 const Q = new URLSearchParams(location.search);
 const $ = s => document.querySelector(s);
-const say = t => { $('#bootmsg').textContent = t; };
+const boot = createBoot($('#boot'));   // the curtain while the world is made (boot.js)
+const say = t => boot.say(t);
 const CONTENT = Q.get('content') || new URL('../content', location.href).href.replace(/\/$/, '');
 
 async function start() {
@@ -29,6 +31,7 @@ async function start() {
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.1, 3000);
 
+  say('Lighting the sky…');
   const sky = createSky(scene, renderer);
   const grade = createGrade(renderer, scene, camera);
   let rays = 0, shadowEvery = 1, frameNo = 0;
@@ -117,17 +120,29 @@ async function start() {
 
   // the first tiles before the curtain lifts
   say('Raising the land…');
+  let tilesMax = 1;
   await new Promise(r => {
     const wait = () => {
       if (closed) { say(`The house says: ${closed}`); return; }
       if (!me) return setTimeout(wait, 100);
       const left = ground.update(player.pos.x, player.pos.z, 40);
-      if (left > 0) return setTimeout(wait, 0);
+      tilesMax = Math.max(tilesMax, left);
+      if (left > 0) { boot.part(1 - left / tilesMax, `${tilesMax - left} / ${tilesMax} pieces of land`); return setTimeout(wait, 0); }
       r();
     };
     wait();
   });
-  // compile every shader now, behind the curtain, not in the first seconds of play
+  // the people near as they are, not their stand-ins: the house names them right after the welcome
+  say('Waking the villagers…');
+  await new Promise(r => setTimeout(r, 500));
+  for (const t0 = performance.now(); performance.now() - t0 < 25000;) {
+    const f = remotes.figures();
+    boot.part(f.total ? f.done / f.total : 1, f.total ? `${f.done} / ${f.total} figures` : '');
+    if (!f.total || f.done >= f.total) break;
+    await new Promise(r => setTimeout(r, 150));
+  }
+  await Promise.race([own.ready(), new Promise(r => setTimeout(r, 15000))]);
+  // compile every shader now (the figures' too), behind the curtain, not in the first seconds of play
   say('Preparing the light…');
   flora.update(player.pos.x, player.pos.z, 0);
   clutter.update(player.pos.x, player.pos.z, 0);
@@ -135,8 +150,16 @@ async function start() {
   player.update(0, performance.now());
   if (renderer.compileAsync) await renderer.compileAsync(scene, camera);
   for (let i = 0; i < 3; i++) { renderer.render(scene, camera); await new Promise(r => requestAnimationFrame(r)); }
-  $('#boot').style.display = 'none';
-  $('#beta').style.display = 'block';
+  // the first frames run behind the curtain (textures go up, the last shaders settle); it lifts once they run steadily
+  say('Settling in…');
+  let warm = 0, steady = 0;
+  const warmUntil = performance.now() + 6000;
+  const warmed = dt => {
+    if (warm < 0) return;
+    warm++; steady = dt < 0.05 ? steady + 1 : 0;
+    boot.part(Math.min(1, warm / 45));
+    if ((warm >= 45 && steady >= 15) || performance.now() > warmUntil) { warm = -1; boot.done(); $('#beta').style.display = 'block'; }
+  };
 
   let last = performance.now(), statAt = 0, floraAt = 0;
   // ?film=1: no clock of its own; LWQ.filmFrame(t, ...) moves the camera along a path, steps the world by exactly
@@ -144,7 +167,7 @@ async function start() {
   const FILM = Q.has('film');
   function frame(now, film) {
     const dt = Math.min(0.1, (now - last) / 1000); last = now;
-    if (closed) { $('#boot').style.display = 'flex'; say(`The house says: ${closed}`); renderer.setAnimationLoop(null); return; }
+    if (closed) { boot.back(`The house says: ${closed}`); renderer.setAnimationLoop(null); return; }
     if (film) {
       player.pos.x = film.x; player.pos.z = film.z; player.pos.y = ground.height(film.x, film.z);
       // everything around the camera fully there before the picture (no tiles popping in the film)
@@ -164,6 +187,7 @@ async function start() {
     }
     remotes.update(now, dt);
     own.update(player.pos, player.yaw, player.state, dt, !film);
+    warmed(dt);
     const n = remotes.nearestNpc(player.pos.x, player.pos.z, 3.5);
     if ((n && n.id) !== (near && near.id)) {
       near = n; hint.style.display = n ? 'block' : 'none';

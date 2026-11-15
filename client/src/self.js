@@ -7,14 +7,14 @@ import { loadFigure, createBody, playerFigure } from './figure.js';
 const BACK = 0.16;   // metres the body stands behind the eyes
 
 export function createSelf(scene, contentBase) {
-  let body = null, want = null, head = null;
+  let body = null, want = null, head = null, loading = Promise.resolve();
   return {
     /** the own id is known (welcome): put on the figure the others see */
     set(id) {
       const fig = playerFigure(id);
       if (fig === want || !contentBase) return;
       want = fig;
-      loadFigure(contentBase, fig).then(g => {
+      loading = loadFigure(contentBase, fig).then(g => {
         if (!g || want !== fig) return;
         if (body) scene.remove(body.obj);
         body = createBody(g, { yawBase: Math.PI });
@@ -24,6 +24,8 @@ export function createSelf(scene, contentBase) {
         scene.add(body.obj);
       });
     },
+    /** resolves when the own figure is in the scene */
+    ready() { return loading; },
     /** pos: the player's feet; yaw: where it looks; state: {mode, air} (player.js) */
     update(pos, yaw, state, dt, visible = true) {
       if (!body) return;
