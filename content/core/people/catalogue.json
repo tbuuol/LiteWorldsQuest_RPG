@@ -1,0 +1,61 @@
+{
+ "about": "What people may wear and look like (client/src/recipes.js; the house checks players' recipes against it). Every entry says for whom: npc, player or both. Players never get what is npc-only (aprons, priests' robes, guards' colours), so no player looks like a villager.",
+ "bases": ["m", "f"],
+ "shape": {
+  "npc": {"weight": [-1, 1], "muscle": [-1, 1], "age": [-1, 1], "height": [-1, 1]},
+  "player": {"weight": [-0.8, 0.8], "muscle": [-0.8, 1], "age": [-0.35, 0.9], "height": [-1, 1]},
+  "face": ["nose_wide", "nose_long", "nose_hump", "jaw_wide", "chin", "cheekbones", "mouth_wide", "face_round", "eyes_big"]
+ },
+ "origins": {
+  "caucasian": {"skins": ["caucasian"], "african": 0, "asian": 0},
+  "african": {"skins": ["african"], "african": 1, "asian": 0},
+  "asian": {"skins": ["asian"], "african": 0, "asian": 1}
+ },
+ "eyes": ["blue", "bluegreen", "brown", "brownlight", "deepblue", "green", "grey", "ice", "lightblue"],
+ "hair": {
+  "m": {"short01": "both", "short02": "both", "short03": "both", "short04": "both", "long01": "both", "afro01": "both", "ponytail01": "player", "bob02": "player"},
+  "f": {"bob01": "both", "bob02": "both", "long01": "both", "ponytail01": "both", "braid01": "both", "afro01": "both", "short02": "player", "short03": "player"},
+  "none": "npc"
+ },
+ "brows": ["eyebrow001", "eyebrow003", "eyebrow006", "eyebrow009", "eyebrow010", "eyebrow012"],
+ "hairColors": {
+  "both": ["#141210", "#2a1a10", "#4a3020", "#6a4a2a", "#8a4a1e", "#a0682e", "#c8a060"],
+  "npc": ["#d8d8d8", "#9a9a9a", "#6e6458"],
+  "player": ["#e0c890", "#7a2a18", "#3a2a40"]
+ },
+ "parts": {
+  "shirt": "both", "tunic_skirt": "both", "trousers": "both", "boots_high": "both", "boots_low": "both", "belt": "both",
+  "skirt_long": "both", "apron": "npc"
+ },
+ "outfits": {
+  "tunic": {"for": "both", "parts": ["shirt", "tunic_skirt", "trousers", "boots_high", "belt"], "same": [["shirt", "tunic_skirt"]]},
+  "tunic_short_boots": {"for": "both", "parts": ["shirt", "tunic_skirt", "trousers", "boots_low", "belt"], "same": [["shirt", "tunic_skirt"]]},
+  "kirtle": {"for": "both", "parts": ["shirt", "skirt_long", "boots_low", "belt"]},
+  "robe": {"for": "npc", "parts": ["shirt", "skirt_long", "boots_low", "belt"], "same": [["shirt", "skirt_long"]]},
+  "work_apron": {"for": "npc", "parts": ["shirt", "skirt_long", "apron", "boots_low", "belt"]},
+  "smith_apron": {"for": "npc", "parts": ["shirt", "tunic_skirt", "trousers", "boots_high", "belt", "apron"], "same": [["shirt", "tunic_skirt"]]}
+ },
+ "palettes": {
+  "npc": {
+   "cloth": ["#6b5a48", "#5a4a3a", "#7a6a50", "#8a7a5a", "#4a4a40", "#6a6a5a", "#5a3f2a", "#7a5a3a", "#8a8070", "#3a3530", "#6b6f78", "#5a6050"],
+   "dyed": ["#5b6b3a", "#7a3a2a", "#2f4a6b", "#5a3f7a", "#9a3b2e", "#2f6b3a", "#d8a630"],
+   "light": ["#efe6d2", "#d8ccb0", "#c8bca0"],
+   "leather": ["#4a3424", "#3e2c1e", "#5a3e2a", "#33261b", "#2e221a"]
+  },
+  "player": {
+   "cloth": ["#1f3a5a", "#5a1f2a", "#2a4a2a", "#4a2a5a", "#7a5a1f", "#1f5a5a", "#5a5a6a", "#2a2a30", "#6a3a1a", "#3a1a4a"],
+   "dyed": ["#2a5a9a", "#9a2a3a", "#3a7a3a", "#6a3a9a", "#b0801a", "#1a7a7a"],
+   "light": ["#e8e0d0", "#d0c8b8"],
+   "leather": ["#2a1c12", "#4a3424", "#1e1612", "#5a3018"]
+  }
+ },
+ "roles": {
+  "villager": {"outfits_m": ["tunic", "tunic_short_boots"], "outfits_f": ["kirtle", "work_apron"], "colors": ["cloth", "cloth", "dyed"]},
+  "elder": {"outfits_m": ["robe"], "outfits_f": ["robe"], "colors": ["dyed"], "age": [0.6, 1]},
+  "cook": {"outfits_m": ["smith_apron"], "outfits_f": ["work_apron"], "colors": ["dyed", "cloth"]},
+  "woodcutter": {"outfits_m": ["tunic"], "outfits_f": ["tunic"], "colors": ["dyed", "cloth"], "muscle": [0.3, 1]},
+  "smith": {"outfits_m": ["smith_apron"], "outfits_f": ["smith_apron"], "colors": ["cloth"], "muscle": [0.4, 1]},
+  "guard": {"outfits_m": ["tunic"], "outfits_f": ["tunic"], "colors": ["dyed"], "fixed": {"shirt": "#6b6f78", "tunic_skirt": "#6b6f78"}, "age": [-0.2, 0.4], "muscle": [0, 0.8]},
+  "child": {"outfits_m": ["tunic_short_boots"], "outfits_f": ["kirtle"], "colors": ["dyed", "cloth"], "age": [-1, -0.75], "height": [-1, -0.6]}
+ }
+}

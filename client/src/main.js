@@ -45,7 +45,8 @@ async function start() {
   const places = await loadPlaces(CONTENT, ground, scene, say);
   grass.setMask(places.mask);
   const remotes = createRemotes(scene, camera, $('#hud'), CONTENT);
-  const own = createSelf(scene, CONTENT);   // the own body, seen from its eyes
+  remotes.people(places.npcs);   // the villagers as their places describe them
+  const own = createSelf(scene, CONTENT, camera);   // the own body; the camera rides its eyes
 
   const quality = createQuality((L) => {
     renderer.setPixelRatio(Math.min(devicePixelRatio, L.dprMax || 1) * L.scale);
@@ -85,7 +86,7 @@ async function start() {
     welcome(m) {
       me = m;
       player.place(m.pos[0], m.pos[1], m.pos[2], m.yaw);
-      own.set(m.id);
+      own.set(m.id, m.look || null);
       $('#who').textContent = m.tag ? '@' + m.tag : 'guest';
       line(null, 'Welcome to LiteWorldsQuest. WASD to walk, Shift to run, Space to jump, Enter to chat, E to speak to villagers.');
     },
@@ -186,7 +187,7 @@ async function start() {
       camera.lookAt(film.tx, film.ty, film.tz);
     }
     remotes.update(now, dt);
-    own.update(player.pos, player.yaw, player.state, dt, !film);
+    own.update(player.pos, player.yaw, player.state, dt, !film, player.pitch);
     warmed(dt);
     const n = remotes.nearestNpc(player.pos.x, player.pos.z, 3.5);
     if ((n && n.id) !== (near && near.id)) {

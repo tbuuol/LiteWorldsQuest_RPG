@@ -1,0 +1,55 @@
+{
+ "skins": [
+  "middleage_african_female",
+  "middleage_african_male",
+  "middleage_asian_female",
+  "middleage_asian_male",
+  "middleage_caucasian_female",
+  "middleage_caucasian_male",
+  "old_african_female",
+  "old_african_male",
+  "old_asian_female",
+  "old_asian_male",
+  "old_caucasian_female",
+  "old_caucasian_male",
+  "young_african_female",
+  "young_african_male",
+  "young_asian_female",
+  "young_asian_male",
+  "young_caucasian_female",
+  "young_caucasian_female2",
+  "young_caucasian_male",
+  "young_caucasian_male2"
+ ],
+ "eyes": [
+  "blue",
+  "bluegreen",
+  "brown",
+  "brownlight",
+  "deepblue",
+  "green",
+  "grey",
+  "ice",
+  "lightblue"
+ ],
+ "hair": [
+  "short01",
+  "short02",
+  "short03",
+  "short04",
+  "bob01",
+  "bob02",
+  "long01",
+  "ponytail01",
+  "braid01",
+  "afro01"
+ ],
+ "brows": [
+  "eyebrow001",
+  "eyebrow003",
+  "eyebrow006",
+  "eyebrow009",
+  "eyebrow010",
+  "eyebrow012"
+ ]
+}

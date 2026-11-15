@@ -1,9 +1,10 @@
 // Other players and the villagers, as the house sends them: drawn 120 ms behind and moved smoothly between the
-// samples. Everyone is a baked figure (figure.js): villagers their own, players one of the player figures, picked by
-// their id (the same on every screen); the capsule only until the figure has loaded.
+// samples. Everyone is a person from a recipe (figure.js): villagers as their place describes them (or rolled from
+// their seed and role), players as they chose to look (or rolled from their id: the same on every screen); the
+// capsule only until the person is put together.
 
 import * as THREE from 'three';
-import { loadFigure, createBody, playerFigure } from './figure.js';
+import { personFor, createBody } from './figure.js';
 
 const DELAY = 120;
 const FIGURE_NEAR = 70;     // closer than this a baked figure is drawn and moved; farther the mixer rests
@@ -24,6 +25,7 @@ export function createRemotes(scene, camera, hudEl, contentBase) {
   const all = new Map();   // id -> {obj, tag, samples, label, body}
   const loading = new Set();   // figures still coming (the curtain waits for them)
   let loaded = 0;
+  const npcDefs = new Map();   // villager id -> its description in the places (body, look, role, seed)
   const v = new THREE.Vector3(), p = new THREE.Vector3();
   return {
     spawn(m) {
@@ -36,11 +38,10 @@ export function createRemotes(scene, camera, hudEl, contentBase) {
       const npc = m.kind === 'npc';
       const r = { obj, tag: m.tag, name: m.name, npc, samples: [], label, body: null, talkUntil: 0 };
       all.set(m.id, r);
-      const fig = m.figure || (npc ? null : playerFigure(m.id));
-      if (fig && contentBase) { const pr = loadFigure(contentBase, fig).then(g => {
+      if (contentBase) { const pr = personFor(contentBase, m, npc ? (npcDefs.get(m.figure) || { id: m.figure || String(m.id) }) : null).then(g => {
         if (!g || all.get(m.id) !== r) return;
         // villagers' yaw faces them (atan2(dx, dz)); a player's yaw is where its camera looks (-Z): turned round
-        r.body = createBody(g, { yawBase: npc ? 0 : Math.PI });
+        r.body = createBody(g, { yawBase: npc ? 0 : Math.PI, own: true });
         r.body.obj.position.copy(r.obj.position);
         scene.remove(r.obj);
         r.obj = r.body.obj;
@@ -59,6 +60,8 @@ export function createRemotes(scene, camera, hudEl, contentBase) {
         if (r.samples.length > 30) r.samples.splice(0, r.samples.length - 30);
       }
     },
+    /** the villagers' descriptions (places.npcs), to make each as it is written */
+    people(list) { for (const n of list || []) npcDefs.set(n.id, n); },
     /** a villager speaks: it gestures for a while */
     talking(id, ms = 5000) { const r = all.get(id); if (r) r.talkUntil = performance.now() + ms; },
     update(now, dt = 0.016) {

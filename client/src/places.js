@@ -205,7 +205,8 @@ export async function loadPlaces(contentBase, ground, scene, say = () => {}) {
       if (pr.kind === 'lamppost') { const l = new THREE.PointLight(0xffb050, 4, 10, 2); const r = (pr.rot || 0) * Math.PI / 180; l.position.set(x + 0.42 * Math.cos(r), ground.height(x, z) + 2.2, z - 0.42 * Math.sin(r)); group.add(l); lights.push(l); }
     }
     for (const s of p.solids || []) solids.push([s[0] + ox, s[1] + oz, s[2], s[3], s[4], s[5]]);
-    for (const n of (p.npcs || []).concat(p.guards || [])) npcs.push({ ...n, x: ox + n.pos[0], z: oz + n.pos[1] });
+    for (const n of p.npcs || []) npcs.push({ ...n, x: ox + n.pos[0], z: oz + n.pos[1] });
+    for (const n of p.guards || []) npcs.push({ ...n, role: n.role || 'guard', x: ox + n.pos[0], z: oz + n.pos[1] });
   }
   group.traverse(o => { if (o.isMesh) { o.matrixAutoUpdate = true; } });
   return {

@@ -1,0 +1,66 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>LWQ people kit</title>
+<style>html,body{margin:0;height:100%;background:#8a9aa8;overflow:hidden}#info{position:absolute;left:8px;top:6px;font:12px monospace;color:#fff}</style>
+<script type="importmap">
+{ "imports": { "three": "../vendor/three/three.module.js", "three/addons/": "../vendor/three/addons/" } }
+</script></head>
+<body><div id="info"></div>
+<script type="module">
+// Dev look at people put together from recipes (client/src/kit.js): a row of them, one clip (?clip=idle|walk|run|
+// fp_walk...), ?t= seconds into it, ?set=<name> of the sets below, ?turn= radians, ?cz/?cy camera.
+import * as THREE from 'three';
+import { buildPerson } from '../src/kit.js';
+const Q = new URLSearchParams(location.search);
+const C = '../../content';
+const SETS = {
+  shapes: [
+    { base: 'm', shape: {}, skin: 'young_caucasian_male', hair: 'short02', hairColor: '#4a3020', brows: 'eyebrow001', parts: [{ id: 'shirt', color: '#5b6b3a' }, { id: 'tunic_skirt', color: '#5b6b3a' }, { id: 'trousers', color: '#4a3a2a' }, { id: 'boots_high' }, { id: 'belt' }] },
+    { base: 'm', shape: { weight: 1 }, skin: 'middleage_caucasian_male', hair: 'short03', hairColor: '#6a4a2a', brows: 'eyebrow003', parts: [{ id: 'shirt', color: '#7a3a2a' }, { id: 'tunic_skirt', color: '#7a3a2a' }, { id: 'trousers', color: '#3a3530' }, { id: 'boots_high' }, { id: 'belt' }] },
+    { base: 'm', shape: { muscle: 1, weight: -0.3 }, skin: 'young_african_male', african: 1, hair: 'short04', hairColor: '#141210', brows: 'eyebrow006', parts: [{ id: 'shirt', color: '#2f4a6b' }, { id: 'tunic_skirt', color: '#2f4a6b' }, { id: 'trousers', color: '#4a4035' }, { id: 'boots_high' }, { id: 'belt' }] },
+    { base: 'm', shape: { age: 1, weight: -0.5 }, skin: 'old_caucasian_male', hair: 'short02', hairColor: '#d8d8d8', brows: 'eyebrow009', browColor: '#cccccc', parts: [{ id: 'shirt', color: '#5a3f7a' }, { id: 'skirt_long', color: '#5a3f7a' }, { id: 'boots_low' }, { id: 'belt' }] },
+    { base: 'm', shape: { age: -1 }, height: -1, skin: 'young_caucasian_male', hair: 'short01', hairColor: '#8a4a1e', brows: 'eyebrow001', parts: [{ id: 'shirt', color: '#d8a630' }, { id: 'tunic_skirt', color: '#d8a630' }, { id: 'trousers', color: '#3a3028' }, { id: 'boots_low' }, { id: 'belt' }] },
+    { base: 'm', shape: { asian: 1, nose_wide: 0.6, jaw_wide: 0.8 }, skin: 'young_asian_male', hair: 'long01', hairColor: '#141210', brows: 'eyebrow010', parts: [{ id: 'shirt', color: '#6b6f78' }, { id: 'tunic_skirt', color: '#6b6f78' }, { id: 'trousers', color: '#3a3028' }, { id: 'boots_high' }, { id: 'belt' }, { id: 'apron', color: '#efe6d2' }] },
+  ],
+};
+import { dice, fromNpc, dicePlayer } from '../src/recipes.js';
+const cat = await (await fetch(`${C}/core/people/catalogue.json`)).json();
+const skins = (await (await fetch(`${C}/core/people/kit/assets.json`)).json()).skins;
+const onlyBase = Q.get('base');
+// ?set=dice&role=villager&seed=1: eight rolled villagers; ?set=players: eight rolled player starts
+if (Q.get('set') === 'dice') SETS.dice = [...Array(8)].map((_, i) => dice(cat, `${Q.get('seed') || 1}-${i}`, Q.get('role') || 'villager', onlyBase ? { base: onlyBase } : {}, skins));
+if (Q.get('set') === 'players') SETS.players = [...Array(8)].map((_, i) => dicePlayer(cat, `${Q.get('seed') || 1}-${i}`, skins)).map(r => onlyBase ? { ...r, base: onlyBase } : r);
+let list = SETS[Q.get('set') || 'shapes'];
+if (onlyBase) list = list.filter(r => r.base === onlyBase);
+for (const r of list) if (r.african) r.shape.african = 1;
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight); renderer.shadowMap.enabled = true;
+renderer.toneMapping = THREE.ACESFilmicToneMapping; document.body.appendChild(renderer.domElement);
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0x8a9aa8);
+scene.add(new THREE.HemisphereLight(0xcfe0ff, 0x5a4a3a, 1.2));
+const sun = new THREE.DirectionalLight(0xfff0dd, 2.6); sun.position.set(3, 6, 5); sun.castShadow = true;
+sun.shadow.camera.left = -6; sun.shadow.camera.right = 6; sun.shadow.camera.top = 4; sun.shadow.camera.bottom = -1; scene.add(sun);
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(30, 30), new THREE.MeshStandardMaterial({ color: 0x7a6a55 }));
+floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
+const w = +(Q.get('w') || 0.95);
+const camera = new THREE.PerspectiveCamera(40, innerWidth / innerHeight, 0.05, 100);
+const cz = +(Q.get('cz') || 6.2), cy = +(Q.get('cy') || 0.95);
+camera.position.set(0, cy + 0.2, cz); camera.lookAt(0, cy, 0);
+const clip = Q.get('clip') || 'idle', t = +(Q.get('t') || 0.5);
+const errs = [];
+const people = await Promise.all(list.map(async (r, i) => {
+  try {
+    const p = await buildPerson(C, r);
+    p.scene.position.x = (i - (list.length - 1) / 2) * w;
+    p.scene.rotation.y = +(Q.get('turn') || 0);
+    scene.add(p.scene);
+    const mx = new THREE.AnimationMixer(p.scene.children[0]);
+    const c = p.animations.find(a => a.name === clip);
+    if (c) { mx.clipAction(c).play(); mx.setTime(t); }
+    return { p, mx, clips: p.animations.map(a => a.name) };
+  } catch (e) { errs.push(String(e && e.stack || e)); return null; }
+}));
+renderer.render(scene, camera);
+document.getElementById('info').textContent = `${clip} t=${t} ` + (errs.length ? 'ERR ' + errs.join(' | ') : '') + ' clips: ' + (people.find(Boolean)?.clips.join(',') || '');
+window.__done = { errs, n: people.filter(Boolean).length };
+renderer.setAnimationLoop(() => renderer.render(scene, camera));
+</script></body></html>

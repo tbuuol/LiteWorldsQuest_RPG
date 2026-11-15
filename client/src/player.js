@@ -2,6 +2,8 @@
 // the house 15 times a second where it is; if the house disagrees (FIX), the player is put where the house says.
 
 const WALK = 4.0, RUN = 6.8, JUMP = 5.0, GRAVITY = 14, EYE = 1.65, SEND_HZ = 15;
+// how far down one can look: not straight down into the own collar (self.js draws the body without its head)
+const LOOK_DOWN = 1.3;
 
 export function createPlayer(camera, dom, ground, net) {
   const pos = { x: 0, y: 0, z: 0 }, keys = {};
@@ -18,7 +20,7 @@ export function createPlayer(camera, dom, ground, net) {
   addEventListener('mousemove', e => {
     if (!locked) return;
     yaw -= e.movementX * 0.0022;
-    pitch = Math.max(-1.45, Math.min(1.45, pitch - e.movementY * 0.0022));
+    pitch = Math.max(-LOOK_DOWN, Math.min(1.45, pitch - e.movementY * 0.0022));
   });
   // touch: left half moves, right half looks
   dom.addEventListener('touchstart', e => {
@@ -34,7 +36,7 @@ export function createPlayer(camera, dom, ground, net) {
         touch.mz = Math.max(-1, Math.min(1, (t.clientY - touch.move.y) / 60));
       } else if (touch.look && t.identifier === touch.look.id) {
         yaw -= (t.clientX - touch.look.x) * 0.005;
-        pitch = Math.max(-1.45, Math.min(1.45, pitch - (t.clientY - touch.look.y) * 0.005));
+        pitch = Math.max(-LOOK_DOWN, Math.min(1.45, pitch - (t.clientY - touch.look.y) * 0.005));
         touch.look.x = t.clientX; touch.look.y = t.clientY;
       }
     }
