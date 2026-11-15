@@ -1,5 +1,5 @@
-// People in the world: who they are (a recipe: recipes.js), put together from the kit (kit.js), and moving like
-// people move.
+// People in the world: who they are (a look), put together from the standard people (standard.js), and moving
+// like people move.
 //
 // The body turns toward where it goes, not where its owner looks (walking sideways or backwards: the legs turn,
 // backwards the walk runs in reverse); the clip follows the speed (walk, jog, sprint) and plays as fast as the
@@ -7,30 +7,25 @@
 
 import * as THREE from 'three';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
-import { buildPerson } from './kit.js';
-import { dice, fromNpc, dicePlayer, checkPlayer } from './recipes.js';
+import { buildStandard, standardCatalogue, diceStandard, standardForNpc, checkStandard } from './standard.js';
 
 /** speed (m/s) at which each clip's feet keep pace with the ground */
 const NATURAL = { walk: 1.45, run: 3.1, sprint: 5.6 };
 
-let cat = null, skins = null;
-const catalogue = base => cat ||= fetch(`${base}/core/people/catalogue.json`).then(r => r.json());
-const skinList = base => skins ||= fetch(`${base}/core/people/kit/assets.json`).then(r => r.json()).then(j => j.skins);
-
 /**
- * The recipe of whoever the house names: a player by the look it chose (m.look), else a first one rolled from its id;
- * a villager by its written body and look (places), else rolled from its seed and role.
+ * The look of whoever the house names (the standard people, standard.js): a player by the look it chose (m.look),
+ * else a first one rolled from its id; a villager as its place describes it, else rolled from its seed.
  */
 export async function recipeFor(base, m, npc = null) {
-  const [c, s] = await Promise.all([catalogue(base), skinList(base)]);
-  if (npc) return npc.body ? fromNpc(c, npc, s) : dice(c, npc.seed ?? npc.id, npc.role || 'villager', { base: npc.base, origin: npc.origin }, s);
-  return (m.look && checkPlayer(c, m.look, s)) || dicePlayer(c, m.id, s);
+  const cat = await standardCatalogue(base);
+  if (npc) return npc.body || npc.look ? standardForNpc(cat, npc) : diceStandard(cat, npc.seed ?? npc.id, { outfit: 'peasant' });
+  return (m.look && checkStandard(cat, m.look)) || diceStandard(cat, m.id);
 }
 
 /** a person ready for createBody(), or null if it could not be made */
 export async function personFor(base, m, npc = null) {
   try {
-    return await buildPerson(base, await recipeFor(base, m, npc));
+    return await buildStandard(base, await recipeFor(base, m, npc));
   } catch (e) {
     console.warn('person', m.id, e);
     return null;

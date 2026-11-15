@@ -1,0 +1,14 @@
+{
+ "about": "The standard people (client/src/standard.js, tools/bake/standard.py): Quaternius' Universal Base Characters and Modular Character Outfits - Fantasy as they come. What a look may say; the house checks players' looks against it (server/src/look.rs).",
+ "bases": ["m", "f"],
+ "outfits": {
+  "peasant": {"colours": [1, 2]},
+  "ranger": {"colours": [1, 3], "extras": ["hood", "pauldrons"]}
+ },
+ "hair": {
+  "m": ["simpleparted", "buzzed", "long"],
+  "f": ["buns", "long", "buzzedfemale", "simpleparted"]
+ },
+ "beard": ["m"],
+ "hairColors": ["#141210", "#2a1a10", "#3a2a1a", "#5a3a20", "#7a4a20", "#9a6a30", "#c8a060", "#e0c890", "#7a2a18", "#8a8a8a", "#d8d8d8"]
+}

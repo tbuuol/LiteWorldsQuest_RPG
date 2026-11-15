@@ -1,0 +1,54 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>LWQ standard people</title>
+<style>html,body{margin:0;height:100%;background:#8a9aa8;overflow:hidden}#info{position:absolute;left:8px;top:6px;font:12px monospace;color:#fff}</style>
+<script type="importmap">
+{ "imports": { "three": "../vendor/three/three.module.js", "three/addons/": "../vendor/three/addons/" } }
+</script></head>
+<body><div id="info"></div>
+<script type="module">
+// Dev look at the standard people (client/src/standard.js): ?clip=idle|walk|run|..., ?t=, ?turn=, ?cz/?cy, ?set=
+import * as THREE from 'three';
+import { buildStandard } from '../src/standard.js';
+const Q = new URLSearchParams(location.search);
+const SETS = {
+  all: [
+    { base: 'm', outfit: 'peasant', colours: 1, hair: 'simpleparted' },
+    { base: 'm', outfit: 'peasant', colours: 2, hair: 'buzzed', beard: true },
+    { base: 'm', outfit: 'ranger', colours: 1, hair: 'long', pauldrons: true },
+    { base: 'm', outfit: 'ranger', colours: 3, hood: true },
+    { base: 'f', outfit: 'peasant', colours: 1, hair: 'buns' },
+    { base: 'f', outfit: 'peasant', colours: 2, hair: 'long' },
+    { base: 'f', outfit: 'ranger', colours: 1, hair: 'buzzedfemale', pauldrons: true },
+    { base: 'f', outfit: 'ranger', colours: 3, hair: 'long', hood: true },
+  ],
+};
+const list = SETS[Q.get('set') || 'all'].filter((_, i) => !Q.get('only') || Q.get('only').split(',').includes(String(i)));
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight); renderer.shadowMap.enabled = true;
+renderer.toneMapping = THREE.ACESFilmicToneMapping; document.body.appendChild(renderer.domElement);
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0x8a9aa8);
+scene.add(new THREE.HemisphereLight(0xcfe0ff, 0x5a4a3a, 1.2));
+const sun = new THREE.DirectionalLight(0xfff0dd, 2.6); sun.position.set(3, 6, 5); sun.castShadow = true;
+sun.shadow.camera.left = -6; sun.shadow.camera.right = 6; sun.shadow.camera.top = 4; sun.shadow.camera.bottom = -1; scene.add(sun);
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(30, 30), new THREE.MeshStandardMaterial({ color: 0x7a6a55 }));
+floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
+const w = +(Q.get('w') || 0.9);
+const camera = new THREE.PerspectiveCamera(40, innerWidth / innerHeight, 0.05, 100);
+const cz = +(Q.get('cz') || 6.2), cy = +(Q.get('cy') || 0.95);
+camera.position.set(0, cy + 0.2, cz); camera.lookAt(0, cy, 0);
+const clip = Q.get('clip') || 'idle', t = +(Q.get('t') || 0.5);
+const errs = [];
+await Promise.all(list.map(async (r, i) => {
+  try {
+    const p = await buildStandard('../../content', r);
+    p.scene.position.x = (i - (list.length - 1) / 2) * w;
+    p.scene.rotation.y = +(Q.get('turn') || 0);
+    scene.add(p.scene);
+    const c = p.animations.find(a => a.name === clip);
+    if (c) { const mx = new THREE.AnimationMixer(p.scene); mx.clipAction(c).play(); mx.setTime(t); }
+  } catch (e) { errs.push(String(e && e.stack || e)); }
+}));
+document.getElementById('info').textContent = `${clip} t=${t} ` + (errs.length ? 'ERR ' + errs.join(' | ') : '');
+window.__done = { errs, n: list.length };
+renderer.setAnimationLoop(() => renderer.render(scene, camera));
+</script></body></html>

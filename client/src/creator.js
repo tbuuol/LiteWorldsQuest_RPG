@@ -1,20 +1,13 @@
-// The character creator: on first entering (and with C later), the player shapes how it looks, from what the
-// catalogue allows players (recipes.js, checkPlayer; the house checks it again). A turning preview on the left, the
+// The character creator: on first entering (and with C later), the player chooses how it looks from what the
+// standard people have (standard.js, checkStandard; the house checks it again). A turning preview on the left, the
 // choices on the right; "Roll" rolls a whole new start; "Enter" sends it to the house, which keeps it and shows it
 // to everyone.
 
 import * as THREE from 'three';
-import { buildPerson } from './kit.js';
-import { dicePlayer, checkPlayer, skinFor } from './recipes.js';
+import { buildStandard, standardCatalogue, diceStandard, checkStandard } from './standard.js';
 
-const EYE_TINT = { blue: '#4a7ab0', bluegreen: '#4a8a80', brown: '#5a3a20', brownlight: '#8a6a40', deepblue: '#2a4a8a',
-  green: '#4a7a3a', grey: '#7a8088', ice: '#a8c8d8', lightblue: '#7aa8d0' };
-const FACE_NAMES = { nose_wide: 'Nose width', nose_long: 'Nose length', nose_hump: 'Nose hump', jaw_wide: 'Jaw', chin: 'Chin',
-  cheekbones: 'Cheekbones', mouth_wide: 'Mouth', face_round: 'Round face', eyes_big: 'Eyes' };
-const OUTFIT_NAMES = { tunic: 'Tunic and high boots', tunic_short_boots: 'Tunic and shoes', kirtle: 'Long dress' };
-const PART_NAMES = { shirt: 'Shirt', tunic_skirt: 'Tunic', trousers: 'Trousers', skirt_long: 'Skirt', boots_high: 'Boots', boots_low: 'Shoes', belt: 'Belt' };
-const HAIR_NAMES = { short01: 'Short', short02: 'Cropped', short03: 'Swept', short04: 'Close', long01: 'Long', afro01: 'Curls',
-  ponytail01: 'Ponytail', bob01: 'Bob', bob02: 'Bob, parted', braid01: 'Braid' };
+const OUTFIT_NAMES = { peasant: 'Peasant', ranger: 'Ranger' };
+const HAIR_NAMES = { simpleparted: 'Parted', buzzed: 'Buzzed', long: 'Long', buns: 'Buns', buzzedfemale: 'Short' };
 
 const CSS = `
 #creator { position:absolute; inset:0; z-index:70; display:flex; background:radial-gradient(ellipse at 30% 40%, #1b2420 0%, #070908 80%);
@@ -46,7 +39,6 @@ const CSS = `
   #creator .bar { width:100%; border-left:0; } }
 `;
 
-let catP = null, skinsP = null;
 
 /**
  * Open the creator. opts: { contentBase, id, look (the current one or null), onDone(recipe), player (input paused) }.
@@ -54,10 +46,8 @@ let catP = null, skinsP = null;
  */
 export async function openCreator({ contentBase, id, look = null, onDone, player = null }) {
   if (document.getElementById('creator')) return;
-  catP ||= fetch(`${contentBase}/core/people/catalogue.json`).then(r => r.json());
-  skinsP ||= fetch(`${contentBase}/core/people/kit/assets.json`).then(r => r.json()).then(j => j.skins);
-  const [cat, skins] = await Promise.all([catP, skinsP]);
-  let rec = (look && checkPlayer(cat, look, skins)) || dicePlayer(cat, id, skins);
+  const cat = await standardCatalogue(contentBase);
+  let rec = (look && checkStandard(cat, look)) || diceStandard(cat, id);
   let rolls = 0;
 
   if (!document.getElementById('creator-css')) {
@@ -106,7 +96,7 @@ export async function openCreator({ contentBase, id, look = null, onDone, player
   });
   async function show() {
     const n = ++building;
-    const p = await buildPerson(contentBase, rec).catch(e => { console.warn('creator', e); return null; });
+    const p = await buildStandard(contentBase, rec).catch(e => { console.warn('creator', e); return null; });
     if (!p || n !== building || !alive) return;
     stage.clear(); stage.add(p.scene);
     mixer = new THREE.AnimationMixer(p.scene);
@@ -116,78 +106,40 @@ export async function openCreator({ contentBase, id, look = null, onDone, player
 
   // the choices
   const panel = el.querySelector('.panel');
-  const pal = cat.palettes.player;
-  const origin = () => rec.shape.african ? 'african' : rec.shape.asian ? 'asian' : 'caucasian';
-  const resk = () => { rec.skin = skinFor(rec.base, origin(), rec.shape.age || 0, skins); };
-  const outfits = Object.entries(cat.outfits).filter(([, o]) => o.for === 'both' || o.for === 'player');
-  const outfitOf = () => outfits.find(([, o]) => o.parts.length === rec.parts.length && o.parts.every(id => rec.parts.some(p => p.id === id)))?.[0];
-  let timer = 0;
-  const changed = (redraw = false) => { clearTimeout(timer); timer = setTimeout(show, 120); if (redraw) draw(); };
-  const chips = (items, on, pick) => `<div class="chips">${items.map(([k, label]) => `<button class="chip${k === on ? ' on' : ''}" data-k="${k}">${label}</button>`).join('')}</div>`;
-  const swatches = (list, on) => `<div class="chips">${list.map(c => `<button class="sw${c === on ? ' on' : ''}" data-c="${c}" style="background:${EYE_TINT[c] || c}" title="${c}"></button>`).join('')}</div>`;
-  const slider = (key, label, [a, b], v) => `<div class="row"><label>${label}</label><input type="range" min="${a}" max="${b}" step="0.01" value="${v ?? 0}" data-s="${key}"></div>`;
-
+  const chips = (items, on) => `<div class="chips">${items.map(([k, label]) => `<button class="chip${String(k) === String(on) ? ' on' : ''}" data-k="${k}">${label}</button>`).join('')}</div>`;
+  const toggle = (k, label, on) => `<button class="chip${on ? ' on' : ''}" data-t="${k}">${label}</button>`;
+  const swatches = (list, on) => `<div class="chips">${list.map(c => `<button class="sw${c === on ? ' on' : ''}" data-c="${c}" style="background:${c}" title="${c}"></button>`).join('')}</div>`;
   function draw() {
-    const lim = cat.shape.player;
-    const hairs = Object.entries(cat.hair[rec.base]).filter(([, t]) => t === 'both' || t === 'player').map(([h]) => [h, HAIR_NAMES[h] || h]);
-    const hc = [...cat.hairColors.both, ...cat.hairColors.player];
-    const of = outfitOf();
+    const o = cat.outfits[rec.outfit];
     panel.innerHTML = `<h1>Your traveller</h1><div class="sub">LiteWorldsQuest</div>
       <h2>Body</h2><div data-g="base">${chips([['m', 'Man'], ['f', 'Woman']], rec.base)}</div>
-      <h2>Origin</h2><div data-g="origin">${chips([['caucasian', 'Fair'], ['african', 'Dark'], ['asian', 'Eastern']], origin())}</div>
-      <h2>Shape</h2>
-      ${slider('height', 'Height', lim.height, rec.height)}${slider('weight', 'Weight', lim.weight, rec.shape.weight)}
-      ${slider('muscle', 'Build', lim.muscle, rec.shape.muscle)}${slider('age', 'Age', lim.age, rec.shape.age)}
-      <details><summary>Face</summary>${cat.shape.face.map(f => slider(f, FACE_NAMES[f] || f, [-1, 1], rec.shape[f])).join('')}</details>
-      <h2>Hair</h2><div data-g="hair">${chips([...hairs, ['', 'None']], rec.hair || '')}</div>
-      <div data-g="hairColor" style="margin-top:8px">${swatches(hc, rec.hairColor)}</div>
-      <h2>Eyes</h2><div data-g="eyes">${swatches(cat.eyes, rec.eyes)}</div>
-      <h2>Clothes</h2><div data-g="outfit">${chips(outfits.map(([k]) => [k, OUTFIT_NAMES[k] || k]), of)}</div>
-      ${rec.parts.filter(p => p.id !== 'tunic_skirt' || !rec.parts.some(q => q.id === 'shirt')).map(p => `<div class="row" style="align-items:flex-start"><label>${PART_NAMES[p.id] || p.id}</label>
-        <div data-part="${p.id}" style="flex:1">${swatches(/boots|belt/.test(p.id) ? pal.leather : [...pal.cloth, ...pal.dyed, ...pal.light], p.color)}</div></div>`).join('')}`;
+      <h2>Clothes</h2><div data-g="outfit">${chips(Object.keys(cat.outfits).map(k => [k, OUTFIT_NAMES[k] || k]), rec.outfit)}</div>
+      <div data-g="colours" style="margin-top:8px">${chips(o.colours.map((c, i) => [c, 'Colours ' + (i + 1)]), rec.colours)}</div>
+      ${(o.extras || []).length ? `<div class="chips" style="margin-top:8px">${o.extras.map(x => toggle(x, x === 'hood' ? 'Hood' : 'Pauldrons', rec[x])).join('')}</div>` : ''}
+      <h2>Hair</h2><div data-g="hair">${chips([...cat.hair[rec.base].map(h => [h, HAIR_NAMES[h] || h]), ['', 'None']], rec.hair || '')}</div>
+      ${cat.beard.includes(rec.base) ? `<div class="chips" style="margin-top:8px">${toggle('beard', 'Beard', rec.beard)}</div>` : ''}
+      <div data-g="hairColor" style="margin-top:8px">${swatches(cat.hairColors, rec.hairColor)}</div>`;
   }
   panel.addEventListener('click', e => {
     const b = e.target.closest('button'); if (!b) return;
-    const g = b.closest('[data-g]')?.dataset.g, part = b.closest('[data-part]')?.dataset.part;
-    if (part) {
-      for (const p of rec.parts) if (p.id === part || (part === 'shirt' && p.id === 'tunic_skirt')) p.color = b.dataset.c;
-      return changed(true);
-    }
-    if (g === 'base') {
-      if (rec.base === b.dataset.k) return;
-      rec.base = b.dataset.k;
-      const hairs = Object.entries(cat.hair[rec.base]).filter(([, t]) => t === 'both' || t === 'player').map(([h]) => h);
-      if (rec.hair && !hairs.includes(rec.hair)) rec.hair = hairs[0];
-      resk();
-    } else if (g === 'origin') {
-      delete rec.shape.african; delete rec.shape.asian;
-      if (b.dataset.k === 'african') rec.shape.african = 1;
-      if (b.dataset.k === 'asian') rec.shape.asian = 1;
-      resk();
-    } else if (g === 'hair') rec.hair = b.dataset.k || null;
-    else if (g === 'hairColor') { rec.hairColor = b.dataset.c; rec.browColor = b.dataset.c; }
-    else if (g === 'eyes') rec.eyes = b.dataset.c;
-    else if (g === 'outfit') {
-      const o = cat.outfits[b.dataset.k];
-      const col = id => rec.parts.find(p => p.id === id)?.color;
-      const top = col('shirt') || pal.cloth[0], leg = col('trousers') || col('skirt_long') || pal.cloth[1], lea = col('boots_high') || col('boots_low') || pal.leather[0];
-      rec.parts = o.parts.map(id => ({ id, color: id === 'shirt' || id === 'tunic_skirt' ? top : /boots/.test(id) ? lea : id === 'belt' ? (col('belt') || pal.leather[1]) : leg }));
-    } else return;
-    changed(true);
-  });
-  panel.addEventListener('input', e => {
-    const k = e.target.dataset.s; if (!k) return;
-    const v = Number(e.target.value);
-    if (k === 'height') rec.height = v; else rec.shape[k] = v;
-    if (k === 'age') resk();
+    if (b.dataset.t) { rec[b.dataset.t] = !rec[b.dataset.t]; return changed(); }
+    const g = b.closest('[data-g]')?.dataset.g;
+    if (g === 'base') { rec.base = b.dataset.k; if (!cat.hair[rec.base].includes(rec.hair)) rec.hair = cat.hair[rec.base][0]; }
+    else if (g === 'outfit') { rec.outfit = b.dataset.k; rec.colours = cat.outfits[rec.outfit].colours[0]; }
+    else if (g === 'colours') rec.colours = Number(b.dataset.k);
+    else if (g === 'hair') rec.hair = b.dataset.k || null;
+    else if (g === 'hairColor') rec.hairColor = b.dataset.c;
+    else return;
     changed();
   });
-  el.querySelector('.roll').addEventListener('click', () => { rec = dicePlayer(cat, `${id}-${++rolls}-${Date.now()}`, skins); draw(); show(); });
+  let timer = 0;
+  function changed() { rec = checkStandard(cat, rec) || rec; draw(); clearTimeout(timer); timer = setTimeout(show, 100); }
+  el.querySelector('.roll').addEventListener('click', () => { rec = diceStandard(cat, `${id}-${++rolls}-${Date.now()}`); draw(); show(); });
 
   draw(); show();
   return new Promise(done => {
     el.querySelector('.enter').addEventListener('click', () => {
-      const ok = checkPlayer(cat, rec, skins);
+      const ok = checkStandard(cat, rec);
       if (!ok) return;
       alive = false;
       renderer.setAnimationLoop(null); renderer.dispose();

@@ -18,6 +18,8 @@ pub struct Saved {
 
 pub enum Job {
     Save { key: String, tag: String, saved: Saved },
+    /// answered once every save before it is written
+    Flush(mpsc::Sender<()>),
 }
 
 pub struct Store {
@@ -54,10 +56,21 @@ impl Store {
                             eprintln!("store: {e}");
                         }
                     }
+                    Job::Flush(done) => {
+                        let _ = done.send(());
+                    }
                 }
             }
         });
         Ok(Store { tx, path })
+    }
+
+    /// Wait (at most 10 s) until every save asked for so far is written.
+    pub fn flush(&self) {
+        let (tx, rx) = mpsc::channel();
+        if self.tx.send(Job::Flush(tx)).is_ok() {
+            let _ = rx.recv_timeout(std::time::Duration::from_secs(10));
+        }
     }
 
     pub fn save(&self, key: &str, tag: &str, saved: Saved) {

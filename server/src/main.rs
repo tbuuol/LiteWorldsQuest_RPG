@@ -214,7 +214,11 @@ async fn main() {
             _ = term.recv() => break,
         }
     }
-    drop(tx);
     eprintln!("lwq-house: stopping, saving everyone");
-    let _ = sim.await;
+    let _ = tx.send(world::Event::Quit);
+    drop(tx);
+    let _ = tokio::time::timeout(std::time::Duration::from_secs(15), sim).await;
+    eprintln!("lwq-house: saved, bye");
+    // open connections must not keep the process (their tasks hold the runtime)
+    std::process::exit(0);
 }

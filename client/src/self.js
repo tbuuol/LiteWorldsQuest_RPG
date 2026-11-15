@@ -19,7 +19,7 @@ function headless(mesh) {
   let any = false;
   for (let i = 0; i < si.count; i++) {
     let w = 0;
-    for (let k = 0; k < 4; k++) if (bones[si.getComponent(i, k)]?.name === 'DEF-head') w += sw.getComponent(i, k);
+    for (let k = 0; k < 4; k++) if (bones[si.getComponent(i, k)]?.name === 'Head') w += sw.getComponent(i, k);
     head[i] = w; if (w > 0.35) any = true;
   }
   if (!any) return;
@@ -90,15 +90,15 @@ export function createSelf(scene, contentBase, camera = null) {
       const face = yaw + Math.PI;
       let twist = Math.atan2(Math.sin(face - body.obj.rotation.y), Math.cos(face - body.obj.rotation.y));
       twist = Math.max(-1.6, Math.min(1.6, twist));
-      for (const n of ['DEF-spine001', 'DEF-spine002', 'DEF-spine003']) turn(bones[n], up, twist / 3);
+      for (const n of ['spine_01', 'spine_02', 'spine_03']) turn(bones[n], up, twist / 3);
       // looking down (or up) bends the upper back and neck a little
       side.set(-Math.cos(yaw), 0, Math.sin(yaw));   // the left of where it looks: turning about it bends forward
       const bend = Math.max(-0.5, Math.min(0.6, -pitch)) * 0.35;
-      turn(bones['DEF-spine003'], side, bend * 0.5);
-      turn(bones['DEF-neck'], side, bend);
+      turn(bones['spine_03'], side, bend * 0.5);
+      turn(bones['neck_01'], side, bend);
       // the eyes: in front of the head bone along the look, a little up; following its bob only slowly
-      if (camera && bones['DEF-head']) {
-        bones['DEF-head'].getWorldPosition(head);
+      if (camera && bones['Head']) {
+        bones['Head'].getWorldPosition(head);
         const y = head.y + EYES_UP;
         eyeY = eyeY === null || Math.abs(y - eyeY) > 0.5 ? y : eyeY + (y - eyeY) * Math.min(1, dt * BOB);
         camera.position.set(head.x - Math.sin(yaw) * EYES_FWD, eyeY, head.z - Math.cos(yaw) * EYES_FWD);

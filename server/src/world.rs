@@ -40,6 +40,8 @@ pub enum Event {
     Bin { conn: u64, data: Vec<u8> },
     Text { conn: u64, data: String },
     Leave { conn: u64 },
+    /// the house stops: save everyone and end (open connections still hold senders, so the channel never closes)
+    Quit,
 }
 
 pub enum Out {
@@ -109,8 +111,8 @@ impl World {
         loop {
             tokio::select! {
                 ev = rx.recv() => match ev {
+                    Some(Event::Quit) | None => break,
                     Some(ev) => self.event(ev),
-                    None => break,
                 },
                 _ = every.tick() => self.step(),
             }
@@ -118,12 +120,14 @@ impl World {
         for p in self.players.values() {
             self.store.save(&p.key, &p.tag, p.saved());
         }
+        self.store.flush();
     }
 
     fn event(&mut self, ev: Event) {
         match ev {
             Event::Join { conn, ident, out } => self.join(conn, ident, out),
             Event::Leave { conn } => self.leave(conn),
+            Event::Quit => {}
             Event::Bin { conn, data } => {
                 if !self.rate_ok(conn) {
                     return;
