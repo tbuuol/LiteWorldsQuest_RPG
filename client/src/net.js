@@ -47,6 +47,8 @@ export function connect(url, on) {
     },
     talk(id) { if (ws.readyState === 1) ws.send(JSON.stringify({ t: 'talk', id })); },
     say(text) { if (ws.readyState === 1) ws.send(JSON.stringify({ t: 'say', text })); },
+    /** how this player chose to look (creator.js); the house checks it, keeps it and shows it to everyone */
+    look(look) { if (ws.readyState === 1) ws.send(JSON.stringify({ t: 'look', look })); },
     // only a house in dev mode answers this (local tests, screenshots)
     tp(x, z) { if (ws.readyState === 1) ws.send(JSON.stringify({ t: 'tp', x, z })); },
     close() { ws.close(); },

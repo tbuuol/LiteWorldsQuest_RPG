@@ -27,6 +27,26 @@ export function createRemotes(scene, camera, hudEl, contentBase) {
   let loaded = 0;
   const npcDefs = new Map();   // villager id -> its description in the places (body, look, role, seed)
   const v = new THREE.Vector3(), p = new THREE.Vector3();
+
+  /** put the person of r together (again, after a new look), in place of what stood there */
+  function dress(m, r) {
+    const npc = r.npc;
+    const n = (r.dressing = (r.dressing || 0) + 1);
+    const pr = personFor(contentBase, m, npc ? (npcDefs.get(m.figure) || { id: m.figure || String(m.id) }) : null).then(g => {
+      if (!g || all.get(m.id) !== r || n !== r.dressing) return;
+      // villagers' yaw faces them (atan2(dx, dz)); a player's yaw is where its camera looks (-Z): turned round
+      const body = createBody(g, { yawBase: npc ? 0 : Math.PI, own: true });
+      body.obj.position.copy(r.obj.position);
+      body.obj.rotation.copy(r.obj.rotation);
+      scene.remove(r.obj);
+      r.body = body;
+      r.obj = body.obj;
+      scene.add(r.obj);
+    });
+    loading.add(pr);
+    pr.finally(() => { loading.delete(pr); loaded++; });
+  }
+
   return {
     spawn(m) {
       if (all.has(m.id)) return;
@@ -36,21 +56,19 @@ export function createRemotes(scene, camera, hudEl, contentBase) {
       const label = document.createElement('div'); label.className = 'nametag'; label.textContent = m.name || (m.tag ? '@' + m.tag : 'guest');
       hudEl.appendChild(label);
       const npc = m.kind === 'npc';
-      const r = { obj, tag: m.tag, name: m.name, npc, samples: [], label, body: null, talkUntil: 0 };
+      const r = { obj, tag: m.tag, name: m.name, npc, samples: [], label, body: null, talkUntil: 0, msg: m };
       all.set(m.id, r);
-      if (contentBase) { const pr = personFor(contentBase, m, npc ? (npcDefs.get(m.figure) || { id: m.figure || String(m.id) }) : null).then(g => {
-        if (!g || all.get(m.id) !== r) return;
-        // villagers' yaw faces them (atan2(dx, dz)); a player's yaw is where its camera looks (-Z): turned round
-        r.body = createBody(g, { yawBase: npc ? 0 : Math.PI, own: true });
-        r.body.obj.position.copy(r.obj.position);
-        scene.remove(r.obj);
-        r.obj = r.body.obj;
-        scene.add(r.obj);
-      }); loading.add(pr); pr.finally(() => { loading.delete(pr); loaded++; }); }
+      if (contentBase) dress(m, r);
     },
     despawn(m) {
       const r = all.get(m.id); if (!r) return;
       scene.remove(r.obj); r.label.remove(); all.delete(m.id);
+    },
+    /** a player chose a new look: put the person together again */
+    setLook(id, look) {
+      const r = all.get(id); if (!r || r.npc) return;
+      r.msg = { ...r.msg, look };
+      if (contentBase) dress(r.msg, r);
     },
     snap(list) {
       const t = performance.now();

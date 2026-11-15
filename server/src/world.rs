@@ -2,6 +2,7 @@
 //! the single place where anything about the game changes, so there are no locks around the game state.
 
 use crate::ground::Ground;
+use crate::look::Looks;
 use crate::places::{self, Places};
 use crate::proto::{self, SnapEntry};
 use crate::store::{Saved, Store};
@@ -65,6 +66,8 @@ struct Player {
     saved_at: Instant,
     /// the next line each villager will say to this player
     talked: HashMap<u32, usize>,
+    /// how this player looks (a checked recipe), once chosen
+    look: Option<Value>,
 }
 
 impl Player {
@@ -72,7 +75,7 @@ impl Player {
         let _ = self.out.send(Out::Text(v.to_string()));
     }
     fn saved(&self) -> Saved {
-        Saved { zone: "world".into(), pos: self.pos, yaw: self.yaw as f32 / proto::TURN }
+        Saved { zone: "world".into(), pos: self.pos, yaw: self.yaw as f32 / proto::TURN, look: self.look.clone() }
     }
 }
 
@@ -82,6 +85,7 @@ pub struct World {
     ground: Arc<Ground>,
     places: Places,
     store: Store,
+    looks: Looks,
     spawn: [f32; 2],
     players: HashMap<u64, Player>, // by connection
     next_id: u32,
@@ -95,8 +99,8 @@ fn cell_of(x: f32, z: f32) -> (i32, i32) {
 }
 
 impl World {
-    pub fn new(ground: Arc<Ground>, places: Places, store: Store, spawn: [f32; 2]) -> World {
-        World { dev: false, ground, places, store, spawn, players: HashMap::new(), next_id: 1, tick: 0, npc_changed: HashSet::new() }
+    pub fn new(ground: Arc<Ground>, places: Places, store: Store, looks: Looks, spawn: [f32; 2]) -> World {
+        World { dev: false, ground, places, store, looks, spawn, players: HashMap::new(), next_id: 1, tick: 0, npc_changed: HashSet::new() }
     }
 
     pub async fn run(mut self, mut rx: mpsc::UnboundedReceiver<Event>) {
@@ -146,6 +150,10 @@ impl World {
                     }
                     return;
                 }
+                if v["t"] == "look" {
+                    self.set_look(conn, &v["look"]);
+                    return;
+                }
                 if v["t"] == "talk" {
                     let id = v["id"].as_u64().unwrap_or(0) as u32;
                     self.talk(conn, id);
@@ -192,7 +200,10 @@ impl World {
             }
             self.leave(c);
         }
-        let (pos, yaw) = match self.store.load(&ident.key) {
+        let saved = self.store.load(&ident.key);
+        // a look saved earlier is checked again (the catalogue may have changed since)
+        let look = saved.as_ref().and_then(|s| s.look.as_ref()).and_then(|l| self.looks.check(l));
+        let (pos, yaw) = match saved {
             Some(s) if self.ground.inside(s.pos[0], s.pos[2]) => (s.pos, s.yaw),
             _ => {
                 let [x, z] = self.spawn;
@@ -219,10 +230,27 @@ impl World {
             rate_at: now,
             saved_at: now,
             talked: HashMap::new(),
+            look,
         };
-        p.send_text(json!({"t": "welcome", "id": id, "tag": p.tag, "zone": "world", "pos": pos, "yaw": yaw, "hz": HZ}));
+        p.send_text(json!({"t": "welcome", "id": id, "tag": p.tag, "zone": "world", "pos": pos, "yaw": yaw, "hz": HZ, "look": p.look}));
         eprintln!("join {} ({}), {} playing", if p.tag.is_empty() { "guest" } else { &p.tag }, ident.address, self.players.len() + 1);
         self.players.insert(conn, p);
+    }
+
+    /// The player chose how to look (the creator): checked, kept, and shown to everyone who sees the player.
+    fn set_look(&mut self, conn: u64, rec: &Value) {
+        let Some(look) = self.looks.check(rec) else { return };
+        let Some(p) = self.players.get_mut(&conn) else { return };
+        p.look = Some(look.clone());
+        let (id, key, tag, saved) = (p.id, p.key.clone(), p.tag.clone(), p.saved());
+        p.send_text(json!({"t": "look", "id": id, "look": look}));
+        self.store.save(&key, &tag, saved);
+        let msg = json!({"t": "look", "id": id, "look": look});
+        for q in self.players.values() {
+            if q.known.contains(&id) {
+                q.send_text(msg.clone());
+            }
+        }
     }
 
     fn leave(&mut self, conn: u64) {
@@ -314,7 +342,7 @@ impl World {
                         seen.insert(q.id);
                         let new = !p.known.contains(&q.id);
                         if new {
-                            texts.push(json!({"t": "spawn", "id": q.id, "kind": "player", "tag": q.tag}));
+                            texts.push(json!({"t": "spawn", "id": q.id, "kind": "player", "tag": q.tag, "look": q.look}));
                         }
                         if new || full || q.changed {
                             snap.push(SnapEntry { id: q.id, x: q.pos[0], y: q.pos[1], z: q.pos[2], yaw: q.yaw, pitch: q.pitch, anim: q.anim });

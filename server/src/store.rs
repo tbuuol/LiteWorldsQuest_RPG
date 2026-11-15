@@ -11,6 +11,9 @@ pub struct Saved {
     pub zone: String,
     pub pos: [f32; 3],
     pub yaw: f32,
+    /// how the player chose to look (look.rs); none until the creator was used
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub look: Option<serde_json::Value>,
 }
 
 pub enum Job {

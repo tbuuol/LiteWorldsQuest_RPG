@@ -13,6 +13,7 @@ import { createSky } from './sky.js';
 import { createPlayer } from './player.js';
 import { createRemotes } from './remotes.js';
 import { createSelf } from './self.js';
+import { openCreator } from './creator.js';
 import { createBoot } from './boot.js';
 import { createQuality } from './quality.js';
 import { createGrade } from './grade.js';
@@ -72,7 +73,7 @@ async function start() {
   say('Knocking at the house…');
   const wsUrl = Q.get('ws') || `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/lwq/ws`;
   const url = Q.has('as') ? `${wsUrl}?as=${encodeURIComponent(Q.get('as'))}` : wsUrl;
-  let me = null, player = null, closed = null;
+  let me = null, player = null, closed = null, myLook = null;
   const chatlog = $('#chatlog');
   const line = (who, text, npc) => {
     const d = document.createElement('div');
@@ -86,12 +87,14 @@ async function start() {
     welcome(m) {
       me = m;
       player.place(m.pos[0], m.pos[1], m.pos[2], m.yaw);
-      own.set(m.id, m.look || null);
+      myLook = m.look || null;
+      own.set(m.id, myLook);
       $('#who').textContent = m.tag ? '@' + m.tag : 'guest';
       line(null, 'Welcome to LiteWorldsQuest. WASD to walk, Shift to run, Space to jump, Enter to chat, E to speak to villagers.');
     },
     spawn(m) { remotes.spawn(m); },
     despawn(m) { remotes.despawn(m); },
+    look(m) { if (me && m.id === me.id) { myLook = m.look; own.set(me.id, m.look); } else remotes.setLook(m.id, m.look); },
     snap(tick, list) { remotes.snap(list); },
     fix(seq, x, y, z) { player.fix(x, y, z); },
     say(m) { line(m.from, m.text, !!m.npc); if (m.npc) remotes.talking(m.npc); },
@@ -102,6 +105,9 @@ async function start() {
 
   // chat
   const chat = $('#chat'), hint = $('#hint');
+  // how one looks: chosen on first entering, changed with C (creator.js; the house keeps it)
+  const creator = () => openCreator({ contentBase: CONTENT, id: me.id, look: myLook, player,
+    onDone: rec => { myLook = rec; net.look(rec); own.set(me.id, rec); } });
   let near = null;   // the villager one could talk to now
   addEventListener('keydown', e => {
     if (e.code === 'Enter') {
@@ -112,6 +118,8 @@ async function start() {
         chat.style.display = 'block'; player.setTyping(true); document.exitPointerLock && document.exitPointerLock(); chat.focus();
       }
       e.preventDefault();
+    } else if (e.code === 'KeyC' && chat.style.display !== 'block' && me && !document.getElementById('creator')) {
+      creator();
     } else if (e.code === 'KeyE' && chat.style.display !== 'block' && near) {
       net.talk(near.id);
     } else if (e.code === 'Escape' && chat.style.display === 'block') {
@@ -159,7 +167,7 @@ async function start() {
     if (warm < 0) return;
     warm++; steady = dt < 0.05 ? steady + 1 : 0;
     boot.part(Math.min(1, warm / 45));
-    if ((warm >= 45 && steady >= 15) || performance.now() > warmUntil) { warm = -1; boot.done(); $('#beta').style.display = 'block'; }
+    if ((warm >= 45 && steady >= 15) || performance.now() > warmUntil) { warm = -1; boot.done(); $('#beta').style.display = 'block'; if (!myLook && !FILM) creator(); }
   };
 
   let last = performance.now(), statAt = 0, floraAt = 0;
