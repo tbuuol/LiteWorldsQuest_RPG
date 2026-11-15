@@ -98,7 +98,7 @@ export async function loadGround(contentBase, say) {
   const [colors, normals] = await Promise.all([textureArray(texBase, 'color', 1024), textureArray(texBase, 'normal', 1024)]);
 
   const uniforms = {
-    tColors: { value: colors }, tNormals: { value: normals }, tW0: { value: wtex(W0) }, tW1: { value: wtex(W1) },
+    tColors: { value: colors }, tNormals: { value: normals }, tW0: { value: wtex(W0) }, tW1: { value: wtex(W1) }, uWet: { value: 0 }, uDry: { value: 0 }, uSnowCover: { value: 0 },
     uExt: { value: new THREE.Vector4(x0, z0, x1 - x0, z1 - z0) }, uTile: { value: 1 / 4.5 }, uSoft: { value: 1 },
   };
   const material = new THREE.MeshStandardMaterial({ roughness: 0.92, metalness: 0 });
@@ -111,13 +111,14 @@ export async function loadGround(contentBase, say) {
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', `#include <common>
         precision highp sampler2DArray;
-        uniform sampler2DArray tColors, tNormals; uniform sampler2D tW0, tW1; uniform vec4 uExt; uniform float uTile, uSoft;
+        uniform sampler2DArray tColors, tNormals; uniform sampler2D tW0, tW1; uniform vec4 uExt; uniform float uTile, uSoft, uWet, uDry, uSnowCover;
         varying vec3 vWP; varying vec3 vWN;
         float gW[7];
         vec3 s2l(vec3 c) { return pow(c, vec3(2.2)); }
         // explicit gradients: the layers are read inside a loop that skips per pixel, where the GPU's own derivatives
         // are undefined (some GPUs then pick a too sharp mip level here and there: the ground glitters). uSoft > 1
         // reads a little softer (the lower qualities render fewer pixels)
+        vec4 layer1(sampler2DArray t, vec2 uv, int i, vec2 gx, vec2 gy) { return textureGrad(t, vec3(uv, float(i)), gx * uSoft, gy * uSoft); }
         vec4 layer(sampler2DArray t, vec2 uv, int i, vec2 gx, vec2 gy) {
           vec4 a = textureGrad(t, vec3(uv, float(i)), gx * uSoft, gy * uSoft);
         #if DETAIL > 0
@@ -133,6 +134,9 @@ export async function loadGround(contentBase, say) {
         // rock on steep ground, and more of it the higher one gets; snow above ~210 m where it can lie
         float rockSlope = clamp(smoothstep(0.17, 0.40, slope) + smoothstep(120.0, 260.0, vWP.y) * 0.55, 0.0, 1.0);
         float snow = smoothstep(195.0, 235.0, vWP.y + (w0.r - 0.5) * 20.0) * (1.0 - smoothstep(0.30, 0.55, slope));
+        // the winter's snow: on all but steep ground, patchy while it is thin (hollows and grass tufts show through)
+        float patchy = w0.r * 0.3 + w1.a * 0.4 + 0.3;
+        snow = max(snow, smoothstep(0.0, 0.35, uSnowCover * 1.3 - (1.0 - patchy) * 0.6) * (1.0 - smoothstep(0.35, 0.6, slope)));
         gW[0] = w0.r; gW[1] = w0.g; gW[2] = w0.b; gW[3] = w0.a; gW[4] = w1.r; gW[5] = w1.g; gW[6] = w1.b;
         for (int i = 0; i < 7; i++) gW[i] *= (1.0 - rockSlope);
         gW[4] += rockSlope;
@@ -149,17 +153,20 @@ export async function loadGround(contentBase, say) {
           if (i == 4) col += k * (s2l(layer(tColors, uzy, 4, gzx, gzy).rgb) * an.x + s2l(layer(tColors, tuv, 4, gx, gy).rgb) * an.y + s2l(layer(tColors, uxy, 4, gxx, gxy).rgb) * an.z);
           else col += s2l(layer(tColors, tuv, i, gx, gy).rgb) * k;
         }
-        col *= mix(vec3(1.0), vec3(0.86, 0.92, 0.78), gW[0] / max(sum, 1e-3));   // grass: muted, towards olive
+        col *= mix(vec3(1.0), mix(vec3(0.82, 0.87, 0.76), vec3(1.0, 0.86, 0.6), uDry * 0.7), gW[0] / max(sum, 1e-3));   // grass: muted, towards olive, as dark as the blades on it seen from afar
         float lum = dot(col, vec3(0.3, 0.6, 0.1));
         col = mix(col, vec3(0.80, 0.84, 0.90) * (0.82 + lum * 0.6), snow);
         col *= w1.a;                                                                // hollows: less sky
+        col *= 1.0 - 0.32 * uWet * (1.0 - gW[4] / max(sum, 1e-3) * 0.5);               // wet ground is darker
         diffuseColor.rgb *= col;`)
       .replace('#include <normal_fragment_maps>', `
-        {
+        float gdist = length(vWP - cameraPosition);
+        if (gdist < 160.0) {   // beyond that the bumps are too small to see: no normal maps read at all
           vec3 tn = vec3(0.0);
-          for (int i = 0; i < 7; i++) { float k = gW[i] / max(sum, 1e-3); if (k > 0.01) tn += (layer(tNormals, tuv, i, gx, gy).xyz * 2.0 - 1.0) * k; }
+          // one read per layer (the larger second scale only matters for the colour's tiling)
+          for (int i = 0; i < 7; i++) { float k = gW[i] / max(sum, 1e-3); if (k > 0.01) tn += (layer1(tNormals, tuv, i, gx, gy).xyz * 2.0 - 1.0) * k; }
           // the bumps fade with distance: far off they only glitter
-          float bump = 1.1 * (1.0 - 0.75 * smoothstep(25.0, 140.0, length(vWP - cameraPosition)));
+          float bump = 1.1 * (1.0 - smoothstep(25.0, 160.0, gdist));
           vec3 N = normalize(vWN), T = normalize(vec3(1.0, 0.0, 0.0) - N * N.x), B = cross(T, N);
           vec3 wn = normalize(T * tn.x * bump - B * tn.y * bump + N * max(tn.z, 0.2));
           normal = normalize((viewMatrix * vec4(wn, 0.0)).xyz);
@@ -278,6 +285,10 @@ export async function loadGround(contentBase, say) {
     group, height, inside, meta, update, paintEarth, heightTex, weights: uniforms.tW0.value, weights2: uniforms.tW1.value,
     setViewDist(d) { viewDist = d; },
     setSoft(v) { uniforms.uSoft.value = v; },
+    /** how wet the ground is (0 .. 1): darker, and smoother so it catches the light */
+    /** the season: how dry the grassland is, how much snow lies (0..1) */
+    setSeason(dry, snow) { uniforms.uDry.value = dry; uniforms.uSnowCover.value = snow; },
+    setWet(v) { uniforms.uWet.value = v; material.roughness = 0.92 - 0.35 * v; },
     setDetail(on) { const v = on ? 1 : 0; if (v !== detail) { detail = v; material.defines.DETAIL = v; material.needsUpdate = true; } },
     get tileCount() { return tiles.size; },
   };

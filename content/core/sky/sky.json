@@ -1,0 +1,9 @@
+{
+ "stars": {
+  "file": "stars.bin",
+  "count": 9096,
+  "record": "u16 ra (65536 = 360 deg), i16 dec (32767 = 90 deg), u8 (V+2)*25, i8 (B-V)*60",
+  "source": "Yale Bright Star Catalogue, 5th rev. ed. (public domain)",
+  "tool": "tools/bake/stars.py"
+ }
+}

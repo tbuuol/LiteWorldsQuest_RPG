@@ -4,6 +4,8 @@
 // model; bushes come from the tree generator; logs are bark-covered trunks.
 
 import * as THREE from 'three';
+import { wind } from './wind.js';
+import { alphaDepthPass, seasonPatch } from './flora.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 import { Tree } from '../vendor/ez-tree/index.js';
@@ -54,6 +56,9 @@ async function tex(url, srgb) {
   return t;
 }
 
+// bushes and ferns in the wind: low plants bend more for their height than trees, and flutter less far
+const PLANT_BEND = 0.09, PLANT_FLUTTER = 0.025;
+
 function bushVariant(preset, seed) {
   const t = new Tree();
   const json = JSON.parse(JSON.stringify(TreePreset[preset]));
@@ -63,7 +68,10 @@ function bushVariant(preset, seed) {
   json.leaves.count = Math.max(1, Math.round(json.leaves.count * 0.45)); json.leaves.size *= 1.4; json.leaves.billboard = 'single';
   t.loadFromJson(json); t.generate();
   const bb = new THREE.Box3().setFromObject(t);
-  return { parts: [[t.branchesMesh.geometry, t.branchesMesh.material], [t.leavesMesh.geometry, t.leavesMesh.material]], unit: 1 / (bb.max.y - bb.min.y) };
+  seasonPatch(wind.patch(t.branchesMesh.material, PLANT_BEND), 'snow');
+  seasonPatch(wind.patch(t.leavesMesh.material, PLANT_BEND, PLANT_FLUTTER), 'leaves');   // bushes colour and drop like the trees
+  t.leavesMesh.material.userData.seasonal = true;
+  return { parts: [[t.branchesMesh.geometry, t.branchesMesh.material], [t.leavesMesh.geometry, t.leavesMesh.material]], unit: 1 / (bb.max.y - bb.min.y), wind: true };
 }
 
 export async function loadClutter(contentBase, ground, scene, say = () => {}) {
@@ -117,8 +125,8 @@ export async function loadClutter(contentBase, ground, scene, say = () => {}) {
     gl.scene.updateMatrixWorld(true);
     gl.scene.traverse(o => { if (o.isMesh) { const g = o.geometry.clone(); g.applyMatrix4(o.matrixWorld); parts.push([g, o.material]); } });
     const bb = new THREE.Box3().setFromObject(gl.scene);
-    for (const [, m] of parts) { m.side = THREE.DoubleSide; if (m.alphaTest === 0) m.alphaTest = 0.5; }
-    variants.fern.push({ parts, unit: 1 / Math.max(0.01, bb.max.y - bb.min.y) });
+    for (const [, m] of parts) { m.side = THREE.DoubleSide; if (m.alphaTest === 0) m.alphaTest = 0.5; wind.patch(m, PLANT_BEND, PLANT_FLUTTER); }
+    variants.fern.push({ parts, unit: 1 / Math.max(0.01, bb.max.y - bb.min.y), wind: true });
   } catch (e) { console.warn('fern', e); }
   // bushes
   variants.bush.push(bushVariant('Bush 1', 5), bushVariant('Bush 2', 9));
@@ -136,7 +144,17 @@ export async function loadClutter(contentBase, ground, scene, say = () => {}) {
       const im = new THREE.InstancedMesh(g, m, CAP[kind]);
       im.count = 0; im.frustumCulled = false; im.castShadow = kind === 'boulder' || kind === 'bush' || kind === 'cliff'; im.receiveShadow = true;
       if (m.alphaTest > 0 && m.map) im.customDepthMaterial = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, map: m.map, alphaTest: m.alphaTest });
-      scene.add(im); return im;
+      if (v.wind) im.customDepthMaterial = wind.patch(im.customDepthMaterial || new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking }), PLANT_BEND, m.alphaTest > 0 ? PLANT_FLUTTER : 0);
+      if (m.userData.seasonal) seasonPatch(im.customDepthMaterial, 'cut');
+      if (kind === 'fern') { m.userData.fern = true; m.userData.base = m.color.clone(); }
+      scene.add(im);
+      if (m.alphaTest > 0 && m.map) {   // fern fronds and bush leaves: depth first, then each pixel lit once (as the trees' leaves)
+        if (!m.userData.pre) { m.userData.pre = alphaDepthPass(m, PLANT_BEND, PLANT_FLUTTER); if (m.userData.seasonal) seasonPatch(m.userData.pre, 'cut'); }
+        const d = new THREE.InstancedMesh(g, m.userData.pre, CAP[kind]);
+        d.instanceMatrix = im.instanceMatrix; d.count = 0; d.frustumCulled = false; d.renderOrder = -10;
+        scene.add(d); im.pre = d;
+      }
+      return im;
     });
     v.kind = kind; all.push(v);
   }
@@ -153,7 +171,13 @@ export async function loadClutter(contentBase, ground, scene, say = () => {}) {
     cells.get(key).push({ x, y, z, s, r, v: vs[i % vs.length], kind });
   }
 
-  let scale = 1, lastX = 1e9, lastZ = 1e9, time = 0;
+  let scale = 1, lastX = 1e9, lastZ = 1e9, time = 0, fernK = 1;
+  function showAll() {
+    for (const v of all) for (const im of v.meshes) {
+      const on = scale > 0 && (v.kind !== 'fern' || fernK > 0.05);
+      im.visible = on; if (im.pre) im.pre.visible = on;
+    }
+  }
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), tq = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), side = new THREE.Vector3(1, 0, 0), p = new THREE.Vector3(), sc = new THREE.Vector3();
   function refill(px, pz) {
     for (const v of all) v.n = 0;
@@ -171,13 +195,19 @@ export async function loadClutter(contentBase, ground, scene, say = () => {}) {
         v.n++;
       }
     }
-    for (const v of all) for (const im of v.meshes) { im.count = v.n; im.instanceMatrix.needsUpdate = true; }
+    for (const v of all) for (const im of v.meshes) { im.count = v.n; im.instanceMatrix.needsUpdate = true; if (im.pre) im.pre.count = v.n; }
   }
   return {
-    configure(s) { scale = s; lastX = 1e9; for (const v of all) for (const im of v.meshes) im.visible = s > 0; },
+    configure(s) { scale = s; lastX = 1e9; showAll(); },
+    /** the season (seasons.js): ferns unroll in spring, brown in autumn, gone in winter */
+    setSeason(season) {
+      fernK = season.fern;
+      for (const v of all) for (const im of v.meshes) if (im.material.userData.fern)
+        im.material.color.copy(im.material.userData.base).lerp(new THREE.Color(0.85, 0.45, 0.16), season.fernBrown);
+      showAll();
+    },
     update(px, pz, dt = 0) {
       time += dt;
-      for (const v of all) for (const im of v.meshes) { const sh = im.material.userData && im.material.userData.shader; if (sh && sh.uniforms.uTime) sh.uniforms.uTime.value = time; }
       if (scale <= 0 || Math.hypot(px - lastX, pz - lastZ) < 4) return;
       lastX = px; lastZ = pz; refill(px, pz);
     },

@@ -1,6 +1,8 @@
 // LiteWorldsQuest beta, the client: draws what the house says, sends what the player does. Decides nothing.
 //   ?ws=<url>   the house (default: /lwq/ws on this site)       ?as=<name>  only for a house in dev mode
 //   ?q=0..4     fix the quality level                              ?content=<url>  the content modules
+//   ?aurora=0..1  force the northern lights   ?weather=0..6  hold the weather (clear .. storm)
+//   ?time=0..24 hold the hour of the day   ?day=0..363 the day of the year   ?timescale=n  the clock n times faster
 
 import * as THREE from 'three';
 import { connect } from './net.js';
@@ -18,6 +20,11 @@ import { createBoot } from './boot.js';
 import { createQuality } from './quality.js';
 import { createGrade } from './grade.js';
 import { createWater } from './water.js';
+import { wind } from './wind.js';
+import { setClock } from './clock.js';
+import { setWeather } from './weather.js';
+import { createRain } from './rain.js';
+import { createAudio } from './audio.js';
 
 const Q = new URLSearchParams(location.search);
 const $ = s => document.querySelector(s);
@@ -32,8 +39,13 @@ async function start() {
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.1, 3000);
 
+  if (Q.has('time')) setClock({ hour: Number(Q.get('time')) });
+  if (Q.has('day')) setClock({ day: Number(Q.get('day')) });
+  if (Q.has('timescale')) setClock({ speed: Number(Q.get('timescale')) });
   say('Lighting the sky…');
-  const sky = createSky(scene, renderer);
+  const sky = await createSky(scene, renderer, CONTENT);
+  if (Q.has('aurora')) sky.setAurora(Number(Q.get('aurora')));
+  if (Q.has('weather')) setWeather(Number(Q.get('weather')));
   const grade = createGrade(renderer, scene, camera);
   let rays = 0, shadowEvery = 1, frameNo = 0;
   const ground = await loadGround(CONTENT, say);
@@ -43,13 +55,15 @@ async function start() {
   const grass = createGrass(ground, scene);
   const clutter = await loadClutter(CONTENT, ground, scene, say);
   const water = createWater(ground, sky, scene);
+  const rain = createRain(scene, renderer);
+  const audio = createAudio();
   const places = await loadPlaces(CONTENT, ground, scene, say);
   grass.setMask(places.mask);
   const remotes = createRemotes(scene, camera, $('#hud'), CONTENT);
   remotes.people(places.npcs);   // the villagers as their places describe them
   const own = createSelf(scene, CONTENT, camera);   // the own body; the camera rides its eyes
 
-  const quality = createQuality((L) => {
+  const quality = createQuality((L, lvl) => {
     renderer.setPixelRatio(Math.min(devicePixelRatio, L.dprMax || 1) * L.scale);
     renderer.setSize(innerWidth, innerHeight);
     grade.setPixelRatio(renderer.getPixelRatio()); grade.setSize(innerWidth, innerHeight); grade.setOn(L.grade !== false);
@@ -64,6 +78,7 @@ async function start() {
     shadowEvery = L.shadowEvery || 1;
     grass.configure(L.grass);
     clutter.configure(L.clutter);
+    rain.configure([0.35, 0.5, 0.7, 0.85, 1][lvl] ?? 0.7);
   }, Q.has('q') ? Number(Q.get('q')) : 2);
   if (Q.has('q')) quality.setFixed(Number(Q.get('q')));
 
@@ -90,7 +105,7 @@ async function start() {
       myLook = m.look || null;
       own.set(m.id, myLook);
       $('#who').textContent = m.tag ? '@' + m.tag : 'guest';
-      line(null, 'Welcome to LiteWorldsQuest. WASD to walk, Shift to run, Space to jump, Enter to chat, E to speak to villagers.');
+      line(null, 'Welcome to LiteWorldsQuest. WASD to walk, Shift to run, Space to jump, Enter to chat, E to speak to villagers, M for sound on/off.');
     },
     spawn(m) { remotes.spawn(m); },
     despawn(m) { remotes.despawn(m); },
@@ -153,11 +168,13 @@ async function start() {
   await Promise.race([own.ready(), new Promise(r => setTimeout(r, 15000))]);
   // compile every shader now (the figures' too), behind the curtain, not in the first seconds of play
   say('Preparing the light…');
-  flora.update(player.pos.x, player.pos.z, 0);
   clutter.update(player.pos.x, player.pos.z, 0);
   sky.follow(player.pos);
   player.update(0, performance.now());
+  flora.update(camera, 0);
+  flora.showAll();
   if (renderer.compileAsync) await renderer.compileAsync(scene, camera);
+  flora.update(camera, 0);
   for (let i = 0; i < 3; i++) { renderer.render(scene, camera); await new Promise(r => requestAnimationFrame(r)); }
   // the first frames run behind the curtain (textures go up, the last shaders settle); it lifts once they run steadily
   say('Settling in…');
@@ -171,6 +188,8 @@ async function start() {
   };
 
   let last = performance.now(), statAt = 0, floraAt = 0;
+  const tint = new THREE.Color(), tmpC = new THREE.Color();
+  let wet = 0, fresh = 0, lastSeasonYf = -1;
   // ?film=1: no clock of its own; LWQ.filmFrame(t, ...) moves the camera along a path, steps the world by exactly
   // the frame time and renders one picture (a steady video however slow the machine is)
   const FILM = Q.has('film');
@@ -185,8 +204,7 @@ async function start() {
       player.update(dt, now);
     }
     const pending = film ? 0 : ground.update(player.pos.x, player.pos.z, 2);
-    flora.update(player.pos.x, player.pos.z, dt);
-    grass.update(player.pos.x, player.pos.z, now / 1000);
+    grass.update(player.pos.x, player.pos.z, now / 1000, sky.light);
     clutter.update(player.pos.x, player.pos.z, dt);
     places.update(now / 1000);
     sky.follow(player.pos);
@@ -194,6 +212,8 @@ async function start() {
       camera.position.set(film.x, film.y, film.z);
       camera.lookAt(film.tx, film.ty, film.tz);
     }
+    wind.update(film ? now / 1000 : Date.now() / 1000);   // the world clock: every player sees the same gust
+    flora.update(camera, dt, now, !!film);   // after the camera is where it draws from
     remotes.update(now, dt);
     own.update(player.pos, player.yaw, player.state, dt, !film, player.pitch);
     warmed(dt);
@@ -202,11 +222,26 @@ async function start() {
       near = n; hint.style.display = n ? 'block' : 'none';
       if (n) { hint.innerHTML = '<b>E</b>'; hint.append(`Talk to ${n.name}`); }
     }
-    sky.tick(now / 1000);
-    grade.setSun(sky.sunDir, rays);
+    sky.tick(film ? now / 1000 : Date.now() / 1000);
+    grade.setSun(sky.sunDir, rays * THREE.MathUtils.smoothstep(sky.sunAlt, 0, 6));
     renderer.shadowMap.autoUpdate = false;
     renderer.shadowMap.needsUpdate = !!film || (frameNo++ % shadowEvery) === 0;
-    water.update(now / 1000, sky.sunDir);
+    water.update(now / 1000, sky.light.dir);
+    tint.copy(sky.light.ambient).multiplyScalar(1.15).add(tmpC.copy(sky.light.color).multiplyScalar(0.5 * THREE.MathUtils.clamp(sky.light.dir.y * 3, 0, 1)));
+    flora.setLight(tint);
+    // rain falls, the ground gets wet (quickly) and dries again (slowly)
+    const we = sky.weather;
+    rain.update(now / 1000, we, sky.light, sky.flash, player.pos);
+    audio.update(we, wind.gustAt(player.pos.x, player.pos.z), we.rain > 0.01 && rain.covered(player.pos.x, player.pos.y + 1.6, player.pos.z), sky.flash);
+    wet = THREE.MathUtils.clamp(wet + (we.rain > 0.02 && !we.snow ? dt / 90 * (0.5 + we.rain) : -dt / 600), 0, 1);
+    // the season, and the snow: the winter's lying snow, plus fresh snow that falls (and melts when it is warm)
+    fresh = THREE.MathUtils.clamp(fresh + (we.snow ? dt / 120 * (0.4 + we.rain) : we.temp > 2 ? -dt / 900 : 0), 0, 1);
+    const season = we.season, snowCover = Math.max(season.snow, fresh);
+    flora.setSeason(season.yf, snowCover);
+    grass.setSeason(season, snowCover);
+    ground.setSeason(season.dry, snowCover);
+    ground.setWet(wet * (1 - snowCover));
+    if (Math.abs(season.yf - lastSeasonYf) > 0.002) { lastSeasonYf = season.yf; clutter.setSeason(season); }
     grade.render();
     if (film) return;
     quality.frame(now, pending > 6);
@@ -214,7 +249,7 @@ async function start() {
       statAt = now;
       const p = player.pos;
       const fs = flora.stats();
-      $('#stats').textContent = `${quality.fps.toFixed(0)} fps · ${quality.name}\n${remotes.count + 1} here\n${p.x.toFixed(0)}, ${p.z.toFixed(0)} · ${p.y.toFixed(1)} m\ntrees ${fs.near} + ${fs.far} · grass ${grass.count} · clutter ${clutter.stats()}`;
+      $('#stats').textContent = `${quality.fps.toFixed(0)} fps · ${quality.name}\n${remotes.count + 1} here\n${p.x.toFixed(0)}, ${p.z.toFixed(0)} · ${p.y.toFixed(1)} m · ${sky.now.hour.toFixed(1).padStart(4, '0')} h · ${sky.weather.name} · ${sky.weather.season.name} ${sky.weather.temp.toFixed(0)} °C\ntrees ${fs.full} + ${fs.light} + ${fs.far} (${(fs.tris / 1e6).toFixed(2)} M) · grass ${grass.count} · clutter ${clutter.stats()}`;
     }
   }
   if (FILM) {
@@ -222,7 +257,9 @@ async function start() {
   } else {
     renderer.setAnimationLoop(now => frame(now));
   }
-  window.LWQ = { scene, camera, renderer, ground, flora, quality, player, remotes,
+  window.LWQ = { scene, camera, renderer, ground, flora, quality, player, remotes, grade, sky, rain, audio,
+    /** (dev) hold the hour of the day (null: run), or run the clock faster */
+    time(hour, speed) { setClock({ hour, speed }); },
     tp(x, z, yaw, pitch) { net.tp(x, z); player.place(x, ground.height(x, z), z, yaw, pitch); },
     /** one film frame at film time t (s): camera at (x, ground + above, z) looking at (tx, ground + tabove, tz) */
     filmFrame(t, x, z, above, tx, tz, tabove, q = 0.9, gdx = 0) {
