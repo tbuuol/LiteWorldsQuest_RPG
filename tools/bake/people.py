@@ -1,4 +1,5 @@
-"""Bakes the villagers of content/core/places/*.json into animated figures: content/core/people/<id>.glb.
+"""Bakes the villagers of content/core/places/*.json and the players' figures (content/core/people/players.json) into
+animated figures: content/core/people/<id>.glb.
 
 A MakeHuman body (MPFB 2, CC0 assets) shaped by the npc's "body" (gender, age, muscle, weight, height), its skin, eyes,
 brows and hair; clothes cut from the body's own helper hulls (tights -> shirt and trousers, skirt -> robe or apron) in
@@ -17,7 +18,7 @@ from mathutils.kdtree import KDTree
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 OUT = os.path.join(ROOT, 'content', 'core', 'people')
 UAL = os.environ.get('UAL', '/root/dl/ual/x/gltf-universal-animation-library-main/glTF/AnimationLibrary_Godot_Standard.gltf')
-CLIPS = {'idle': 'Idle_Loop', 'talk': 'Idle_Talking_Loop', 'walk': 'Walk_Loop', 'run': 'Jog_Fwd_Loop'}
+CLIPS = {'idle': 'Idle_Loop', 'talk': 'Idle_Talking_Loop', 'walk': 'Walk_Loop', 'run': 'Jog_Fwd_Loop', 'jump': 'Jump_Loop', 'sprint': 'Sprint_Loop'}
 TEX = 512   # texture size in the game
 
 addon_utils.enable("bl_ext.user_default.mpfb", default_set=True, persistent=True)
@@ -104,7 +105,7 @@ def make_body(n):
     skin = AssetService.find_asset_absolute_path(b.get('skin', 'young_caucasian_male') + '.mhmat', asset_subdir='skins')
     HumanService.set_character_skin(skin, human, skin_type='GAMEENGINE')
     for sub, f, kind in (('eyes', 'low-poly.mhclo', 'Eyes'), ('eyebrows', b.get('brows', 'eyebrow001') + '.mhclo', 'Eyebrows'),
-                         ('eyelashes', 'eyelashes01.mhclo', 'Eyelashes'), ('clothes', b.get('shoes', 'shoes03') + '.mhclo', 'Clothes')) \
+                         ('eyelashes', 'eyelashes01.mhclo', 'Eyelashes')) \
             + ((('hair', b['hair'] + '.mhclo', 'Hair'),) if b.get('hair') else ()):
         p = AssetService.find_asset_absolute_path(f, asset_subdir=sub)
         HumanService.add_mhclo_asset(p, human, asset_type=kind, material_type='GAMEENGINE', subdiv_levels=0)
@@ -184,50 +185,150 @@ def push_out(o, d):
         v.co += v.normal * d
 
 
+def loosen(o, base, extra=None, smooth=6, factor=0.5):
+    """cloth, not paint: out along the normals (base metres, plus extra(v_world) where given), then smoothed so the
+    body's shapes (chest, seat, knee caps) melt into a hanging cloth; the open edges stay where they are"""
+    me = o.data; me.update()
+    for v in me.vertices:
+        d = base + (extra(o.matrix_world @ v.co) if extra else 0.0)
+        v.co += v.normal * d
+    bm = bmesh.new(); bm.from_mesh(me)
+    inner = [v for v in bm.verts if not v.is_boundary]
+    for _ in range(smooth):
+        bmesh.ops.smooth_vert(bm, verts=inner, factor=factor, use_axis_x=True, use_axis_y=True, use_axis_z=True)
+    bm.to_mesh(me); bm.free(); me.update()
+
+
+def belt_band(tunic, zr, rig, bins=48):
+    """a leather band around the tunic between the heights zr: per direction around the waist, just outside the
+    tunic's farthest point there; each ring vertex moves with the tunic vertex nearest to it"""
+    cx, cy = (rig.matrix_world @ rig.data.bones['pelvis'].head_local).xy
+    arm = {g.index for g in tunic.vertex_groups if g.name.startswith(('upperarm_', 'lowerarm_', 'hand_', 'clavicle_'))}
+    pts = []
+    for v in tunic.data.vertices:
+        p = tunic.matrix_world @ v.co
+        if zr[0] - 0.04 <= p.z <= zr[1] + 0.04 and sum(g.weight for g in v.groups if g.group in arm) < 0.2:
+            pts.append((p, v))
+    rad = [0.0] * bins
+    for p, _ in pts:
+        a = int((math.atan2(p.y - cy, p.x - cx) + math.pi) / (2 * math.pi) * bins) % bins
+        rad[a] = max(rad[a], math.hypot(p.x - cx, p.y - cy))
+    for _ in range(3):   # fill gaps, smooth the outline
+        rad = [max(rad[i], 0.5 * (rad[i - 1] + rad[(i + 1) % bins])) for i in range(bins)]
+    kd = KDTree(len(pts))
+    for i, (p, _) in enumerate(pts):
+        kd.insert(p, i)
+    kd.balance()
+    me = bpy.data.meshes.new('belt')
+    o = bpy.data.objects.new('belt', me); bpy.context.collection.objects.link(o)
+    for g in tunic.vertex_groups:
+        o.vertex_groups.new(name=g.name)
+    bm = bmesh.new()
+    ring = []
+    for z in zr:
+        r = []
+        for i in range(bins):
+            a = (i + 0.5) / bins * 2 * math.pi - math.pi
+            rr = rad[i] + 0.006
+            r.append(bm.verts.new((cx + math.cos(a) * rr, cy + math.sin(a) * rr, z)))
+        ring.append(r)
+    for i in range(bins):
+        j = (i + 1) % bins
+        bm.faces.new((ring[0][i], ring[0][j], ring[1][j], ring[1][i]))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    bm.to_mesh(me); bm.free()
+    for v in me.vertices:
+        _, k, _ = kd.find(v.co)
+        for g in pts[k][1].groups:
+            o.vertex_groups[g.group].add([v.index], g.weight, 'REPLACE')
+    return o
+
+
+def piece(src, name, group, keep):
+    o = src.copy(); o.data = src.data.copy(); bpy.context.collection.objects.link(o); o.name = name
+    keep_group(o, group, keep)
+    return o
+
+
 def dress(n, human, rig):
+    """medieval village clothes: a loose tunic to mid-thigh (or a robe / a long skirt) with a leather belt, sleeves
+    that widen to the wrist, loose trousers, matte leather boots to below the knee; an apron over it where wanted"""
     look = n.get('look', {})
-    bone_of = {}
-    pelvis_z = (rig.matrix_world @ rig.data.bones['pelvis'].head_local).z
-    garments = []
-    # the tights hull: shirt above the hips, trousers below
+    female = n.get('body', {}).get('gender', 1.0) < 0.5
+    bz = lambda b: (rig.matrix_world @ rig.data.bones[b].head_local).z
+    pelvis_z, neck_z = bz('pelvis'), bz('neck_01')
+    knee_z, ankle_z = (bz('calf_l') + bz('calf_r')) / 2, (bz('foot_l') + bz('foot_r')) / 2
+    hem_z = knee_z + 0.45 * (pelvis_z - knee_z)          # tunic: to mid-thigh
+    boot_z = ankle_z + 0.62 * (knee_z - ankle_z)          # boots: a hand below the knee
+    belt = (pelvis_z + 0.04, pelvis_z + 0.10)
     t = frozen_copy(human, 'tights')
-    keep_group(t, 'helper-tights')
     groups = lambda names: {t.vertex_groups[g].index for g in t.vertex_groups.keys() if g.startswith(names)}
-    leg, foot = groups(('thigh_', 'calf_')), groups(('foot_', 'ball_'))
+    foot = groups(('foot_', 'ball_'))
     hand = groups(('hand_', 'index_', 'middle_', 'ring_', 'pinky_', 'thumb_'))
-    neck_z = (rig.matrix_world @ rig.data.bones['neck_01'].head_local).z
-    w = lambda dv, gs: sum(x for g, x in dv.items() if g in gs)
     arm = groups(('upperarm_', 'lowerarm_', 'clavicle_'))
-    def is_leg(v, dv):
-        return (t.matrix_world @ v.co).z < pelvis_z + 0.03 and w(dv, foot) < 0.3 and w(dv, arm | hand) < 0.3
-    def is_shirt(v, dv):
-        z = (t.matrix_world @ v.co).z
-        return (z >= pelvis_z - 0.16 or w(dv, arm | hand) > 0.3) and w(dv, hand) < 0.3 and z < neck_z + 0.02
-    shirt = t.copy(); shirt.data = t.data.copy(); bpy.context.collection.objects.link(shirt); shirt.name = 'shirt'
-    keep_group(shirt, 'helper-tights', is_shirt)
-    keep_group(t, 'helper-tights', is_leg); t.name = 'trousers'
-    shirt.data.materials.append(material('shirt', hexcol(look.get('shirt', '#6b5a48')), 0.95))
-    t.data.materials.append(material('trousers', hexcol(look.get('pants', '#3a3028')), 0.95))
-    push_out(shirt, 0.009); push_out(t, 0.003)
-    garments += [shirt, t]
-    # the skirt hull: a robe to the ankles, or an apron in front
-    if look.get('robe') or look.get('apron'):
-        s = frozen_copy(human, 'robe' if look.get('robe') else 'apron')
-        if look.get('robe'):
-            keep_group(s, 'helper-skirt')
-            s.data.materials.append(material('robe', hexcol(look['robe']), 0.95))
-        else:
-            cy = (rig.matrix_world @ rig.data.bones['pelvis'].head_local).y
-            keep_group(s, 'helper-skirt', lambda v, dv: (s.matrix_world @ v.co).y < cy - 0.02)
-            s.data.materials.append(material('apron', hexcol(look['apron']), 0.9))
-        push_out(s, 0.012 if look.get('robe') else 0.02)
-        garments.append(s)
+    fore = groups(('lowerarm_',))
+    w = lambda dv, gs: sum(x for g, x in dv.items() if g in gs)
+    zw = lambda o, v: (o.matrix_world @ v.co).z
+    long_robe = bool(look.get('robe'))
+    skirt_long = female and not long_robe and not look.get('trousers')   # women: a kirtle to the ankles, unless in trousers
+    garments = []
+
+    # upper body: from the hips (under the belt) to the neck, sleeves to the wrist
+    top = piece(t, 'tunic', 'helper-tights', lambda v, dv: (zw(t, v) >= pelvis_z - 0.02 or w(dv, arm | hand) > 0.3)
+                and w(dv, hand) < 0.25 and zw(t, v) < neck_z + 0.015)
+    loosen(top, 0.016, smooth=8)
+    me = top.data
+    gi = {g.index for g in top.vertex_groups if g.name.startswith('lowerarm_')}
+    for v in me.vertices:
+        f = sum(g.weight for g in v.groups if g.group in gi)
+        v.co += v.normal * 0.008 * f
+    top.data.materials.append(material('tunic', hexcol(look.get('robe') if long_robe else look.get('shirt', '#6b5a48')), 0.95))
+    garments.append(top)
+
+    # the skirt of the tunic / the robe / the kirtle: the skirt hull, which hangs free of the legs
+    s = frozen_copy(human, 'skirt')
+    lo = ankle_z + 0.06 if (long_robe or skirt_long) else hem_z
+    keep_group(s, 'helper-skirt', lambda v, dv: lo <= zw(s, v) <= pelvis_z + 0.02)
+    loosen(s, 0.012, smooth=4)
+    colour = look.get('robe') if long_robe else (look.get('skirt') or look.get('pants', '#4a3b2a')) if skirt_long else look.get('shirt', '#6b5a48')
+    s.data.materials.append(material('skirt', hexcol(colour), 0.95))
+    garments.append(s)
+
+    # belt
+    b = belt_band(top, belt, rig)
+    b.data.materials.append(material('belt', hexcol(look.get('belt', '#3b2a1c')), 0.7))
+    garments.append(b)
+
+    # trousers (under a short tunic only): loose, into the boots
+    if not (long_robe or skirt_long):
+        tr = piece(t, "trousers", "helper-tights", lambda v, dv: boot_z - 0.12 <= zw(t, v) < pelvis_z + 0.03
+                   and w(dv, foot) < 0.3 and w(dv, arm | hand) < 0.3)
+        loosen(tr, 0.011, smooth=6)
+        tr.data.materials.append(material('trousers', hexcol(look.get('pants', '#3a3028')), 0.95))
+        garments.append(tr)
+
+    # boots: feet and lower legs, matte leather
+    bo = piece(t, 'boots', 'helper-tights', lambda v, dv: zw(t, v) <= (boot_z if not (long_robe or skirt_long) else ankle_z + 0.12)
+               and w(dv, arm | hand) < 0.3)
+    loosen(bo, 0.014, smooth=3)
+    bo.data.materials.append(material('boots', hexcol(look.get('boots', '#4a3424')), 0.75))
+    garments.append(bo)
+
+    # apron: the skirt hull's front, over everything
+    if look.get('apron'):
+        a = frozen_copy(human, 'apron')
+        cy = (rig.matrix_world @ rig.data.bones['pelvis'].head_local).y
+        keep_group(a, 'helper-skirt', lambda v, dv: (a.matrix_world @ v.co).y < cy - 0.03 and knee_z - 0.1 <= zw(a, v) <= pelvis_z + 0.02)
+        loosen(a, 0.03, smooth=3)
+        a.data.materials.append(material('apron', hexcol(look['apron']), 0.9))
+        garments.append(a)
+    bpy.data.objects.remove(t)
+
     # the body: no helpers, and nothing where cloth covers it (it would poke through when moving)
     body = frozen_copy(human, 'body')
     keep_group(body, 'body')
     cover, edge = [], []
-    shoes = [c for c in set(human.children) | set(rig.children) if c.type == 'MESH' and 'shoes' in c.name]
-    for g in garments + shoes:
+    for g in garments:
         gb = bmesh.new(); gb.from_mesh(g.data)
         for v in gb.verts:
             cover.append(g.matrix_world @ v.co)
@@ -243,7 +344,7 @@ def dress(n, human, rig):
     kd, ke = tree(cover), tree(edge or [Vector((1e6, 0, 0))])
     bm = bmesh.new(); bm.from_mesh(body.data)
     hidden = {v.index for v in bm.verts
-              if kd.find(body.matrix_world @ v.co)[2] < 0.035 and ke.find(body.matrix_world @ v.co)[2] > 0.045}
+              if kd.find(body.matrix_world @ v.co)[2] < 0.05 and ke.find(body.matrix_world @ v.co)[2] > 0.045}
     faces = [f for f in bm.faces if all(v.index in hidden for v in f.verts)]
     bmesh.ops.delete(bm, geom=faces, context='FACES_ONLY')
     bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context='VERTS')
@@ -335,7 +436,7 @@ def retarget(rig, src_rest, clips, fps):
 def tint_hair(look):
     if look.get('hair'):
         tint('/hair/', look['hair'])
-    tint('/clothes/shoes', look.get('boots', '#5a3e2a'))
+
 
 
 def tint(where, colour):
@@ -348,7 +449,9 @@ def tint(where, colour):
         px = np.empty(im.size[0] * im.size[1] * 4, np.float32); im.pixels.foreach_get(px); px = px.reshape(-1, 4)
         lum = px[:, :3] @ np.array([0.2126, 0.7152, 0.0722], np.float32)
         ref = np.percentile(lum[px[:, 3] > 0.5], 70) if (px[:, 3] > 0.5).any() else 0.5
-        rel = np.clip(lum / max(ref, 1e-4), 0, 1.6)
+        # the strands' light and dark, but calmer: hair textures are made for their own colour, tinted at full
+        # contrast they turn blotchy
+        rel = np.clip(0.82 + 0.4 * (np.clip(lum / max(ref, 1e-4), 0, 1.6) - 1.0), 0.45, 1.15)
         px[:, :3] = np.clip(rel[:, None] * want[None, :] * 1.05, 0, 1)
         im.pixels.foreach_set(px.ravel())
         im.pack()
@@ -391,6 +494,12 @@ argv = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
 src = read_source()
 for path in sorted(glob.glob(os.path.join(ROOT, 'content', 'core', 'places', '*.json'))):
     place = json.load(open(path))
+    for g in place.get('guards', []):
+        g.setdefault('look', {}).setdefault('trousers', True)   # guards: tunic and trousers, never a long skirt
     for n in place.get('npcs', []) + place.get('guards', []):
         if n.get('body') and (not argv or n['id'] in argv):
             bake(n, src)
+# the players' figures
+for n in json.load(open(os.path.join(OUT, 'players.json')))['players']:
+    if not argv or n['id'] in argv:
+        bake(n, src)

@@ -1,0 +1,17 @@
+{
+ "about": "The figures players walk in (people.py bakes each to <id>.glb). A player gets one by its id; the own player sees its body from the eyes (no head).",
+ "players": [
+  {"id": "player_m1", "body": {"gender": 1.0, "age": 0.5, "muscle": 0.6, "weight": 0.5, "height": 0.55, "skin": "young_caucasian_male", "hair": "short02", "brows": "eyebrow001"},
+   "look": {"shirt": "#5b6b3a", "pants": "#4a3a2a", "boots": "#3e2c1e", "hair": "#4a3020", "belt": "#2e2016"}},
+  {"id": "player_m2", "body": {"gender": 1.0, "age": 0.5, "muscle": 0.55, "weight": 0.45, "height": 0.6, "skin": "young_african_male", "hair": "short04", "brows": "eyebrow002", "race": {"african": 1.0, "caucasian": 0.0}},
+   "look": {"shirt": "#7a3a2a", "pants": "#3a3530", "boots": "#2e221a", "hair": "#1a1410", "belt": "#2a1e14"}},
+  {"id": "player_m3", "body": {"gender": 1.0, "age": 0.5, "muscle": 0.5, "weight": 0.5, "height": 0.5, "skin": "young_asian_male", "hair": "short01", "brows": "eyebrow003", "race": {"asian": 1.0, "caucasian": 0.0}},
+   "look": {"shirt": "#2f4a6b", "pants": "#4a4035", "boots": "#3a2a1e", "hair": "#141210", "belt": "#3a2a1c"}},
+  {"id": "player_f1", "body": {"gender": 0.0, "age": 0.5, "muscle": 0.5, "weight": 0.45, "height": 0.5, "skin": "young_caucasian_female", "hair": "braid01", "brows": "eyebrow010"},
+   "look": {"shirt": "#6b4a2a", "pants": "#3e3328", "boots": "#3a281c", "hair": "#a0682e", "belt": "#2e2016", "trousers": true}},
+  {"id": "player_f2", "body": {"gender": 0.0, "age": 0.5, "muscle": 0.5, "weight": 0.5, "height": 0.45, "skin": "young_african_female", "hair": "bob01", "brows": "eyebrow011", "race": {"african": 1.0, "caucasian": 0.0}},
+   "look": {"shirt": "#3a5a4a", "pants": "#3a3028", "boots": "#2e221a", "hair": "#16110d", "belt": "#2a1e14", "trousers": true}},
+  {"id": "player_f3", "body": {"gender": 0.0, "age": 0.5, "muscle": 0.45, "weight": 0.45, "height": 0.48, "skin": "young_asian_female", "hair": "ponytail01", "brows": "eyebrow012", "race": {"asian": 1.0, "caucasian": 0.0}},
+   "look": {"shirt": "#6a2f45", "pants": "#3e3630", "boots": "#33261b", "hair": "#18130f", "belt": "#2e2016", "trousers": true}}
+ ]
+}

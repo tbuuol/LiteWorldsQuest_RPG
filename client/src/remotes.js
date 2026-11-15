@@ -1,29 +1,12 @@
-// Other players, as the house sends them: drawn 120 ms behind and moved smoothly between the samples.
+// Other players and the villagers, as the house sends them: drawn 120 ms behind and moved smoothly between the
+// samples. Everyone is a baked figure (figure.js): villagers their own, players one of the player figures, picked by
+// their id (the same on every screen); the capsule only until the figure has loaded.
 
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
+import { loadFigure, createBody, playerFigure } from './figure.js';
 
 const DELAY = 120;
 const FIGURE_NEAR = 70;     // closer than this a baked figure is drawn and moved; farther the mixer rests
-const loader = new GLTFLoader();
-const figures = new Map();  // figure id -> Promise<gltf>
-
-function loadFigure(base, id) {
-  if (!figures.has(id)) {
-    figures.set(id, loader.loadAsync(`${base}/core/people/${id}.glb`).then(g => {
-      g.scene.traverse(o => {
-        if (!o.isMesh) return;
-        o.castShadow = true; o.frustumCulled = false;   // skinned: the bounds move with the bones
-        const m = o.material;
-        if (m.transparent || m.alphaTest > 0) { m.transparent = false; m.alphaTest = 0.45; m.alphaToCoverage = true; m.side = THREE.DoubleSide; }
-        m.envMapIntensity = 0.6;
-      });
-      return g;
-    }).catch(e => { console.warn('figure', id, e); return null; }));
-  }
-  return figures.get(id);
-}
 
 function figure(hue) {
   const g = new THREE.Group();
@@ -38,8 +21,8 @@ function figure(hue) {
 }
 
 export function createRemotes(scene, camera, hudEl, contentBase) {
-  const all = new Map();   // id -> {obj, tag, samples, label}
-  const v = new THREE.Vector3();
+  const all = new Map();   // id -> {obj, tag, samples, label, body}
+  const v = new THREE.Vector3(), p = new THREE.Vector3();
   return {
     spawn(m) {
       if (all.has(m.id)) return;
@@ -48,17 +31,18 @@ export function createRemotes(scene, camera, hudEl, contentBase) {
       scene.add(obj);
       const label = document.createElement('div'); label.className = 'nametag'; label.textContent = m.name || (m.tag ? '@' + m.tag : 'guest');
       hudEl.appendChild(label);
-      const r = { obj, tag: m.tag, name: m.name, npc: m.kind === 'npc', samples: [], label, mixer: null, acts: null, cur: null, talkUntil: 0 };
+      const npc = m.kind === 'npc';
+      const r = { obj, tag: m.tag, name: m.name, npc, samples: [], label, body: null, talkUntil: 0 };
       all.set(m.id, r);
-      if (m.figure && contentBase) loadFigure(contentBase, m.figure).then(g => {
+      const fig = m.figure || (npc ? null : playerFigure(m.id));
+      if (fig && contentBase) loadFigure(contentBase, fig).then(g => {
         if (!g || all.get(m.id) !== r) return;
-        const body = cloneSkinned(g.scene);
-        while (r.obj.children.length) r.obj.remove(r.obj.children[0]);
-        r.obj.add(body);
-        r.mixer = new THREE.AnimationMixer(body);
-        r.acts = {};
-        for (const clip of g.animations) r.acts[clip.name] = r.mixer.clipAction(clip);
-        r.mixer.setTime(Math.random() * 3);   // not all in step
+        // villagers' yaw faces them (atan2(dx, dz)); a player's yaw is where its camera looks (-Z): turned round
+        r.body = createBody(g, { yawBase: npc ? 0 : Math.PI });
+        r.body.obj.position.copy(r.obj.position);
+        scene.remove(r.obj);
+        r.obj = r.body.obj;
+        scene.add(r.obj);
       });
     },
     despawn(m) {
@@ -82,21 +66,17 @@ export function createRemotes(scene, camera, hudEl, contentBase) {
         let a = s[0], b = s[s.length - 1];
         for (let i = 0; i < s.length - 1; i++) if (s[i].t <= t && s[i + 1].t >= t) { a = s[i]; b = s[i + 1]; break; }
         const k = b.t > a.t ? Math.min(1, Math.max(0, (t - a.t) / (b.t - a.t))) : 1;
-        r.obj.position.set(a.x + (b.x - a.x) * k, a.y + (b.y - a.y) * k, a.z + (b.z - a.z) * k);
+        p.set(a.x + (b.x - a.x) * k, a.y + (b.y - a.y) * k, a.z + (b.z - a.z) * k);
         let dy = b.yaw - a.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy));
-        r.obj.rotation.y = a.yaw + dy * k;
-        if (r.mixer) {
-          const near = camera.position.distanceTo(r.obj.position) < FIGURE_NEAR;
+        const yaw = a.yaw + dy * k;
+        if (r.body) {
+          const near = camera.position.distanceTo(p) < FIGURE_NEAR;
           r.obj.visible = near;
-          if (near) {
-            const mode = b.anim & 7, want = mode === 2 ? 'run' : mode === 1 ? 'walk' : now < r.talkUntil ? 'talk' : 'idle';
-            if (want !== r.cur && r.acts[want]) {
-              const next = r.acts[want].reset().play();
-              if (r.cur && r.acts[r.cur]) r.acts[r.cur].crossFadeTo(next, 0.3, false);
-              r.cur = want;
-            }
-            r.mixer.update(dt);
-          }
+          if (near) r.body.update(p, yaw, { mode: b.anim & 7, air: (b.anim & 8) !== 0, talk: now < r.talkUntil }, dt);
+          else r.obj.position.copy(p);
+        } else {
+          r.obj.position.copy(p);
+          r.obj.rotation.y = yaw;
         }
         v.copy(r.obj.position); v.y += 2.05; v.project(camera);
         const vis = v.z < 1 && camera.position.distanceTo(r.obj.position) < 25;

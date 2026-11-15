@@ -7,6 +7,7 @@ export function createPlayer(camera, dom, ground, net) {
   const pos = { x: 0, y: 0, z: 0 }, keys = {};
   let solids = [], collideFn = null;
   let yaw = 0, pitch = 0, vy = 0, onGround = true, lastSend = 0, lastSent = '', locked = false, typing = false;
+  const state = { mode: 0, air: false };   // for the own body (figure.js): 0 stand, 1 walk, 2 run; in the air
   const touch = { move: null, look: null, mx: 0, mz: 0 };
 
   addEventListener('keydown', e => { if (!typing) keys[e.code] = true; });
@@ -69,6 +70,7 @@ export function createPlayer(camera, dom, ground, net) {
     else if (onGround && pos.y - floor < 0.6 && vy <= 0) pos.y = floor; // walking down a slope stays on it
     else onGround = false;
 
+    state.mode = moving ? (run ? 2 : 1) : 0; state.air = !onGround;
     camera.position.set(pos.x, pos.y + EYE, pos.z);
     camera.rotation.set(pitch, yaw, 0, 'YXZ');
 
@@ -86,6 +88,8 @@ export function createPlayer(camera, dom, ground, net) {
   return {
     pos,
     get yaw() { return yaw; },
+    get pitch() { return pitch; },
+    state,
     place(x, y, z, yw, pt) { pos.x = x; pos.y = y; pos.z = z; if (yw !== undefined) yaw = yw; if (pt !== undefined) pitch = pt; vy = 0; },
     fix(x, y, z) { pos.x = x; pos.y = y; pos.z = z; vy = 0; },
     setSolids(s, fn) { solids = s; collideFn = fn; },
