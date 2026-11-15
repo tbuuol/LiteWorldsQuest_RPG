@@ -35,7 +35,7 @@ export function createRemotes(scene, camera, hudEl, contentBase) {
     const pr = personFor(contentBase, m, npc ? (npcDefs.get(m.figure) || { id: m.figure || String(m.id) }) : null).then(g => {
       if (!g || all.get(m.id) !== r || n !== r.dressing) return;
       // villagers' yaw faces them (atan2(dx, dz)); a player's yaw is where its camera looks (-Z): turned round
-      const body = createBody(g, { yawBase: npc ? 0 : Math.PI, own: true });
+      const body = createBody(g, { yawBase: npc ? 0 : Math.PI, own: true, faceLook: !npc });
       body.obj.position.copy(r.obj.position);
       body.obj.rotation.copy(r.obj.rotation);
       scene.remove(r.obj);

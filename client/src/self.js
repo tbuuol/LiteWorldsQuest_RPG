@@ -1,7 +1,8 @@
 // The own body, seen from its eyes: the same person the others see (figure.js, by the own id or the chosen look),
 // playing the first-person clips (fp_*: trunk upright, head steady). The camera rides the head: it sits at the eyes
-// of the animated body (its bob damped), so body and view always agree. The trunk turns to where one looks while the
-// legs go where one walks; looking down bends neck and upper back a little, as a body does. The head itself (and the
+// of the animated body (its bob damped), so body and view always agree. The body faces where one looks (figure.js:
+// sideways the hips turn into the way, the chest stays to the front); looking down bends neck and upper back a little,
+// as a body does. The head itself (and the
 // hair, eyes, brows on it) is not drawn from inside; its shadow is, the whole body's.
 
 import * as THREE from 'three';
@@ -64,7 +65,7 @@ export function createSelf(scene, contentBase, camera = null) {
       loading = personFor(contentBase, { id, look }).then(g => {
         if (!g || want !== key) return;
         if (body) scene.remove(body.obj);
-        body = createBody(g, { yawBase: Math.PI, own: true, fp: true });
+        body = createBody(g, { yawBase: Math.PI, own: true, fp: true, faceLook: true });
         const meshes = [];
         body.body.traverse(o => { if (o.isSkinnedMesh) meshes.push(o); });
         for (const m of meshes) headless(m);
@@ -86,11 +87,6 @@ export function createSelf(scene, contentBase, camera = null) {
       if (!visible) return;
       body.update(pos, yaw, state, dt);
       body.obj.updateMatrixWorld(true);
-      // the trunk to the look: the legs face the way they walk, the spine takes up the rest (a third each)
-      const face = yaw + Math.PI;
-      let twist = Math.atan2(Math.sin(face - body.obj.rotation.y), Math.cos(face - body.obj.rotation.y));
-      twist = Math.max(-1.6, Math.min(1.6, twist));
-      for (const n of ['spine_01', 'spine_02', 'spine_03']) turn(bones[n], up, twist / 3);
       // looking down (or up) bends the upper back and neck a little
       side.set(-Math.cos(yaw), 0, Math.sin(yaw));   // the left of where it looks: turning about it bends forward
       const bend = Math.max(-0.5, Math.min(0.6, -pitch)) * 0.35;
