@@ -10,7 +10,7 @@ import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
 import { buildStandard, standardCatalogue, diceStandard, standardForNpc, checkStandard } from './standard.js';
 
 /** speed (m/s) at which each clip's feet keep pace with the ground */
-const NATURAL = { walk: 1.45, run: 3.1, sprint: 5.6 };
+const NATURAL = { walk: 1.45, run: 3.1, sprint: 5.6, side_walk: 0.5, side_run: 1.93 };
 
 /**
  * The look of whoever the house names (the standard people, standard.js): a player by the look it chose (m.look),
@@ -48,21 +48,12 @@ export function createBody(gltf, { yawBase = 0, own = false, fp = false, faceLoo
   const acts = {};
   for (const clip of gltf.animations) acts[clip.name] = mixer.clipAction(clip);
   mixer.setTime(Math.random() * 3);
-  let cur = null, bodyYaw = null, hip = 0;
+  let cur = null, bodyYaw = null;
   const last = new THREE.Vector3(), vel = new THREE.Vector3();
   let have = false;
   const v = new THREE.Vector3();   // the measured velocity, smoothed (positions come in steps)
-  // players: the hips turn toward where they go, the spine turns the chest back to where they look
   const bones = {};
   body.traverse(o => { if (o.isBone) bones[o.name] = o; });
-  const up = new THREE.Vector3(0, 1, 0), qp = new THREE.Quaternion(), qw = new THREE.Quaternion();
-  function turn(bone, angle) {
-    if (!bone || !angle) return;
-    bone.parent.getWorldQuaternion(qp);
-    qw.setFromAxisAngle(up, angle);
-    bone.quaternion.premultiply(qp.clone().invert().multiply(qw).multiply(qp));   // a world turn, in the parent's space
-    bone.updateMatrixWorld(true);
-  }
 
   function play(name, scale) {
     if (fp && acts['fp_' + name]) name = 'fp_' + name;   // the own body: its first-person variant
@@ -81,9 +72,9 @@ export function createBody(gltf, { yawBase = 0, own = false, fp = false, faceLoo
     /**
      * pos: where it stands; look: its owner's yaw (as sent); state: {mode: 0 stand / 1 walk / 2 run, air, talk};
      * speed and direction are measured from the positions it is given.
-     * faceLook (players): the body faces where it looks, legs too; walking sideways or at a slant the hips turn into
-     * the way it goes (up to ~70 degrees) and the spine turns the chest back, so arms and head stay to the front;
-     * backwards the walk runs in reverse. Else (villagers): the body turns into the way it goes.
+     * faceLook (players): the body faces where it looks, legs too, always; going sideways it sidesteps (slow) or
+     * shuffles (fast) to that side (tools/bake/strafe.py), backwards the walk runs in reverse. Else (villagers): the
+     * body turns into the way it goes.
      */
     update(pos, look, state, dt) {
       if (have && dt > 0) vel.set((pos.x - last.x) / dt, 0, (pos.z - last.z) / dt);
@@ -92,30 +83,30 @@ export function createBody(gltf, { yawBase = 0, own = false, fp = false, faceLoo
       obj.position.copy(pos);
       const speed = Math.hypot(v.x, v.z);
       const face = look + yawBase;
-      let want = face, clip = state.talk ? 'talk' : 'idle', scale = 1, hipWant = 0;
+      let want = face, clip = state.talk ? 'talk' : 'idle', scale = 1;
       if (state.air) {
         clip = 'jump';
       } else if (speed > 0.35 && state.mode !== 0) {
         const go = Math.atan2(v.x, v.z);                       // the way it moves, as a figure's yaw
         const rel = wrap(go - face);
         const back = Math.abs(rel) > 1.75;                     // more than ~100 degrees off: walking backwards
-        if (faceLook) hipWant = Math.max(-1.25, Math.min(1.25, (back ? wrap(rel - Math.PI) : rel) * 0.85));
-        else want = back ? go + Math.PI : go;
-        clip = speed < 2.4 ? 'walk' : speed < 4.8 ? 'run' : 'sprint';
-        if (!acts[clip]) clip = clip === 'sprint' ? 'run' : 'walk';
-        scale = Math.min(1.6, Math.max(0.7, speed / NATURAL[clip])) * (back ? -1 : 1);
+        // sideways (more than ~37 degrees off ahead and behind): a sidestep to the side it goes (rel < 0: its right)
+        const side = faceLook && Math.abs(Math.sin(rel)) > 0.6 && acts.side_walk_r;
+        if (!faceLook) want = back ? go + Math.PI : go;
+        if (side) {
+          clip = (speed < 1.6 ? 'side_walk_' : 'side_run_') + (rel < 0 ? 'r' : 'l');
+          scale = Math.min(2.0, Math.max(0.7, speed / NATURAL[clip.slice(0, -2)]));
+        } else {
+          clip = speed < 2.4 ? 'walk' : speed < 4.8 ? 'run' : 'sprint';
+          if (!acts[clip]) clip = clip === 'sprint' ? 'run' : 'walk';
+          scale = Math.min(1.6, Math.max(0.7, speed / NATURAL[clip])) * (back ? -1 : 1);
+        }
       }
       if (bodyYaw === null) bodyYaw = want;
       bodyYaw += wrap(want - bodyYaw) * Math.min(1, dt * (faceLook ? 25 : 9));
       obj.rotation.y = bodyYaw;
-      hip += (hipWant - hip) * Math.min(1, dt * 8);
       play(clip, scale);
       mixer.update(dt);
-      if (faceLook && Math.abs(hip) > 0.002) {
-        body.updateMatrixWorld(true);
-        turn(bones.pelvis, hip);
-        for (const n of ['spine_01', 'spine_02', 'spine_03']) turn(bones[n], -hip / 3);
-      }
     },
   };
 }

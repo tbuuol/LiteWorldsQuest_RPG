@@ -4,6 +4,8 @@
 const WALK = 4.0, RUN = 6.8, JUMP = 5.0, GRAVITY = 14, EYE = 1.65, SEND_HZ = 15;
 // how far down one can look: not straight down into the own collar (self.js draws the body without its head)
 const LOOK_DOWN = 1.3;
+// how fast one goes sideways (A/D), of the speed ahead
+const SIDE = 0.6;
 
 export function createPlayer(camera, dom, ground, net) {
   const pos = { x: 0, y: 0, z: 0 }, keys = {};
@@ -59,6 +61,7 @@ export function createPlayer(camera, dom, ground, net) {
     let moving = false;
     if (len > 0.05) {
       const sp = (run ? RUN : WALK) * Math.min(1, len) / len;
+      fx *= SIDE;   // sideways slower than ahead: people sidestep, they do not sprint sideways
       const s = Math.sin(yaw), c = Math.cos(yaw);
       const nx = pos.x + (fx * c + fz * s) * sp * dt, nz = pos.z + (-fx * s + fz * c) * sp * dt;
       if (ground.inside(nx, nz)) { pos.x = nx; pos.z = nz; moving = true; }

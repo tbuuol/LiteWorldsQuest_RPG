@@ -23,6 +23,9 @@ const SETS = {
   ],
 };
 const list = SETS[Q.get('set') || 'all'].filter((_, i) => !Q.get('only') || Q.get('only').split(',').includes(String(i)));
+// ?ts=0,0.1,0.2: the first of the list at these times, side by side (a strip of one clip)
+const ts = Q.get('ts') ? Q.get('ts').split(',').map(Number) : null;
+if (ts) list.splice(0, list.length, ...ts.map(() => ({ ...list[0] })));
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(innerWidth, innerHeight); renderer.shadowMap.enabled = true;
 renderer.toneMapping = THREE.ACESFilmicToneMapping; document.body.appendChild(renderer.domElement);
@@ -45,7 +48,7 @@ await Promise.all(list.map(async (r, i) => {
     p.scene.rotation.y = +(Q.get('turn') || 0);
     scene.add(p.scene);
     const c = p.animations.find(a => a.name === clip);
-    if (c) { const mx = new THREE.AnimationMixer(p.scene); mx.clipAction(c).play(); mx.setTime(t); }
+    if (c) { const mx = new THREE.AnimationMixer(p.scene); mx.clipAction(c).play(); mx.setTime(ts ? ts[i] : t); }
   } catch (e) { errs.push(String(e && e.stack || e)); }
 }));
 document.getElementById('info').textContent = `${clip} t=${t} ` + (errs.length ? 'ERR ' + errs.join(' | ') : '');

@@ -34,7 +34,7 @@ export async function buildStandard(contentBase, look) {
   want.push(`hair_eyebrows_${look.brows || (b === 'f' ? 'female' : 'regular')}`);
   if (outfit === 'ranger' && look.hood) want.push(`${b}_ranger_hood`);
   if (outfit === 'ranger' && look.pauldrons) want.push(b === 'f' ? 'f_ranger_pauldrons' : 'm_ranger_pauldron');
-  const [anim, ...parts] = await Promise.all([gltf(`${S}/anim.glb`), ...want.map(n => gltf(`${S}/${n}.glb`))]);
+  const [anim, side, ...parts] = await Promise.all([gltf(`${S}/anim.glb`), gltf(`${S}/strafe.glb`), ...want.map(n => gltf(`${S}/${n}.glb`))]);
   // the outfit's skeleton is the person's skeleton; every other part's meshes join it, bone by bone (by name)
   const root = cloneSkinned(parts[0].scene);
   root.updateMatrixWorld(true);
@@ -70,7 +70,8 @@ export async function buildStandard(contentBase, look) {
   // this body's rest, scaled by how much higher or lower they are than the library's
   const ours = bones.get('pelvis').position, ual = anim.scene.getObjectByName('pelvis')?.position || ours;
   const k = ours.length() / Math.max(1e-6, ual.length());
-  const animations = anim.animations.map(c => new THREE.AnimationClip(c.name, c.duration, c.tracks
+  // the library's clips and our sidesteps (tools/bake/strafe.py)
+  const animations = [...anim.animations, ...side.animations].map(c => new THREE.AnimationClip(c.name, c.duration, c.tracks
     .filter(t => !t.name.endsWith('.scale') && (!t.name.endsWith('.position') || t.name.startsWith('pelvis.')))
     .map(t => {
       if (!t.name.endsWith('.position')) return t;
